@@ -1,12 +1,11 @@
 // app/index.tsx
-import { useEffect, useContext } from 'react';
+import { useEffect } from 'react';
 import { router } from 'expo-router';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
-import { UsuarioContext } from '../context/UsuarioContext';
+import { useUsuario } from '../context/UsuarioContext';
 
 export default function IndexScreen() {
-  const { usuario } = useContext(UsuarioContext);
-
+  const { usuario } = useUsuario();
   useEffect(() => {
     if (usuario) {
       router.replace('/materias');
@@ -25,3 +24,5 @@ export default function IndexScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 });
+
+

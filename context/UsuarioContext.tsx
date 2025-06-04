@@ -26,7 +26,7 @@ export const UsuarioProvider = ({ children }: { children: ReactNode }) => {
 
   const cerrarSesion = () => {
     setUsuario(null);
-    router.replace('/login'); // 🔁 vuelve al login
+    router.replace('/LoginScreen'); // 🔁 vuelve al login
   };
 
   return (
