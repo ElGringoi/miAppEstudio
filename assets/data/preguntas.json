@@ -1,0 +1,29 @@
+[
+  {
+    "pregunta": "¿Cuál es la capital de Francia?",
+    "tipo": "multiple",
+    "opciones": ["Madrid", "París", "Londres", "Roma", "Berlín"],
+    "correcta": "París"
+  },
+  {
+    "pregunta": "¿Cuánto es 7 x 8?",
+    "tipo": "texto",
+    "correcta": "56"
+  },
+  {
+    "pregunta": "La Tierra gira alrededor del Sol.",
+    "tipo": "vf",
+    "correcta": "Verdadero"
+  },
+  {
+    "pregunta": "¿Cuál es el océano más grande del mundo?",
+    "tipo": "multiple",
+    "opciones": ["Atlántico", "Índico", "Pacífico", "Ártico", "Antártico"],
+    "correcta": "Pacífico"
+  },
+  {
+    "pregunta": "La capital de Brasil es Río de Janeiro.",
+    "tipo": "vf",
+    "correcta": "Falso"
+  }
+]

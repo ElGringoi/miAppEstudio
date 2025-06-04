@@ -1,0 +1,20 @@
+{
+  "expo": {
+    "name": "miAppEstudio",
+    "slug": "miAppEstudio",
+    "scheme": "miappestudio",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "platforms": [
+      "ios",
+      "android",
+      "web"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "REEMPLAZAR-POR-TU-ID-SI-USÁS-EAS"
+      }
+    },
+    "plugins": []
+  }
+}
