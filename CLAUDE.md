@@ -1,87 +1,87 @@
 # CLAUDE.md — miAppEstudio
 
-AI assistant guide for this codebase. Read this before making changes.
+Guía para asistentes de IA que trabajen en este proyecto. Leer antes de hacer cambios.
 
 ---
 
-## Project Overview
+## Descripción del Proyecto
 
-**miAppEstudio** is a cross-platform study aid app built with Expo/React Native. It supports iOS, Android, and Web from a single TypeScript codebase.
+**miAppEstudio** es una app de estudio multiplataforma construida con Expo/React Native. Funciona en iOS, Android y Web desde una única base de código TypeScript.
 
-Core features:
-- Google OAuth login
-- Subject management with local persistence
-- Quiz system (multiple choice, text input, true/false)
-- Per-subject question creation and storage
-- Placeholder sections for notes and practical exercises (not yet implemented)
+Funcionalidades principales:
+- Login con Google OAuth
+- Gestión de materias con persistencia local
+- Sistema de preguntas (múltiple opción, texto libre, verdadero/falso)
+- Creación y almacenamiento de preguntas por materia
+- Secciones de apuntes y ejercicios prácticos (aún no implementadas)
 
-**Status:** Early-stage prototype. No backend, no tests, no CI/CD.
+**Estado:** Prototipo inicial. Sin backend, sin tests, sin CI/CD.
 
 ---
 
-## Tech Stack
+## Stack Tecnológico
 
-| Layer | Technology |
+| Capa | Tecnología |
 |---|---|
 | Framework | Expo v53, React Native 0.79.2, React 19 |
-| Routing | Expo Router v5 (file-based, Next.js-style) |
-| Language | TypeScript 5.8.3 (strict mode) |
-| State | React Context API (`UsuarioContext`) |
-| Storage | `@react-native-async-storage/async-storage` (local only) |
-| Auth | `expo-auth-session` with Google OAuth |
-| Navigation | `@react-navigation/bottom-tabs` + `@react-navigation/native` |
-| Icons | `@expo/vector-icons` + `expo-symbols` (platform-aware) |
-| Linting | ESLint 9 with `eslint-config-expo` (flat config) |
+| Ruteo | Expo Router v5 (basado en archivos, estilo Next.js) |
+| Lenguaje | TypeScript 5.8.3 (modo estricto) |
+| Estado global | React Context API (`UsuarioContext`) |
+| Almacenamiento | `@react-native-async-storage/async-storage` (solo local) |
+| Autenticación | `expo-auth-session` con Google OAuth |
+| Navegación | `@react-navigation/bottom-tabs` + `@react-navigation/native` |
+| Íconos | `@expo/vector-icons` + `expo-symbols` (según plataforma) |
+| Linting | ESLint 9 con `eslint-config-expo` (flat config) |
 
 ---
 
-## Repository Structure
+## Estructura del Repositorio
 
 ```
 miAppEstudio/
-├── app/                         # Screens — Expo Router file-based routing
-│   ├── _layout.tsx              # Root layout; wraps all screens in UsuarioProvider
-│   ├── index.tsx                # Entry point; redirects to login or /materias
-│   ├── +not-found.tsx           # 404 screen
-│   ├── (tabs)/                  # Bottom-tab group
-│   │   ├── _layout.tsx          # Tab bar configuration (Home, Explore)
-│   │   ├── LoginScreen.tsx      # Google OAuth login screen
-│   │   ├── pregunteros.tsx      # Quiz interface
-│   │   └── MateriasScreen.tsx   # Deprecated subject screen (use materias/index.tsx)
-│   ├── materia/[nombre].tsx     # Dynamic screen: subject detail by name param
-│   ├── materias/index.tsx       # Subject list with AsyncStorage CRUD
-│   ├── preguntero/nueva.tsx     # Create new question for a subject
-│   ├── plantillapreguntas.tsx   # View saved questions by subject
-│   ├── apuntes.tsx              # Notes placeholder (not implemented)
-│   └── ejerciciospracticos.tsx  # Exercises placeholder (not implemented)
-├── components/                  # Reusable UI components
-│   ├── ui/                      # Platform-specific wrappers
-│   │   ├── IconSymbol.tsx       # Cross-platform icon (SF Symbols → Material Icons)
-│   │   ├── IconSymbol.ios.tsx   # iOS-specific SF Symbols implementation
+├── app/                         # Pantallas — ruteo por archivos con Expo Router
+│   ├── _layout.tsx              # Layout raíz; envuelve todo en UsuarioProvider
+│   ├── index.tsx                # Punto de entrada; redirige a login o /materias
+│   ├── +not-found.tsx           # Pantalla 404
+│   ├── (tabs)/                  # Grupo de pestañas inferiores
+│   │   ├── _layout.tsx          # Configuración de la barra de pestañas
+│   │   ├── LoginScreen.tsx      # Pantalla de login con Google OAuth
+│   │   ├── pregunteros.tsx      # Interfaz del cuestionario
+│   │   └── MateriasScreen.tsx   # Pantalla de materias deprecada (usar materias/index.tsx)
+│   ├── materia/[nombre].tsx     # Pantalla dinámica: detalle de materia por parámetro
+│   ├── materias/index.tsx       # Lista de materias con CRUD en AsyncStorage
+│   ├── preguntero/nueva.tsx     # Crear nueva pregunta para una materia
+│   ├── plantillapreguntas.tsx   # Ver preguntas guardadas por materia
+│   ├── apuntes.tsx              # Placeholder de apuntes (no implementado)
+│   └── ejerciciospracticos.tsx  # Placeholder de ejercicios (no implementado)
+├── components/                  # Componentes reutilizables de UI
+│   ├── ui/                      # Wrappers específicos por plataforma
+│   │   ├── IconSymbol.tsx       # Ícono multiplataforma (SF Symbols → Material Icons)
+│   │   ├── IconSymbol.ios.tsx   # Implementación SF Symbols para iOS
 │   │   ├── TabBarBackground.tsx
 │   │   └── TabBarBackground.ios.tsx
-│   ├── ThemedText.tsx           # Text with light/dark theme support
-│   ├── ThemedView.tsx           # View with light/dark theme support
-│   ├── Collapsible.tsx          # Expandable section with animation
-│   ├── ExternalLink.tsx         # Opens URLs in in-app browser
-│   ├── HapticTab.tsx            # Tab button with iOS haptic feedback
-│   ├── HelloWave.tsx            # Animated wave component
-│   └── ParallaxScrollView.tsx   # Scroll view with parallax header
+│   ├── ThemedText.tsx           # Texto con soporte de tema claro/oscuro
+│   ├── ThemedView.tsx           # Vista con soporte de tema claro/oscuro
+│   ├── Collapsible.tsx          # Sección expandible con animación
+│   ├── ExternalLink.tsx         # Abre URLs en el navegador interno
+│   ├── HapticTab.tsx            # Pestaña con feedback háptico en iOS
+│   ├── HelloWave.tsx            # Componente de animación de saludo
+│   └── ParallaxScrollView.tsx   # ScrollView con efecto parallax en el encabezado
 ├── constants/
-│   └── Colors.ts                # Light/dark theme color tokens
+│   └── Colors.ts                # Tokens de color para tema claro/oscuro
 ├── context/
-│   └── UsuarioContext.tsx       # Global user auth state (name, email, picture)
+│   └── UsuarioContext.tsx       # Estado global de autenticación (name, email, picture)
 ├── hooks/
-│   ├── useColorScheme.ts        # Detects system color scheme
-│   ├── useColorScheme.web.ts    # Web-specific override
-│   └── useThemeColor.ts        # Returns themed color value from Colors.ts
+│   ├── useColorScheme.ts        # Detecta el esquema de color del sistema
+│   ├── useColorScheme.web.ts    # Override específico para web
+│   └── useThemeColor.ts         # Devuelve el color del tema activo desde Colors.ts
 ├── assets/
-│   ├── data/preguntas.json      # Sample quiz questions (5 entries)
+│   ├── data/preguntas.json      # Preguntas de ejemplo para el cuestionario (5 entradas)
 │   ├── fonts/SpaceMono-Regular.ttf
-│   └── images/                  # App icons and splash images
+│   └── images/                  # Íconos y splash screen de la app
 ├── scripts/
-│   └── reset-project.js         # Interactive script to reset app to blank template
-├── app.json                     # Expo app configuration
+│   └── reset-project.js         # Script interactivo para resetear la app a la plantilla
+├── app.json                     # Configuración de Expo
 ├── package.json
 ├── tsconfig.json
 └── eslint.config.js
@@ -89,59 +89,59 @@ miAppEstudio/
 
 ---
 
-## Development Commands
+## Comandos de Desarrollo
 
 ```bash
-npm start           # Start Expo dev server (scan QR with Expo Go)
-npm run android     # Launch Android emulator
-npm run ios         # Launch iOS simulator
-npm run web         # Launch web version in browser
-npm run lint        # Run ESLint
-npm run reset-project  # DESTRUCTIVE: resets app to blank Expo template
+npm start                # Inicia el servidor de desarrollo de Expo (escanear QR con Expo Go)
+npm run android          # Lanza el emulador de Android
+npm run ios              # Lanza el simulador de iOS
+npm run web              # Lanza la versión web en el navegador
+npm run lint             # Ejecuta ESLint
+npm run reset-project    # DESTRUCTIVO: resetea la app a la plantilla en blanco de Expo
 ```
 
-> Do not run `reset-project` unless explicitly asked — it overwrites `app/` and `components/`.
+> No ejecutar `reset-project` salvo que se pida explícitamente — sobreescribe `app/` y `components/`.
 
 ---
 
-## Architecture & Key Conventions
+## Arquitectura y Convenciones Clave
 
-### Routing (Expo Router)
+### Ruteo (Expo Router)
 
-Expo Router maps files to routes automatically:
+Expo Router mapea archivos a rutas automáticamente:
 - `app/index.tsx` → `/`
 - `app/materias/index.tsx` → `/materias`
 - `app/materia/[nombre].tsx` → `/materia/:nombre`
-- `app/(tabs)/LoginScreen.tsx` → inside tab navigator
+- `app/(tabs)/LoginScreen.tsx` → dentro del navegador de pestañas
 
-To navigate programmatically use `expo-router`:
+Para navegar por código usar `expo-router`:
 ```ts
 import { router } from 'expo-router';
 router.replace('/materias');
 router.push('/preguntero/nueva');
 ```
 
-### Authentication Flow
+### Flujo de Autenticación
 
 ```
 app/index.tsx
-  → checks UsuarioContext
-  → redirects to LoginScreen if no user
-  → redirects to /materias if authenticated
+  → revisa UsuarioContext
+  → redirige a LoginScreen si no hay usuario
+  → redirige a /materias si está autenticado
 
 LoginScreen.tsx
-  → expo-auth-session Google OAuth
-  → on success: setUsuario({ name, email, picture })
+  → Google OAuth via expo-auth-session
+  → al éxito: setUsuario({ name, email, picture })
   → router.replace('/materias')
 
 UsuarioContext.cerrarSesion()
-  → clears user state
-  → router.replace('/') — returns to redirect logic
+  → limpia el estado del usuario
+  → router.replace('/') — vuelve a la lógica de redirección
 ```
 
-### Global State (UsuarioContext)
+### Estado Global (UsuarioContext)
 
-Located at `context/UsuarioContext.tsx`. Provides:
+Ubicado en `context/UsuarioContext.tsx`. Expone:
 ```ts
 interface Usuario {
   name: string;
@@ -149,24 +149,24 @@ interface Usuario {
   picture: string;
 }
 
-// Available via useUsuario() hook
+// Disponible mediante el hook useUsuario()
 const { usuario, setUsuario, cerrarSesion } = useUsuario();
 ```
 
-The root `_layout.tsx` wraps everything in `<UsuarioProvider>`.
+El `_layout.tsx` raíz envuelve toda la app en `<UsuarioProvider>`.
 
-### AsyncStorage Keys
+### Claves de AsyncStorage
 
-| Key | Content |
+| Clave | Contenido |
 |---|---|
-| `materias` | `string[]` — list of subject names |
-| `preguntas_{materia}` | `Pregunta[]` — questions for a given subject |
+| `materias` | `string[]` — lista de nombres de materias |
+| `preguntas_{materia}` | `Pregunta[]` — preguntas de una materia específica |
 
-Always serialize/deserialize with `JSON.stringify` / `JSON.parse`.
+Siempre serializar/deserializar con `JSON.stringify` / `JSON.parse`.
 
-### Quiz Question Types
+### Tipos de Preguntas
 
-Defined in `assets/data/preguntas.json` and `preguntero/nueva.tsx`:
+Definidos en `assets/data/preguntas.json` y `preguntero/nueva.tsx`:
 
 ```ts
 type Pregunta =
@@ -175,84 +175,84 @@ type Pregunta =
   | { tipo: 'vf';       pregunta: string; correcta: 'Verdadero' | 'Falso' }
 ```
 
-### Theme System
+### Sistema de Temas
 
-Use `ThemedText` and `ThemedView` for any screen content — they handle light/dark automatically. For custom colors:
+Usar `ThemedText` y `ThemedView` para cualquier contenido en pantalla — manejan claro/oscuro automáticamente. Para colores personalizados:
 
 ```ts
 import { useThemeColor } from '@/hooks/useThemeColor';
 const color = useThemeColor({ light: '#000', dark: '#fff' }, 'text');
 ```
 
-Color tokens are defined in `constants/Colors.ts`.
+Los tokens de color están definidos en `constants/Colors.ts`.
 
-### Icons (Cross-Platform)
+### Íconos (Multiplataforma)
 
-Use `IconSymbol` from `components/ui/IconSymbol.tsx`:
+Usar `IconSymbol` desde `components/ui/IconSymbol.tsx`:
 ```tsx
 <IconSymbol name="house.fill" size={24} color={color} />
 ```
 
-It maps SF Symbol names to Material Icons on Android/Web. Check the mapping in `IconSymbol.tsx` before adding new icons — add new entries there if the one you need is missing.
+Mapea nombres de SF Symbols a Material Icons en Android/Web. Revisar el mapeo en `IconSymbol.tsx` antes de agregar íconos nuevos — si falta alguno, agregarlo ahí.
 
-### TypeScript Path Aliases
+### Alias de Rutas TypeScript
 
-Use `@/` as the root alias (defined in `tsconfig.json`):
+Usar `@/` como alias raíz (definido en `tsconfig.json`):
 ```ts
 import { ThemedText } from '@/components/ThemedText';
 import { useUsuario } from '@/context/UsuarioContext';
 ```
 
-Do not use relative `../` paths for cross-directory imports.
+No usar rutas relativas `../` para importaciones entre directorios.
 
-### Platform-Specific Files
+### Archivos Específicos por Plataforma
 
-Expo resolves platform-specific files automatically:
-- `IconSymbol.ios.tsx` is loaded on iOS; `IconSymbol.tsx` on all others.
-- `useColorScheme.web.ts` is loaded on web; `useColorScheme.ts` on all others.
+Expo resuelve archivos por plataforma automáticamente:
+- `IconSymbol.ios.tsx` se carga en iOS; `IconSymbol.tsx` en el resto.
+- `useColorScheme.web.ts` se carga en web; `useColorScheme.ts` en el resto.
 
-Follow this pattern for new platform-specific logic.
-
----
-
-## Code Style
-
-- **Language:** TypeScript strict mode — no `any`, no missing types.
-- **Functional components only** — no class components.
-- **Language of UI text:** Spanish (the app's target users are Spanish speakers).
-- **Language of code/comments:** Spanish comments are acceptable; keep consistent with surrounding code.
-- **ESLint:** `eslint-config-expo` rules. VSCode auto-fixes on save. Run `npm run lint` before committing.
-- **No test framework** is currently set up. Do not add test dependencies without confirming with the user.
-- **No backend or API** — all data is local. Do not introduce network requests without discussion.
+Seguir este patrón para nueva lógica específica por plataforma.
 
 ---
 
-## Known Issues & Sensitive Areas
+## Estilo de Código
 
-- **Google Client ID is hardcoded** in `LoginScreen.tsx`. Do not log or expose it further. Move it to env vars if adding any server-side code.
-- `app/(tabs)/MateriasScreen.tsx` is a deprecated duplicate of `app/materias/index.tsx`. Prefer the latter.
-- `apuntes.tsx` and `ejerciciospracticos.tsx` are stubs — they only display the subject name. They are intentionally incomplete.
-- EAS Build is not configured (`app.json` has a placeholder project ID).
-- No error handling exists for failed Google OAuth flows.
-
----
-
-## Git Conventions
-
-- **Default branch:** `main`
-- **Feature branches:** descriptive names in snake-case or kebab-case
-- **Commit messages:** Spanish, informal ("Agrego X", "Corrijo Y", "Actualizo Z")
-- No conventional commit format in use
-- No pre-commit hooks
+- **Lenguaje:** TypeScript en modo estricto — sin `any`, sin tipos faltantes.
+- **Solo componentes funcionales** — no usar componentes de clase.
+- **Texto de la UI en español** — los usuarios objetivo son hispanohablantes.
+- **Comentarios en español** — mantener consistencia con el código circundante.
+- **ESLint:** reglas de `eslint-config-expo`. VSCode corrige automáticamente al guardar. Ejecutar `npm run lint` antes de hacer commit.
+- **Sin framework de tests** configurado actualmente. No agregar dependencias de testing sin confirmación.
+- **Sin backend ni API** — todos los datos son locales. No introducir peticiones de red sin discutirlo primero.
 
 ---
 
-## What Does Not Exist (Do Not Assume)
+## Problemas Conocidos y Áreas Sensibles
 
-- No test suite (no Jest, Vitest, or Testing Library)
-- No CI/CD pipeline
-- No backend, REST API, or database
-- No environment variable system (`.env` not used)
-- No internationalization (i18n)
-- No EAS Build configuration
-- No Storybook or component catalog
+- **El Client ID de Google está hardcodeado** en `LoginScreen.tsx`. No loguearlo ni exponerlo más. Moverlo a variables de entorno si se agrega código del lado servidor.
+- `app/(tabs)/MateriasScreen.tsx` es un duplicado deprecado de `app/materias/index.tsx`. Usar siempre el segundo.
+- `apuntes.tsx` y `ejerciciospracticos.tsx` son stubs — solo muestran el nombre de la materia. Están incompletos de forma intencional.
+- EAS Build no está configurado (`app.json` tiene un ID de proyecto de placeholder).
+- No hay manejo de errores para flujos fallidos de Google OAuth.
+
+---
+
+## Convenciones de Git
+
+- **Rama principal:** `main`
+- **Ramas de funcionalidades:** nombres descriptivos en kebab-case
+- **Mensajes de commit:** en español, estilo informal ("Agrego X", "Corrijo Y", "Actualizo Z")
+- Sin formato de commits convencionales (no se usan prefijos `feat:`, `fix:`, etc.)
+- Sin hooks de pre-commit
+
+---
+
+## Lo Que No Existe (No Asumir)
+
+- Sin suite de tests (no hay Jest, Vitest ni Testing Library)
+- Sin pipeline de CI/CD
+- Sin backend, REST API ni base de datos
+- Sin sistema de variables de entorno (no se usa `.env`)
+- Sin internacionalización (i18n)
+- Sin configuración de EAS Build
+- Sin Storybook ni catálogo de componentes
