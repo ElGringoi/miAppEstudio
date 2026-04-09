@@ -1,4 +1,12 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  onSnapshot,
+  orderBy,
+  query,
+} from 'firebase/firestore';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   ScrollView,
@@ -8,6 +16,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { db } from '@/lib/firebase';
+import { useUsuario } from '@/context/UsuarioContext';
 
 type Seccion = 'rutinas' | 'registrar' | 'historial' | 'cronometro';
 
@@ -34,6 +44,7 @@ const SECCIONES: { key: Seccion; label: string }[] = [
 ];
 
 export default function GymScreen() {
+  const { usuario } = useUsuario();
   const [seccion, setSeccion] = useState<Seccion>('rutinas');
 
   // --- Rutinas ---
@@ -56,11 +67,33 @@ export default function GymScreen() {
   const [corriendo, setCorriendo] = useState(false);
   const intervaloRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Escucha en tiempo real de Firestore
   useEffect(() => {
-    cargarRutinas();
-    cargarHistorial();
-  }, []);
+    if (!usuario) return;
 
+    const cancelarRutinas = onSnapshot(
+      query(collection(db, 'usuarios', usuario.uid, 'gym_rutinas'), orderBy('nombre')),
+      (snap) => {
+        setRutinas(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Rutina, 'id'>) })));
+      }
+    );
+
+    const cancelarHistorial = onSnapshot(
+      query(collection(db, 'usuarios', usuario.uid, 'gym_historial'), orderBy('fecha', 'desc')),
+      (snap) => {
+        setHistorial(
+          snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<EjercicioRegistrado, 'id'>) }))
+        );
+      }
+    );
+
+    return () => {
+      cancelarRutinas();
+      cancelarHistorial();
+    };
+  }, [usuario]);
+
+  // Cronómetro
   useEffect(() => {
     if (corriendo) {
       intervaloRef.current = setInterval(() => {
@@ -82,50 +115,31 @@ export default function GymScreen() {
   }, [corriendo]);
 
   // Rutinas
-  const cargarRutinas = async () => {
-    const data = await AsyncStorage.getItem('gym_rutinas');
-    if (data) setRutinas(JSON.parse(data));
-  };
-
   const guardarRutina = async () => {
-    if (!nombreRutina.trim()) return;
-    const nueva: Rutina = {
-      id: Date.now().toString(),
+    if (!usuario || !nombreRutina.trim()) return;
+    await addDoc(collection(db, 'usuarios', usuario.uid, 'gym_rutinas'), {
       nombre: nombreRutina.trim(),
       ejercicios: ejerciciosRutina.trim(),
-    };
-    const actualizadas = [...rutinas, nueva];
-    setRutinas(actualizadas);
-    await AsyncStorage.setItem('gym_rutinas', JSON.stringify(actualizadas));
+    });
     setNombreRutina('');
     setEjerciciosRutina('');
   };
 
   const eliminarRutina = async (id: string) => {
-    const actualizadas = rutinas.filter((r) => r.id !== id);
-    setRutinas(actualizadas);
-    await AsyncStorage.setItem('gym_rutinas', JSON.stringify(actualizadas));
+    if (!usuario) return;
+    await deleteDoc(doc(db, 'usuarios', usuario.uid, 'gym_rutinas', id));
   };
 
-  // Registrar / Historial
-  const cargarHistorial = async () => {
-    const data = await AsyncStorage.getItem('gym_historial');
-    if (data) setHistorial(JSON.parse(data));
-  };
-
+  // Registrar ejercicio
   const registrarEjercicio = async () => {
-    if (!nombreEj.trim()) return;
-    const nuevo: EjercicioRegistrado = {
-      id: Date.now().toString(),
+    if (!usuario || !nombreEj.trim()) return;
+    await addDoc(collection(db, 'usuarios', usuario.uid, 'gym_historial'), {
       nombre: nombreEj.trim(),
       series: series.trim(),
       repeticiones: reps.trim(),
       peso: peso.trim(),
-      fecha: new Date().toLocaleDateString('es-AR'),
-    };
-    const actualizado = [nuevo, ...historial];
-    setHistorial(actualizado);
-    await AsyncStorage.setItem('gym_historial', JSON.stringify(actualizado));
+      fecha: new Date().toISOString(),
+    });
     setNombreEj('');
     setSeries('');
     setReps('');
@@ -152,7 +166,7 @@ export default function GymScreen() {
     return `${m}:${s}`;
   };
 
-  // --- Renders de cada sección ---
+  // --- Renders ---
 
   const renderRutinas = () => (
     <ScrollView showsVerticalScrollIndicator={false}>
@@ -257,7 +271,9 @@ export default function GymScreen() {
                 .filter(Boolean)
                 .join(' · ')}
             </Text>
-            <Text style={styles.cardFecha}>{e.fecha}</Text>
+            <Text style={styles.cardFecha}>
+              {new Date(e.fecha).toLocaleDateString('es-AR')}
+            </Text>
           </View>
         ))
       )}
@@ -328,136 +344,28 @@ export default function GymScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#000',
-    paddingTop: 60,
-  },
-  titulo: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#fff',
-    paddingHorizontal: 20,
-    marginBottom: 16,
-  },
-  tabsContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: 20,
-    marginBottom: 20,
-    gap: 8,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: '#1a1a1a',
-    alignItems: 'center',
-  },
-  tabActivo: {
-    backgroundColor: '#fff',
-  },
-  tabTexto: {
-    color: '#888',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  tabTextoActivo: {
-    color: '#000',
-  },
-  contenido: {
-    flex: 1,
-    paddingHorizontal: 20,
-  },
-  subtitulo: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#aaa',
-    marginBottom: 12,
-  },
-  input: {
-    backgroundColor: '#1e1e1e',
-    color: '#fff',
-    padding: 14,
-    borderRadius: 10,
-    fontSize: 16,
-    marginBottom: 12,
-  },
-  fila: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  inputFila: {
-    flex: 1,
-    marginBottom: 12,
-  },
-  boton: {
-    backgroundColor: '#fff',
-    padding: 14,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  textoBoton: {
-    color: '#000',
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  card: {
-    backgroundColor: '#1a1a1a',
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  cardTitulo: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  cardSubtexto: {
-    color: '#aaa',
-    fontSize: 13,
-    marginTop: 4,
-  },
-  cardFecha: {
-    color: '#555',
-    fontSize: 12,
-    marginTop: 4,
-  },
-  eliminar: {
-    color: 'tomato',
-    fontSize: 20,
-    paddingLeft: 12,
-  },
-  vacio: {
-    color: '#555',
-    fontSize: 15,
-    textAlign: 'center',
-    marginTop: 40,
-  },
-  // Cronómetro
-  centrado: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cronometroTexto: {
-    fontSize: 80,
-    fontWeight: '200',
-    letterSpacing: 4,
-    marginBottom: 8,
-  },
-  botonTiempo: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 8,
-    backgroundColor: '#1a1a1a',
-    alignItems: 'center',
-  },
-  botonTiempoActivo: {
-    backgroundColor: '#333',
-    borderWidth: 1,
-    borderColor: '#fff',
-  },
+  container: { flex: 1, backgroundColor: '#000', paddingTop: 60 },
+  titulo: { fontSize: 28, fontWeight: 'bold', color: '#fff', paddingHorizontal: 20, marginBottom: 16 },
+  tabsContainer: { flexDirection: 'row', paddingHorizontal: 20, marginBottom: 20, gap: 8 },
+  tab: { flex: 1, paddingVertical: 8, borderRadius: 8, backgroundColor: '#1a1a1a', alignItems: 'center' },
+  tabActivo: { backgroundColor: '#fff' },
+  tabTexto: { color: '#888', fontSize: 12, fontWeight: '600' },
+  tabTextoActivo: { color: '#000' },
+  contenido: { flex: 1, paddingHorizontal: 20 },
+  subtitulo: { fontSize: 16, fontWeight: '600', color: '#aaa', marginBottom: 12 },
+  input: { backgroundColor: '#1e1e1e', color: '#fff', padding: 14, borderRadius: 10, fontSize: 16, marginBottom: 12 },
+  fila: { flexDirection: 'row', gap: 8 },
+  inputFila: { flex: 1, marginBottom: 12 },
+  boton: { backgroundColor: '#fff', padding: 14, borderRadius: 10, alignItems: 'center', marginBottom: 8 },
+  textoBoton: { color: '#000', fontSize: 15, fontWeight: '600' },
+  card: { backgroundColor: '#1a1a1a', borderRadius: 12, padding: 14, marginBottom: 10, flexDirection: 'row', alignItems: 'center' },
+  cardTitulo: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  cardSubtexto: { color: '#aaa', fontSize: 13, marginTop: 4 },
+  cardFecha: { color: '#555', fontSize: 12, marginTop: 4 },
+  eliminar: { color: 'tomato', fontSize: 20, paddingLeft: 12 },
+  vacio: { color: '#555', fontSize: 15, textAlign: 'center', marginTop: 40 },
+  centrado: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  cronometroTexto: { fontSize: 80, fontWeight: '200', letterSpacing: 4, marginBottom: 8 },
+  botonTiempo: { flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: '#1a1a1a', alignItems: 'center' },
+  botonTiempoActivo: { backgroundColor: '#333', borderWidth: 1, borderColor: '#fff' },
 });

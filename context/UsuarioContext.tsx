@@ -1,7 +1,10 @@
-import React, { createContext, useState, useContext, ReactNode } from 'react';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
 import { router } from 'expo-router';
+import { auth } from '@/lib/firebase';
 
 type Usuario = {
+  uid: string;
   name: string;
   email: string;
   picture: string;
@@ -9,28 +12,48 @@ type Usuario = {
 
 type UsuarioContextType = {
   usuario: Usuario | null;
-  setUsuario: (usuario: Usuario | null) => void;
-  cerrarSesion: () => void;
+  // cargando evita redirigir antes de que Firebase resuelva la sesión
+  cargando: boolean;
+  cerrarSesion: () => Promise<void>;
 };
 
 const UsuarioContext = createContext<UsuarioContextType>({
   usuario: null,
-  setUsuario: () => {},
-  cerrarSesion: () => {},
+  cargando: true,
+  cerrarSesion: async () => {},
 });
 
 export const useUsuario = () => useContext(UsuarioContext);
 
 export const UsuarioProvider = ({ children }: { children: ReactNode }) => {
   const [usuario, setUsuario] = useState<Usuario | null>(null);
+  const [cargando, setCargando] = useState(true);
 
-  const cerrarSesion = () => {
-    setUsuario(null);
-    router.replace('/LoginScreen'); // 🔁 vuelve al login
+  useEffect(() => {
+    // Escucha cambios de sesión de Firebase (login, logout, recarga de app)
+    const cancelar = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) {
+        setUsuario({
+          uid: firebaseUser.uid,
+          name: firebaseUser.displayName ?? '',
+          email: firebaseUser.email ?? '',
+          picture: firebaseUser.photoURL ?? '',
+        });
+      } else {
+        setUsuario(null);
+      }
+      setCargando(false);
+    });
+    return cancelar;
+  }, []);
+
+  const cerrarSesion = async () => {
+    await signOut(auth);
+    router.replace('/');
   };
 
   return (
-    <UsuarioContext.Provider value={{ usuario, setUsuario, cerrarSesion }}>
+    <UsuarioContext.Provider value={{ usuario, cargando, cerrarSesion }}>
       {children}
     </UsuarioContext.Provider>
   );

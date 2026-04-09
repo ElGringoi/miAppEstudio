@@ -1,45 +1,55 @@
+import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { db } from '@/lib/firebase';
+import { useUsuario } from '@/context/UsuarioContext';
+
+type GrupoMateria = {
+  materia: string;
+  contenido: string[];
+};
 
 export default function PlantillaPreguntas() {
-  const [preguntas, setPreguntas] = useState<{ materia: string; contenido: string[] }[]>([]);
+  const { usuario } = useUsuario();
+  const [grupos, setGrupos] = useState<GrupoMateria[]>([]);
 
   useEffect(() => {
-    const cargarPreguntas = async () => {
-      const keys = await AsyncStorage.getAllKeys();
-      const clavesPreguntas = keys.filter((k: string) => k.startsWith('preguntas_'));
+    if (!usuario) return;
 
-      const resultados: { materia: string; contenido: string[] }[] = [];
-
-      for (const clave of clavesPreguntas) {
-        const contenido = await AsyncStorage.getItem(clave);
-        if (contenido) {
-          resultados.push({
-            materia: clave.replace('preguntas_', ''),
-            contenido: JSON.parse(contenido),
-          });
-        }
-      }
-
-      setPreguntas(resultados);
-    };
-
-    cargarPreguntas();
-  }, []);
+    const q = query(
+      collection(db, 'usuarios', usuario.uid, 'preguntas'),
+      orderBy('materia')
+    );
+    const cancelar = onSnapshot(q, (snap) => {
+      const mapa: Record<string, string[]> = {};
+      snap.docs.forEach((d) => {
+        const { materia, contenido } = d.data() as { materia: string; contenido: string };
+        if (!mapa[materia]) mapa[materia] = [];
+        mapa[materia].push(contenido);
+      });
+      setGrupos(
+        Object.entries(mapa).map(([materia, contenido]) => ({ materia, contenido }))
+      );
+    });
+    return cancelar;
+  }, [usuario]);
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.titulo}>Plantilla de Preguntas</Text>
-      {preguntas.map((grupo, idx) => (
+      {grupos.map((grupo, idx) => (
         <View key={idx} style={styles.bloqueMateria}>
           <Text style={styles.materia}>{grupo.materia.toUpperCase()}</Text>
           {grupo.contenido.map((preg, i) => (
-            <Text key={i} style={styles.pregunta}>{preg}</Text>
+            <Text key={i} style={styles.pregunta}>
+              {preg}
+            </Text>
           ))}
         </View>
       ))}
-      {preguntas.length === 0 && <Text style={styles.sinPreguntas}>No hay preguntas cargadas aún.</Text>}
+      {grupos.length === 0 && (
+        <Text style={styles.sinPreguntas}>No hay preguntas cargadas aún.</Text>
+      )}
     </ScrollView>
   );
 }
