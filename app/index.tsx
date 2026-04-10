@@ -1,24 +1,34 @@
-// app/index.tsx
-import { useEffect } from 'react';
-import { router } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { Redirect } from 'expo-router';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { useUsuario } from '../context/UsuarioContext';
 
 export default function IndexScreen() {
   const { usuario } = useUsuario();
-  useEffect(() => {
-    if (usuario) {
-      router.replace('/materias');
-    } else {
-      router.replace('/LoginScreen');
-    }
-  }, [usuario]);
+  const [isMounted, setIsMounted] = useState(false);
 
-  return (
-    <View style={styles.container}>
-      <ActivityIndicator size="large" color="#000" />
-    </View>
-  );
+  useEffect(() => {
+    // Pequeño retardo para asegurar que el Layout raíz esté completamente montado
+    const timer = setTimeout(() => {
+      setIsMounted(true);
+    }, 100);
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (!isMounted) {
+    return (
+      <View style={styles.container}>
+        <ActivityIndicator size="large" color="#000" />
+      </View>
+    );
+  }
+
+  // Redirección basada en el usuario
+  if (usuario) {
+    return <Redirect href="/materias" />;
+  } else {
+    return <Redirect href="/LoginScreen" />;
+  }
 }
 
 const styles = StyleSheet.create({
