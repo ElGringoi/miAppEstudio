@@ -19,6 +19,7 @@ const MAPPING = {
   'chevron.left.forwardslash.chevron.right': 'code',
   'chevron.right': 'chevron-right',
   'dumbbell.fill': 'fitness-center',
+  'star.fill': 'star',
 } as IconMapping;
 
 /**
