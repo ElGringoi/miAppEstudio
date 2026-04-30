@@ -27,7 +27,7 @@ export default function IndexScreen() {
   if (usuario) {
     return <Redirect href="/materias" />;
   } else {
-    return <Redirect href="/LoginScreen" />;
+    return <Redirect href="/login" />;
   }
 }
 

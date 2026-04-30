@@ -28,7 +28,7 @@ export default function PregunterosScreen() {
     if (!resultado) return null;
     return (
       <View style={styles.resultado}>
-        <Text style={{ color: resultado === 'correcto' ? 'lightgreen' : 'tomato', fontSize: 18 }}>
+        <Text style={{ color: resultado === 'correcto' ? '#34d399' : '#ff6b6b', fontSize: 18 }}>
           {resultado === 'correcto' ? '¡Respuesta correcta!' : 'Respuesta incorrecta'}
         </Text>
         <TouchableOpacity style={[styles.boton, { marginTop: 20 }]} onPress={siguientePregunta}>

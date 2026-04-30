@@ -5,29 +5,24 @@ import { Platform } from 'react-native';
 import { HapticTab } from '@/components/HapticTab';
 import { IconSymbol } from '@/components/ui/IconSymbol';
 import TabBarBackground from '@/components/ui/TabBarBackground';
-import { Colors } from '@/constants/Colors';
-import { useColorScheme } from '@/hooks/useColorScheme';
+import { colors } from '@/constants/theme';
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
-
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
+        tabBarActiveTintColor: colors.accent,
+        tabBarInactiveTintColor: colors.textMuted,
         headerShown: false,
         tabBarButton: HapticTab,
         tabBarBackground: TabBarBackground,
         tabBarStyle: Platform.select({
-          ios: {
-            // Use a transparent background on iOS to show the blur effect
-            position: 'absolute',
-          },
-          default: {},
+          ios: { position: 'absolute', backgroundColor: colors.card, borderTopColor: colors.border },
+          default: { backgroundColor: colors.card, borderTopColor: colors.border },
         }),
       }}>
       <Tabs.Screen
-        name="MateriasScreen"
+        name="materias"
         options={{
           title: 'Materias',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="book.fill" color={color} />,
@@ -45,12 +40,6 @@ export default function TabLayout() {
         options={{
           title: 'Agenda',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="calendar.fill" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="LoginScreen"
-        options={{
-          href: null, // Ocultar de la barra de pestañas
         }}
       />
       <Tabs.Screen

@@ -9,8 +9,9 @@ import {
   query,
   updateDoc,
 } from 'firebase/firestore';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
+  Animated,
   ScrollView,
   StyleSheet,
   Text,
@@ -18,10 +19,10 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { db } from '@/lib/firebase';
 import { useUsuario } from '@/context/UsuarioContext';
-
-// ─── Tipos ────────────────────────────────────────────────────────────────────
+import { colors, radius, spacing, font, shadow } from '@/constants/theme';
 
 type Evento = {
   id: string;
@@ -38,8 +39,6 @@ type Habito = {
   fechaCompletado: string | null;
 };
 
-// ─── Constantes ───────────────────────────────────────────────────────────────
-
 const HOY = new Date().toISOString().slice(0, 10);
 
 const DIAS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
@@ -49,15 +48,22 @@ const MESES = [
 ];
 
 const STAT_COLOR: Record<string, string> = {
-  fuerza: '#ef4444',
-  inteligencia: '#60a5fa',
-  carisma: '#fbbf24',
-  agilidad: '#34d399',
-  resistencia: '#a78bfa',
-  sabiduria: '#22d3ee',
+  fuerza:       colors.stat.fuerza,
+  inteligencia: colors.stat.inteligencia,
+  carisma:      colors.stat.carisma,
+  agilidad:     colors.stat.agilidad,
+  resistencia:  colors.stat.resistencia,
+  sabiduria:    colors.stat.sabiduria,
 };
 
-// ─── Pantalla ─────────────────────────────────────────────────────────────────
+const STAT_ICON: Record<string, keyof typeof MaterialIcons.glyphMap> = {
+  fuerza:       'fitness-center',
+  inteligencia: 'psychology',
+  carisma:      'people',
+  agilidad:     'bolt',
+  resistencia:  'favorite',
+  sabiduria:    'menu-book',
+};
 
 export default function AgendaScreen() {
   const { usuario } = useUsuario();
@@ -69,6 +75,22 @@ export default function AgendaScreen() {
   const [horaEvento, setHoraEvento] = useState('');
   const [lugarEvento, setLugarEvento] = useState('');
 
+  const animVals = useRef<Record<string, Animated.Value>>({}).current;
+
+  const getAnim = (id: string) => {
+    if (!animVals[id]) animVals[id] = new Animated.Value(1);
+    return animVals[id];
+  };
+
+  const toggleHabitoAnimado = (h: Habito) => {
+    const anim = getAnim(h.id);
+    Animated.sequence([
+      Animated.timing(anim, { toValue: 1.35, duration: 120, useNativeDriver: true }),
+      Animated.spring(anim, { toValue: 1, useNativeDriver: true }),
+    ]).start();
+    toggleHabito(h);
+  };
+
   const ahora = new Date();
   const fechaTexto = `${DIAS[ahora.getDay()]}, ${ahora.getDate()} de ${MESES[ahora.getMonth()]} de ${ahora.getFullYear()}`;
   const hora = ahora.getHours();
@@ -78,7 +100,6 @@ export default function AgendaScreen() {
     if (!usuario) return;
     const uid = usuario.uid;
 
-    // Eventos ordenados por hora — filtrado en cliente para evitar índice compuesto
     const cancelarEventos = onSnapshot(
       query(collection(db, 'usuarios', uid, 'agenda_eventos'), orderBy('hora')),
       (snap) => {
@@ -100,8 +121,6 @@ export default function AgendaScreen() {
     };
   }, [usuario]);
 
-  // ── Eventos ───────────────────────────────────────────────────────────────
-
   const agregarEvento = async () => {
     if (!usuario || !tituloEvento.trim() || !horaEvento.trim()) return;
     await addDoc(collection(db, 'usuarios', usuario.uid, 'agenda_eventos'), {
@@ -121,8 +140,6 @@ export default function AgendaScreen() {
     await deleteDoc(doc(db, 'usuarios', usuario.uid, 'agenda_eventos', id));
   };
 
-  // ── Hábitos ───────────────────────────────────────────────────────────────
-
   const toggleHabito = async (habito: Habito) => {
     if (!usuario) return;
     const completadoHoy = habito.fechaCompletado === HOY;
@@ -138,46 +155,43 @@ export default function AgendaScreen() {
     }
   };
 
-  // ── Stats ─────────────────────────────────────────────────────────────────
-
   const completadosHoy = habitos.filter((h) => h.fechaCompletado === HOY).length;
   const porcentaje = habitos.length > 0 ? Math.round((completadosHoy / habitos.length) * 100) : 0;
 
-  // ── JSX ───────────────────────────────────────────────────────────────────
-
   return (
     <View style={styles.container}>
-      {/* Encabezado */}
       <View style={styles.header}>
         <Text style={styles.saludo}>{saludo} 👋</Text>
-        <Text style={styles.titulo}>Mi Agenda</Text>
+        <Text style={styles.titulo}>MI AGENDA</Text>
         <Text style={styles.fecha}>{fechaTexto}</Text>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
 
-        {/* ── Agenda del día ───────────────────────────────────────── */}
-        <View style={styles.tarjeta}>
-          <View style={styles.tarjetaHeader}>
-            <View style={styles.tarjetaTituloFila}>
-              <Text style={styles.tarjetaIcono}>📅</Text>
-              <Text style={styles.tarjetaTitulo}>Agenda del día</Text>
+        <Text style={styles.seccionLabel}>AGENDA DEL DÍA</Text>
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <View style={styles.cardTituloFila}>
+              <View style={styles.calIconBadge}>
+                <MaterialIcons name="event" size={18} color={colors.accent} />
+              </View>
+              <Text style={styles.cardTitulo}>Agenda del día</Text>
             </View>
             <TouchableOpacity
-              style={styles.btnAzul}
+              style={styles.btnAgregar}
               onPress={() => setFormularioAbierto((v) => !v)}
             >
-              <Text style={styles.btnAzulTexto}>+ Agregar</Text>
+              <MaterialIcons name="add" size={16} color={colors.accent} />
+              <Text style={styles.btnAgregarTexto}>Agregar</Text>
             </TouchableOpacity>
           </View>
 
-          {/* Formulario inline */}
           {formularioAbierto && (
             <View style={styles.formulario}>
               <TextInput
                 style={styles.input}
                 placeholder="Nombre del evento"
-                placeholderTextColor="#555"
+                placeholderTextColor={colors.textMuted}
                 value={tituloEvento}
                 onChangeText={setTituloEvento}
                 autoFocus
@@ -186,27 +200,27 @@ export default function AgendaScreen() {
                 <TextInput
                   style={[styles.input, { flex: 1 }]}
                   placeholder="Hora (09:00)"
-                  placeholderTextColor="#555"
+                  placeholderTextColor={colors.textMuted}
                   value={horaEvento}
                   onChangeText={setHoraEvento}
                 />
                 <TextInput
                   style={[styles.input, { flex: 2 }]}
                   placeholder="Lugar (opcional)"
-                  placeholderTextColor="#555"
+                  placeholderTextColor={colors.textMuted}
                   value={lugarEvento}
                   onChangeText={setLugarEvento}
                 />
               </View>
               <View style={styles.fila}>
-                <TouchableOpacity style={[styles.btnAzul, { flex: 1, paddingVertical: 10 }]} onPress={agregarEvento}>
-                  <Text style={styles.btnAzulTexto}>Guardar</Text>
+                <TouchableOpacity style={[styles.btnPrimario, { flex: 1 }]} onPress={agregarEvento}>
+                  <Text style={styles.btnPrimarioTexto}>Guardar</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.btnGris, { flex: 1, paddingVertical: 10 }]}
+                  style={[styles.btnSecundario, { flex: 1 }]}
                   onPress={() => setFormularioAbierto(false)}
                 >
-                  <Text style={styles.btnGrisTexto}>Cancelar</Text>
+                  <Text style={styles.btnSecundarioTexto}>Cancelar</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -226,52 +240,54 @@ export default function AgendaScreen() {
                 <View style={styles.eventoLinea} />
                 <View style={styles.eventoContenido}>
                   <Text style={styles.eventoTitulo}>{e.titulo}</Text>
-                  {!!e.lugar && <Text style={styles.eventoLugar}>📍 {e.lugar}</Text>}
+                  {!!e.lugar && (
+                    <View style={styles.eventoLugarFila}>
+                      <MaterialIcons name="place" size={12} color={colors.textMuted} />
+                      <Text style={styles.eventoLugar}>{e.lugar}</Text>
+                    </View>
+                  )}
                 </View>
               </TouchableOpacity>
             ))
           )}
           {eventos.length > 0 && (
-            <Text style={styles.hint}>Mantené presionado para eliminar un evento</Text>
+            <Text style={styles.hint}>Mantené presionado para eliminar</Text>
           )}
         </View>
 
-        {/* ── Habit Tracker ─────────────────────────────────────────── */}
-        <View style={styles.tarjeta}>
-          <View style={styles.tarjetaHeader}>
-            <View style={styles.tarjetaTituloFila}>
-              <Text style={styles.tarjetaIcono}>✨</Text>
-              <Text style={styles.tarjetaTitulo}>Hábitos</Text>
-            </View>
-            <Text style={styles.porcentajeTexto}>{porcentaje}% Hecho</Text>
+        <View style={styles.seccionHeaderFila}>
+          <Text style={styles.seccionLabel}>HÁBITOS</Text>
+          <View style={styles.porcentajeBadge}>
+            <Text style={styles.porcentajeTexto}>{porcentaje}%</Text>
           </View>
+        </View>
 
-          {/* Barra de progreso total */}
-          {habitos.length > 0 && (
-            <View style={styles.barraContenedor}>
-              <View style={[styles.barraRelleno, { width: `${porcentaje}%` as `${number}%` }]} />
-            </View>
-          )}
+        {habitos.length > 0 && (
+          <View style={styles.barraContenedor}>
+            <View style={[styles.barraRelleno, { width: `${porcentaje}%` as `${number}%` }]} />
+          </View>
+        )}
 
+        <View style={styles.card}>
           {habitos.length === 0 ? (
             <Text style={styles.vacio}>Agregá hábitos desde la pantalla RPG.</Text>
           ) : (
-            habitos.map((h) => {
+            habitos.map((h, idx) => {
               const completadoHoy = h.fechaCompletado === HOY;
-              const color = STAT_COLOR[h.stat] ?? '#60a5fa';
+              const color = STAT_COLOR[h.stat] ?? colors.accent;
+              const icon = STAT_ICON[h.stat] ?? 'star';
               return (
                 <TouchableOpacity
                   key={h.id}
-                  style={styles.habitoFila}
-                  onPress={() => toggleHabito(h)}
+                  style={[styles.habitoFila, idx < habitos.length - 1 && styles.habitoFilaBorde]}
+                  onPress={() => toggleHabitoAnimado(h)}
                   activeOpacity={0.75}
                 >
-                  <View style={[
-                    styles.habitoCirculo,
-                    completadoHoy && { backgroundColor: color, borderColor: color },
-                  ]}>
-                    {completadoHoy && <Text style={styles.checkmark}>✓</Text>}
-                  </View>
+                  <Animated.View style={{ transform: [{ scale: getAnim(h.id) }] }}>
+                    <View style={[styles.iconBadge, { backgroundColor: color + '20' }]}>
+                      <MaterialIcons name={icon} size={16} color={color} />
+                    </View>
+                  </Animated.View>
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.habitoNombre, completadoHoy && styles.habitoTachado]}>
                       {h.nombre}
@@ -279,10 +295,13 @@ export default function AgendaScreen() {
                     <Text style={[styles.habitoStat, { color }]}>+20 XP</Text>
                   </View>
                   {completadoHoy && (
-                    <View style={[styles.badge, { backgroundColor: color + '22', borderColor: color }]}>
-                      <Text style={[styles.badgeTexto, { color }]}>Completado</Text>
+                    <View style={[styles.completadoBadge, { backgroundColor: color + '15', borderColor: color + '40' }]}>
+                      <Text style={[styles.completadoTexto, { color }]}>Listo</Text>
                     </View>
                   )}
+                  <View style={[styles.checkbox, completadoHoy && { backgroundColor: color, borderColor: color }]}>
+                    {completadoHoy && <MaterialIcons name="check" size={13} color="#fff" />}
+                  </View>
                 </TouchableOpacity>
               );
             })
@@ -294,132 +313,159 @@ export default function AgendaScreen() {
   );
 }
 
-// ─── Estilos ──────────────────────────────────────────────────────────────────
-
-const AZUL = '#137fec';
-
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000' },
+  container: { flex: 1, backgroundColor: colors.bg },
 
   header: {
-    paddingTop: 60,
-    paddingHorizontal: 20,
-    paddingBottom: 20,
+    backgroundColor: colors.card,
+    paddingTop: spacing.lg,
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.lg,
     borderBottomWidth: 1,
-    borderBottomColor: '#111',
+    borderBottomColor: colors.border,
+    ...shadow.card,
   },
-  saludo: { color: '#666', fontSize: 14, marginBottom: 2 },
-  titulo: { fontSize: 30, fontWeight: '800', color: '#fff' },
-  fecha: { color: AZUL, fontSize: 13, marginTop: 4, fontWeight: '500' },
+  saludo: { fontSize: font.sm, color: colors.textSec, marginBottom: 2 },
+  titulo: { fontSize: font.title, fontWeight: '900', color: colors.text, letterSpacing: 0.5 },
+  fecha:  { fontSize: font.sm, color: colors.accent, marginTop: 2, fontWeight: '600' },
 
-  scroll: { padding: 20, paddingBottom: 48, gap: 16 },
+  scroll: { padding: spacing.xl, paddingBottom: spacing.hh, gap: spacing.sm },
 
-  // Tarjeta
-  tarjeta: {
-    backgroundColor: '#0e0e0e',
-    borderRadius: 16,
-    padding: 16,
+  seccionHeaderFila: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  seccionLabel: { fontSize: font.xs, fontWeight: '800', color: colors.textMuted, letterSpacing: 0.8, marginBottom: spacing.sm },
+
+  porcentajeBadge: {
+    backgroundColor: colors.accentLight,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: radius.full,
+    marginBottom: spacing.sm,
+  },
+  porcentajeTexto: { fontSize: font.sm, fontWeight: '700', color: colors.accent },
+
+  card: {
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    padding: spacing.md,
     borderWidth: 1,
-    borderColor: '#1a1a1a',
+    borderColor: colors.border,
+    ...shadow.card,
   },
-  tarjetaHeader: {
+  cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: spacing.md,
   },
-  tarjetaTituloFila: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  tarjetaIcono: { fontSize: 18 },
-  tarjetaTitulo: { fontSize: 17, fontWeight: '700', color: '#fff' },
-
-  // Botones
-  btnAzul: {
-    backgroundColor: AZUL,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 8,
+  cardTituloFila: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  calIconBadge: {
+    width: 34,
+    height: 34,
+    borderRadius: radius.sm,
+    backgroundColor: colors.accentLight,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  btnAzulTexto: { color: '#fff', fontWeight: '600', fontSize: 13 },
-  btnGris: {
-    backgroundColor: '#1a1a1a',
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  btnGrisTexto: { color: '#aaa', fontWeight: '600', fontSize: 13 },
+  cardTitulo: { fontSize: font.lg, fontWeight: '800', color: colors.text },
 
-  // Formulario
-  formulario: { gap: 10, marginBottom: 16 },
-  fila: { flexDirection: 'row', gap: 8 },
-  input: {
-    backgroundColor: '#1a1a1a',
-    color: '#fff',
-    padding: 12,
-    borderRadius: 10,
-    fontSize: 15,
-  },
-
-  // Eventos
-  eventoFila: {
+  btnAgregar: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 14,
-    gap: 12,
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: colors.accentLight,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.sm,
   },
-  eventoHora: { color: '#555', fontSize: 12, width: 48, paddingTop: 4, fontWeight: '500' },
-  eventoLinea: { width: 3, borderRadius: 2, backgroundColor: AZUL, height: 44, marginTop: 2 },
+  btnAgregarTexto: { color: colors.accent, fontWeight: '700', fontSize: font.sm },
+
+  formulario: { gap: spacing.sm, marginBottom: spacing.md },
+  fila: { flexDirection: 'row', gap: spacing.sm },
+  input: {
+    backgroundColor: colors.cardAlt,
+    color: colors.text,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    fontSize: font.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+
+  btnPrimario: {
+    backgroundColor: colors.accent,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    ...shadow.blue,
+  },
+  btnPrimarioTexto: { color: '#fff', fontWeight: '700', fontSize: font.md },
+  btnSecundario: {
+    backgroundColor: colors.cardAlt,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  btnSecundarioTexto: { color: colors.textSec, fontWeight: '600', fontSize: font.md },
+
+  eventoFila: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: spacing.md, gap: spacing.md },
+  eventoHora: { color: colors.textSec, fontSize: font.sm, width: 44, paddingTop: 4, fontWeight: '600' },
+  eventoLinea: { width: 3, borderRadius: 2, backgroundColor: colors.accent, height: 44, marginTop: 2 },
   eventoContenido: {
     flex: 1,
-    backgroundColor: '#161616',
-    borderRadius: 12,
-    padding: 12,
+    backgroundColor: colors.accentLight,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.accentMid,
   },
-  eventoTitulo: { color: '#fff', fontSize: 15, fontWeight: '600' },
-  eventoLugar: { color: '#555', fontSize: 12, marginTop: 4 },
-  hint: { color: '#333', fontSize: 11, textAlign: 'center', marginTop: 4 },
+  eventoTitulo: { color: colors.text, fontSize: font.base, fontWeight: '700' },
+  eventoLugarFila: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 3 },
+  eventoLugar:  { color: colors.textMuted, fontSize: font.sm },
+  hint: { color: colors.textMuted, fontSize: font.xs, textAlign: 'center', marginTop: spacing.xs },
 
-  // Progreso hábitos
   barraContenedor: {
-    height: 5,
-    backgroundColor: '#1a1a1a',
-    borderRadius: 3,
+    height: 6,
+    backgroundColor: colors.cardAlt,
+    borderRadius: radius.full,
     overflow: 'hidden',
-    marginBottom: 16,
+    marginBottom: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  barraRelleno: { height: '100%', backgroundColor: AZUL, borderRadius: 3 },
-  porcentajeTexto: { color: AZUL, fontSize: 13, fontWeight: '600' },
+  barraRelleno: { height: '100%', backgroundColor: colors.accent, borderRadius: radius.full },
 
-  // Hábitos
-  habitoFila: {
-    flexDirection: 'row',
+  iconBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.sm,
     alignItems: 'center',
-    paddingVertical: 12,
-    gap: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#151515',
-  },
-  habitoCirculo: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    borderWidth: 2,
-    borderColor: '#333',
     justifyContent: 'center',
-    alignItems: 'center',
   },
-  checkmark: { color: '#fff', fontSize: 13, fontWeight: 'bold' },
-  habitoNombre: { color: '#ddd', fontSize: 15 },
-  habitoTachado: { textDecorationLine: 'line-through', color: '#444' },
-  habitoStat: { fontSize: 11, marginTop: 2 },
-  badge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 20,
+  habitoFila: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.md, gap: spacing.md },
+  habitoFilaBorde: { borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+  habitoNombre: { fontSize: font.base, color: colors.text, fontWeight: '500' },
+  habitoTachado: { textDecorationLine: 'line-through', color: colors.textMuted },
+  habitoStat: { fontSize: font.sm, marginTop: 1 },
+
+  completadoBadge: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: radius.full,
     borderWidth: 1,
   },
-  badgeTexto: { fontSize: 11, fontWeight: '600' },
+  completadoTexto: { fontSize: font.xs, fontWeight: '700' },
 
-  vacio: { color: '#333', fontSize: 14, textAlign: 'center', paddingVertical: 20 },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: radius.sm,
+    borderWidth: 2,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  vacio: { color: colors.textMuted, fontSize: font.md, textAlign: 'center', paddingVertical: spacing.xl },
 });

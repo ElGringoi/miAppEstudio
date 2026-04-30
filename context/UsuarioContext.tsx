@@ -1,7 +1,7 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import { router } from 'expo-router';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
-import { auth } from '../config/firebase';
+import { auth } from '@/lib/firebase';
 
 type Usuario = {
   uid: string;
@@ -53,7 +53,7 @@ export const UsuarioProvider = ({ children }: { children: ReactNode }) => {
     try {
       await signOut(auth);
       setUsuario(null);
-      router.replace('/LoginScreen');
+      router.replace('/login');
     } catch (error) {
       console.error("Error al cerrar sesión:", error);
     }
