@@ -1,7 +1,7 @@
-import { onAuthStateChanged, signOut } from 'firebase/auth';
-import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
+import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import { router } from 'expo-router';
-import { auth } from '@/lib/firebase';
+import { onAuthStateChanged, signOut, User } from 'firebase/auth';
+import { auth } from '../config/firebase';
 
 type Usuario = {
   uid: string;
@@ -12,48 +12,55 @@ type Usuario = {
 
 type UsuarioContextType = {
   usuario: Usuario | null;
-  // cargando evita redirigir antes de que Firebase resuelva la sesión
-  cargando: boolean;
-  cerrarSesion: () => Promise<void>;
+  setUsuario: (usuario: Usuario | null) => void;
+  cerrarSesion: () => void;
+  loading: boolean;
 };
 
 const UsuarioContext = createContext<UsuarioContextType>({
   usuario: null,
-  cargando: true,
-  cerrarSesion: async () => {},
+  setUsuario: () => {},
+  cerrarSesion: () => {},
+  loading: true,
 });
 
 export const useUsuario = () => useContext(UsuarioContext);
 
 export const UsuarioProvider = ({ children }: { children: ReactNode }) => {
   const [usuario, setUsuario] = useState<Usuario | null>(null);
-  const [cargando, setCargando] = useState(true);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Escucha cambios de sesión de Firebase (login, logout, recarga de app)
-    const cancelar = onAuthStateChanged(auth, (firebaseUser) => {
-      if (firebaseUser) {
+    // 🛡️ Sincronizar el estado del contexto con Firebase Auth
+    const unsubscribe = onAuthStateChanged(auth, (user: User | null) => {
+      if (user) {
         setUsuario({
-          uid: firebaseUser.uid,
-          name: firebaseUser.displayName ?? '',
-          email: firebaseUser.email ?? '',
-          picture: firebaseUser.photoURL ?? '',
+          uid: user.uid,
+          name: user.displayName || 'Usuario',
+          email: user.email || '',
+          picture: user.photoURL || '',
         });
       } else {
         setUsuario(null);
       }
-      setCargando(false);
+      setLoading(false);
     });
-    return cancelar;
+
+    return () => unsubscribe();
   }, []);
 
   const cerrarSesion = async () => {
-    await signOut(auth);
-    router.replace('/');
+    try {
+      await signOut(auth);
+      setUsuario(null);
+      router.replace('/LoginScreen');
+    } catch (error) {
+      console.error("Error al cerrar sesión:", error);
+    }
   };
 
   return (
-    <UsuarioContext.Provider value={{ usuario, cargando, cerrarSesion }}>
+    <UsuarioContext.Provider value={{ usuario, setUsuario, cerrarSesion, loading }}>
       {children}
     </UsuarioContext.Provider>
   );

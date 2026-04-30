@@ -1,26 +1,34 @@
-import { useEffect } from 'react';
-import { router } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { Redirect } from 'expo-router';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { useUsuario } from '../context/UsuarioContext';
 
 export default function IndexScreen() {
-  const { usuario, cargando } = useUsuario();
+  const { usuario } = useUsuario();
+  const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
-    // Espera a que Firebase resuelva la sesión antes de redirigir
-    if (cargando) return;
-    if (usuario) {
-      router.replace('/materias');
-    } else {
-      router.replace('/LoginScreen');
-    }
-  }, [usuario, cargando]);
+    // Pequeño retardo para asegurar que el Layout raíz esté completamente montado
+    const timer = setTimeout(() => {
+      setIsMounted(true);
+    }, 100);
+    return () => clearTimeout(timer);
+  }, []);
 
-  return (
-    <View style={styles.container}>
-      <ActivityIndicator size="large" color="#fff" />
-    </View>
-  );
+  if (!isMounted) {
+    return (
+      <View style={styles.container}>
+        <ActivityIndicator size="large" color="#000" />
+      </View>
+    );
+  }
+
+  // Redirección basada en el usuario
+  if (usuario) {
+    return <Redirect href="/materias" />;
+  } else {
+    return <Redirect href="/LoginScreen" />;
+  }
 }
 
 const styles = StyleSheet.create({
