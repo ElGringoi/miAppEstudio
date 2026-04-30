@@ -41,6 +41,13 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="agenda"
+        options={{
+          title: 'Agenda',
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="calendar.fill" color={color} />,
+        }}
+      />
+      <Tabs.Screen
         name="LoginScreen"
         options={{
           href: null, // Ocultar de la barra de pestañas
