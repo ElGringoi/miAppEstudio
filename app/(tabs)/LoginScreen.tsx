@@ -6,6 +6,10 @@ import { GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
 import { auth } from '../../config/firebase';
 import { useUsuario } from '../../context/UsuarioContext';
 import { router } from 'expo-router';
+import React from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Image } from 'react-native';
+import { auth } from '@/lib/firebase';
+import { useUsuario } from '@/context/UsuarioContext';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -18,6 +22,7 @@ export default function LoginScreen() {
     iosClientId: 'TU_IOS_CLIENT_ID',
     androidClientId: 'TU_ANDROID_CLIENT_ID',
   });
+  const [cargando, setCargando] = React.useState(false);
 
   useEffect(() => {
     if (response?.type === 'success') {
@@ -69,8 +74,36 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' },
-  title: { fontSize: 22, color: '#fff', marginBottom: 20 },
-  email: { fontSize: 14, color: '#ccc', marginTop: 10 },
-  avatar: { width: 80, height: 80, borderRadius: 40, marginTop: 10 },
+  container: {
+    flex: 1,
+    backgroundColor: '#000',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 32,
+  },
+  titulo: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 8,
+  },
+  subtitulo: {
+    fontSize: 16,
+    color: '#666',
+    marginBottom: 60,
+  },
+  boton: {
+    backgroundColor: '#fff',
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+  },
+  botonDeshabilitado: {
+    opacity: 0.4,
+  },
+  textoBoton: {
+    color: '#000',
+    fontSize: 16,
+    fontWeight: '600',
+  },
 });

@@ -46,6 +46,20 @@ export default function TabLayout() {
           href: null, // Ocultar de la barra de pestañas
         }}
       />
+      <Tabs.Screen
+        name="gym"
+        options={{
+          title: 'Gym',
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="dumbbell.fill" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="rpg"
+        options={{
+          title: 'RPG',
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="star.fill" color={color} />,
+        }}
+      />
     </Tabs>
   );
 }

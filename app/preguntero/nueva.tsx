@@ -1,33 +1,37 @@
+import { addDoc, collection } from 'firebase/firestore';
 import React, { useState } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router, useLocalSearchParams } from 'expo-router';
+import { db } from '@/lib/firebase';
+import { useUsuario } from '@/context/UsuarioContext';
 
 export default function NuevaPreguntaScreen() {
-  const { materia } = useLocalSearchParams();
+  const { materia } = useLocalSearchParams<{ materia: string }>();
+  const { usuario } = useUsuario();
   const [pregunta, setPregunta] = useState('');
 
   const guardarPregunta = async () => {
-    if (pregunta.trim() !== '') {
-      const clave = `preguntas_${materia}`;
-      const guardadas = await AsyncStorage.getItem(clave);
-      const preguntas = guardadas ? JSON.parse(guardadas) : [];
-      preguntas.push(pregunta.trim());
-      await AsyncStorage.setItem(clave, JSON.stringify(preguntas));
-      alert(`Pregunta guardada en ${materia}`);
-      router.back();
-    }
+    if (!usuario || !pregunta.trim()) return;
+
+    await addDoc(collection(db, 'usuarios', usuario.uid, 'preguntas'), {
+      materia,
+      contenido: pregunta.trim(),
+    });
+
+    alert(`Pregunta guardada en ${materia}`);
+    router.back();
   };
 
   return (
     <View style={styles.container}>
-      <Text style={styles.titulo}>Nueva pregunta - {materia}</Text>
+      <Text style={styles.titulo}>Nueva pregunta — {materia}</Text>
       <TextInput
         placeholder="Escribí la pregunta"
         placeholderTextColor="#888"
         style={styles.input}
         value={pregunta}
         onChangeText={setPregunta}
+        multiline
       />
       <TouchableOpacity style={styles.boton} onPress={guardarPregunta}>
         <Text style={styles.textoBoton}>Guardar</Text>
@@ -46,15 +50,9 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     marginBottom: 20,
     fontSize: 16,
+    minHeight: 80,
+    textAlignVertical: 'top',
   },
-  boton: {
-    backgroundColor: '#444',
-    padding: 16,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  textoBoton: {
-    color: '#fff',
-    fontSize: 16,
-  },
+  boton: { backgroundColor: '#444', padding: 16, borderRadius: 10, alignItems: 'center' },
+  textoBoton: { color: '#fff', fontSize: 16 },
 });
