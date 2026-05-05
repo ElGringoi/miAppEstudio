@@ -16,7 +16,7 @@ type Props = {
 export default function Button({ label, onPress, variant = 'primary', loading, disabled, style }: Props) {
   const bg = variant === 'primary' ? colors.text
     : variant === 'danger'   ? colors.error + '22'
-    : colors.surface2;
+    : colors.card;
 
   const fg = variant === 'primary' ? colors.bg
     : variant === 'danger'   ? colors.error

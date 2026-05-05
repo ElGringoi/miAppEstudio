@@ -1,35 +1,30 @@
 import {
-  addDoc,
-  collection,
-  deleteDoc,
-  doc,
-  onSnapshot,
-  orderBy,
-  query,
+  addDoc, collection, deleteDoc, doc, onSnapshot, orderBy, query,
 } from 'firebase/firestore';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+  Dimensions, ScrollView, StyleSheet, Text, TextInput,
+  TouchableOpacity, View,
 } from 'react-native';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { db } from '@/lib/firebase';
 import { useUsuario } from '@/context/UsuarioContext';
-import { colors, radius, spacing, font, shadow } from '@/constants/theme';
+import { QF } from '@/constants/questflow';
+import { MuscleMap, MuscleGroup } from '@/components/ui/MuscleMap';
 
-type Seccion = 'rutinas' | 'registrar' | 'historial' | 'cronometro';
+const { width } = Dimensions.get('window');
 
-type Rutina = {
-  id: string;
+type Vista = 'hoy' | 'programa';
+type Seccion = 'entrenamiento' | 'registrar' | 'historial' | 'timer';
+
+type Ejercicio = {
   nombre: string;
-  ejercicios: string;
+  series: number;
+  reps: string;
+  musculos: MuscleGroup[];
+  dias: number[]; // 0=lunes, 6=domingo
 };
 
-type EjercicioRegistrado = {
+type Registro = {
   id: string;
   nombre: string;
   series: string;
@@ -38,525 +33,395 @@ type EjercicioRegistrado = {
   fecha: string;
 };
 
-const SECCIONES: { key: Seccion; label: string }[] = [
-  { key: 'rutinas',    label: 'Rutinas'   },
-  { key: 'registrar',  label: 'Registrar' },
-  { key: 'historial',  label: 'Historial' },
-  { key: 'cronometro', label: 'Timer'     },
+const PROGRAMA: Ejercicio[] = [
+  { nombre: 'Press de Banca', series: 4, reps: '8-10', musculos: ['pecho', 'triceps', 'hombros'], dias: [0, 3] },
+  { nombre: 'Press Inclinado', series: 3, reps: '10-12', musculos: ['pecho', 'hombros'], dias: [0, 3] },
+  { nombre: 'Fondos en Paralelas', series: 3, reps: '10-15', musculos: ['triceps', 'pecho'], dias: [0, 3] },
+  { nombre: 'Dominadas', series: 4, reps: '6-10', musculos: ['espalda', 'biceps'], dias: [1, 4] },
+  { nombre: 'Remo con Barra', series: 4, reps: '8-10', musculos: ['espalda', 'trapecio'], dias: [1, 4] },
+  { nombre: 'Curl de Bíceps', series: 3, reps: '12-15', musculos: ['biceps', 'antebrazo'], dias: [1, 4] },
+  { nombre: 'Sentadilla', series: 4, reps: '6-8', musculos: ['cuadriceps', 'gluteos'], dias: [2, 5] },
+  { nombre: 'Peso Muerto', series: 4, reps: '5-6', musculos: ['isquiotibiales', 'gluteos', 'espalda'], dias: [2, 5] },
+  { nombre: 'Gemelos en Máquina', series: 4, reps: '15-20', musculos: ['pantorrillas'], dias: [2, 5] },
+  { nombre: 'Press Militar', series: 4, reps: '8-10', musculos: ['hombros', 'trapecio'], dias: [6] },
+  { nombre: 'Elevaciones Laterales', series: 3, reps: '12-15', musculos: ['hombros'], dias: [6] },
+  { nombre: 'Plancha', series: 3, reps: '45s', musculos: ['abdomen'], dias: [0, 2, 4] },
+  { nombre: 'Crunch', series: 3, reps: '15-20', musculos: ['abdomen'], dias: [1, 3, 5] },
 ];
 
-const GYM_RED = colors.error;
+const DIA_NAMES = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 
 export default function GymScreen() {
   const { usuario } = useUsuario();
-  const [seccion, setSeccion] = useState<Seccion>('rutinas');
-
-  const [rutinas, setRutinas] = useState<Rutina[]>([]);
-  const [nombreRutina, setNombreRutina] = useState('');
-  const [ejerciciosRutina, setEjerciciosRutina] = useState('');
-
-  const [nombreEj, setNombreEj] = useState('');
+  const [seccion, setSeccion] = useState<Seccion>('entrenamiento');
+  const [vista, setVista] = useState<Vista>('hoy');
+  const [selectedEj, setSelectedEj] = useState<Ejercicio | null>(null);
+  const [registros, setRegistros] = useState<Registro[]>([]);
+  const [nombre, setNombre] = useState('');
   const [series, setSeries] = useState('');
   const [reps, setReps] = useState('');
   const [peso, setPeso] = useState('');
-
-  const [historial, setHistorial] = useState<EjercicioRegistrado[]>([]);
-
   const [tiempoTotal, setTiempoTotal] = useState(60);
   const [tiempoRestante, setTiempoRestante] = useState(60);
   const [corriendo, setCorriendo] = useState(false);
-  const intervaloRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const todayDow = (new Date().getDay() + 6) % 7; // 0=lunes
+  const ejerciciosHoy = PROGRAMA.filter(e => e.dias.includes(todayDow));
+  const musculosHoy = [...new Set(ejerciciosHoy.flatMap(e => e.musculos))];
 
   useEffect(() => {
-    if (!usuario) return;
-
-    const cancelarRutinas = onSnapshot(
-      query(collection(db, 'usuarios', usuario.uid, 'gym_rutinas'), orderBy('nombre')),
-      (snap) => {
-        setRutinas(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Rutina, 'id'>) })));
-      }
-    );
-
-    const cancelarHistorial = onSnapshot(
+    if (!usuario?.uid) return;
+    return onSnapshot(
       query(collection(db, 'usuarios', usuario.uid, 'gym_historial'), orderBy('fecha', 'desc')),
-      (snap) => {
-        setHistorial(
-          snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<EjercicioRegistrado, 'id'>) }))
-        );
-      }
+      snap => setRegistros(snap.docs.map(d => ({ id: d.id, ...d.data() } as Registro)))
     );
-
-    return () => {
-      cancelarRutinas();
-      cancelarHistorial();
-    };
-  }, [usuario]);
+  }, [usuario?.uid]);
 
   useEffect(() => {
     if (corriendo) {
-      intervaloRef.current = setInterval(() => {
-        setTiempoRestante((prev) => {
-          if (prev <= 1) {
-            clearInterval(intervaloRef.current!);
-            setCorriendo(false);
-            return 0;
-          }
+      intervalRef.current = setInterval(() => {
+        setTiempoRestante(prev => {
+          if (prev <= 1) { clearInterval(intervalRef.current!); setCorriendo(false); return 0; }
           return prev - 1;
         });
       }, 1000);
     } else {
-      if (intervaloRef.current) clearInterval(intervaloRef.current);
+      clearInterval(intervalRef.current!);
     }
-    return () => {
-      if (intervaloRef.current) clearInterval(intervaloRef.current);
-    };
+    return () => clearInterval(intervalRef.current!);
   }, [corriendo]);
 
-  const guardarRutina = async () => {
-    if (!usuario || !nombreRutina.trim()) return;
-    await addDoc(collection(db, 'usuarios', usuario.uid, 'gym_rutinas'), {
-      nombre: nombreRutina.trim(),
-      ejercicios: ejerciciosRutina.trim(),
-    });
-    setNombreRutina('');
-    setEjerciciosRutina('');
-  };
-
-  const eliminarRutina = async (id: string) => {
-    if (!usuario) return;
-    await deleteDoc(doc(db, 'usuarios', usuario.uid, 'gym_rutinas', id));
-  };
-
-  const registrarEjercicio = async () => {
-    if (!usuario || !nombreEj.trim()) return;
+  async function guardarRegistro() {
+    if (!usuario?.uid || !nombre.trim()) return;
     await addDoc(collection(db, 'usuarios', usuario.uid, 'gym_historial'), {
-      nombre: nombreEj.trim(),
-      series: series.trim(),
-      repeticiones: reps.trim(),
-      peso: peso.trim(),
+      nombre: nombre.trim(), series, repeticiones: reps, peso,
       fecha: new Date().toISOString(),
     });
-    setNombreEj('');
-    setSeries('');
-    setReps('');
-    setPeso('');
-  };
+    setNombre(''); setSeries(''); setReps(''); setPeso('');
+  }
 
-  const iniciarPausar = () => setCorriendo((prev) => !prev);
+  function setTimer(s: number) { setTiempoTotal(s); setTiempoRestante(s); setCorriendo(false); }
+  const timerPct = tiempoRestante / tiempoTotal;
+  const mm = String(Math.floor(tiempoRestante / 60)).padStart(2, '0');
+  const ss = String(tiempoRestante % 60).padStart(2, '0');
 
-  const resetear = () => {
-    setCorriendo(false);
-    setTiempoRestante(tiempoTotal);
-  };
-
-  const seleccionarTiempo = (segundos: number) => {
-    setCorriendo(false);
-    setTiempoTotal(segundos);
-    setTiempoRestante(segundos);
-  };
-
-  const formatearTiempo = (seg: number) => {
-    const m = Math.floor(seg / 60).toString().padStart(2, '0');
-    const s = (seg % 60).toString().padStart(2, '0');
-    return `${m}:${s}`;
-  };
-
-  const renderRutinas = () => (
-    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: spacing.hh }}>
-      <Text style={styles.label}>NUEVA RUTINA</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Nombre de la rutina"
-        placeholderTextColor={colors.textMuted}
-        value={nombreRutina}
-        onChangeText={setNombreRutina}
-      />
-      <TextInput
-        style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
-        placeholder="Ejercicios (ej: Sentadilla, Press banca...)"
-        placeholderTextColor={colors.textMuted}
-        value={ejerciciosRutina}
-        onChangeText={setEjerciciosRutina}
-        multiline
-      />
-      <TouchableOpacity style={styles.btnPrimario} onPress={guardarRutina}>
-        <MaterialIcons name="save" size={18} color="#fff" />
-        <Text style={styles.btnPrimarioTexto}>Guardar rutina</Text>
-      </TouchableOpacity>
-
-      {rutinas.length > 0 && (
-        <>
-          <Text style={[styles.label, { marginTop: spacing.xxl }]}>MIS RUTINAS</Text>
-          {rutinas.map((r) => (
-            <View key={r.id} style={styles.card}>
-              <View style={styles.rutinaIconBadge}>
-                <MaterialIcons name="fitness-center" size={18} color={GYM_RED} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.cardTitulo}>{r.nombre}</Text>
-                {!!r.ejercicios && <Text style={styles.cardSubtexto}>{r.ejercicios}</Text>}
-              </View>
-              <TouchableOpacity onPress={() => eliminarRutina(r.id)} style={styles.btnEliminar}>
-                <MaterialIcons name="delete-outline" size={20} color={GYM_RED} />
-              </TouchableOpacity>
-            </View>
-          ))}
-        </>
-      )}
-    </ScrollView>
-  );
-
-  const renderRegistrar = () => (
-    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: spacing.hh }}>
-      <Text style={styles.label}>REGISTRAR EJERCICIO</Text>
-
-      <Text style={styles.inputLabel}>Nombre del ejercicio</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Ej: Sentadilla, Press banca..."
-        placeholderTextColor={colors.textMuted}
-        value={nombreEj}
-        onChangeText={setNombreEj}
-      />
-
-      <View style={styles.fila}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.inputLabel}>Series</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="4"
-            placeholderTextColor={colors.textMuted}
-            value={series}
-            onChangeText={setSeries}
-            keyboardType="numeric"
-          />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.inputLabel}>Repeticiones</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="10"
-            placeholderTextColor={colors.textMuted}
-            value={reps}
-            onChangeText={setReps}
-            keyboardType="numeric"
-          />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.inputLabel}>Peso (kg)</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="60"
-            placeholderTextColor={colors.textMuted}
-            value={peso}
-            onChangeText={setPeso}
-            keyboardType="numeric"
-          />
-        </View>
-      </View>
-
-      <TouchableOpacity style={styles.btnGuardar} onPress={registrarEjercicio}>
-        <MaterialIcons name="check-circle" size={18} color="#fff" />
-        <Text style={styles.btnGuardarTexto}>Guardar ejercicio</Text>
-      </TouchableOpacity>
-    </ScrollView>
-  );
-
-  const renderHistorial = () => (
-    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: spacing.hh }}>
-      <Text style={styles.label}>HISTORIAL</Text>
-      {historial.length === 0 ? (
-        <View style={styles.vacioCentro}>
-          <MaterialIcons name="history" size={40} color={colors.textMuted} />
-          <Text style={styles.vacio}>No hay ejercicios registrados aún.</Text>
-        </View>
-      ) : (
-        historial.map((e) => (
-          <View key={e.id} style={styles.card}>
-            <View style={styles.rutinaIconBadge}>
-              <MaterialIcons name="fitness-center" size={18} color={GYM_RED} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.cardTitulo}>{e.nombre}</Text>
-              <Text style={styles.cardSubtexto}>
-                {[
-                  e.series && `${e.series} series`,
-                  e.repeticiones && `${e.repeticiones} reps`,
-                  e.peso && `${e.peso} kg`,
-                ]
-                  .filter(Boolean)
-                  .join(' · ')}
-              </Text>
-              <Text style={styles.cardFecha}>
-                {new Date(e.fecha).toLocaleDateString('es-AR')}
-              </Text>
-            </View>
-          </View>
-        ))
-      )}
-    </ScrollView>
-  );
-
-  const renderCronometro = () => {
-    const progreso = tiempoTotal > 0 ? tiempoRestante / tiempoTotal : 0;
-    const barColor = progreso > 0.5 ? colors.success : progreso > 0.25 ? colors.stat.carisma : GYM_RED;
-    return (
-      <View style={styles.cronoCentro}>
-        <Text style={[styles.cronometroTexto, { color: GYM_RED }]}>
-          {formatearTiempo(tiempoRestante)}
-        </Text>
-
-        <View style={styles.barraContenedor}>
-          <View style={[styles.barraRelleno, { width: `${progreso * 100}%` as `${number}%`, backgroundColor: barColor }]} />
-        </View>
-
-        <Text style={styles.label}>TIEMPO DE DESCANSO</Text>
-
-        <View style={styles.presetsContainer}>
-          {[30, 60, 90, 120].map((seg) => (
-            <TouchableOpacity
-              key={seg}
-              style={[styles.presetBtn, tiempoTotal === seg && styles.presetBtnActivo]}
-              onPress={() => seleccionarTiempo(seg)}
-            >
-              <Text style={[styles.presetTexto, tiempoTotal === seg && styles.presetTextoActivo]}>
-                {seg}s
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        <View style={styles.fila}>
-          <TouchableOpacity style={[styles.btnCrono, { flex: 2 }]} onPress={iniciarPausar}>
-            <MaterialIcons name={corriendo ? 'pause' : 'play-arrow'} size={22} color="#fff" />
-            <Text style={styles.btnCronoTexto}>{corriendo ? 'Pausar' : 'Iniciar'}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.btnCronoGris, { flex: 1 }]} onPress={resetear}>
-            <MaterialIcons name="refresh" size={20} color={colors.textSec} />
-            <Text style={styles.btnCronoGrisTexto}>Reset</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  };
+  const secciones: { key: Seccion; label: string }[] = [
+    { key: 'entrenamiento', label: 'Hoy' },
+    { key: 'registrar', label: 'Log' },
+    { key: 'historial', label: 'Historial' },
+    { key: 'timer', label: 'Timer' },
+  ];
 
   return (
     <View style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <View style={styles.headerIconBadge}>
-            <MaterialIcons name="fitness-center" size={22} color={GYM_RED} />
-          </View>
-          <Text style={styles.headerTitulo}>GYM</Text>
+        <Text style={styles.title}>Gym</Text>
+        <View style={styles.tabs}>
+          {secciones.map(s => (
+            <TouchableOpacity
+              key={s.key}
+              style={[styles.tab, seccion === s.key && styles.tabActive]}
+              onPress={() => setSeccion(s.key)}
+            >
+              <Text style={[styles.tabText, seccion === s.key && styles.tabTextActive]}>{s.label}</Text>
+            </TouchableOpacity>
+          ))}
         </View>
       </View>
 
-      <View style={styles.tabsContainer}>
-        {SECCIONES.map((s) => (
-          <TouchableOpacity
-            key={s.key}
-            style={[styles.tab, seccion === s.key && styles.tabActivo]}
-            onPress={() => setSeccion(s.key)}
-          >
-            <Text style={[styles.tabTexto, seccion === s.key && styles.tabTextoActivo]}>
-              {s.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+      <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
 
-      <View style={styles.contenido}>
-        {seccion === 'rutinas'    && renderRutinas()}
-        {seccion === 'registrar'  && renderRegistrar()}
-        {seccion === 'historial'  && renderHistorial()}
-        {seccion === 'cronometro' && renderCronometro()}
-      </View>
+        {/* ── ENTRENAMIENTO ── */}
+        {seccion === 'entrenamiento' && (
+          <>
+            {/* Vista toggle */}
+            <View style={styles.vistaToggle}>
+              <TouchableOpacity
+                style={[styles.vistaBtn, vista === 'hoy' && styles.vistaBtnActive]}
+                onPress={() => setVista('hoy')}
+              >
+                <Text style={[styles.vistaBtnText, vista === 'hoy' && styles.vistaBtnTextActive]}>Hoy</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.vistaBtn, vista === 'programa' && styles.vistaBtnActive]}
+                onPress={() => setVista('programa')}
+              >
+                <Text style={[styles.vistaBtnText, vista === 'programa' && styles.vistaBtnTextActive]}>Programa</Text>
+              </TouchableOpacity>
+            </View>
+
+            {vista === 'hoy' ? (
+              <>
+                <Text style={styles.sectionLabel}>MÚSCULOS DE HOY</Text>
+                <View style={styles.card}>
+                  <MuscleMap active={musculosHoy} size={200} />
+                  <View style={styles.musculoChips}>
+                    {musculosHoy.map(m => (
+                      <View key={m} style={styles.musculoChip}>
+                        <Text style={styles.musculoChipText}>{m}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+
+                <Text style={styles.sectionLabel}>EJERCICIOS DE HOY</Text>
+                {ejerciciosHoy.length === 0 ? (
+                  <View style={styles.emptyCard}>
+                    <Text style={styles.emptyText}>Día de descanso 🛌</Text>
+                  </View>
+                ) : ejerciciosHoy.map((ej, i) => (
+                  <TouchableOpacity
+                    key={i}
+                    style={[styles.ejCard, selectedEj?.nombre === ej.nombre && styles.ejCardSelected]}
+                    onPress={() => setSelectedEj(selectedEj?.nombre === ej.nombre ? null : ej)}
+                  >
+                    <View style={styles.ejHeader}>
+                      <Text style={styles.ejNombre}>{ej.nombre}</Text>
+                      <Text style={styles.ejMeta}>{ej.series}×{ej.reps}</Text>
+                    </View>
+                    {selectedEj?.nombre === ej.nombre && (
+                      <View style={styles.ejDetail}>
+                        <MuscleMap active={ej.musculos} size={150} />
+                        <View style={styles.ejChips}>
+                          {ej.musculos.map(m => (
+                            <View key={m} style={[styles.musculoChip, { backgroundColor: 'rgba(239,68,68,0.15)', borderColor: QF.colors.stats.fuerza.main }]}>
+                              <Text style={[styles.musculoChipText, { color: QF.colors.stats.fuerza.main }]}>{m}</Text>
+                            </View>
+                          ))}
+                        </View>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </>
+            ) : (
+              <>
+                <Text style={styles.sectionLabel}>PROGRAMA SEMANAL</Text>
+                {DIA_NAMES.map((dia, dIdx) => {
+                  const ejsDia = PROGRAMA.filter(e => e.dias.includes(dIdx));
+                  const isToday = dIdx === todayDow;
+                  return (
+                    <View key={dIdx} style={[styles.diaCard, isToday && styles.diaCardHoy]}>
+                      <Text style={[styles.diaNombre, isToday && { color: QF.colors.stats.fuerza.main }]}>
+                        {dia}{isToday ? ' — HOY' : ''}
+                      </Text>
+                      {ejsDia.length === 0 ? (
+                        <Text style={styles.descansoText}>Descanso</Text>
+                      ) : ejsDia.map((ej, i) => (
+                        <Text key={i} style={styles.diaEj}>• {ej.nombre} {ej.series}×{ej.reps}</Text>
+                      ))}
+                    </View>
+                  );
+                })}
+              </>
+            )}
+          </>
+        )}
+
+        {/* ── LOG ── */}
+        {seccion === 'registrar' && (
+          <>
+            <Text style={styles.sectionLabel}>REGISTRAR EJERCICIO</Text>
+            <View style={styles.card}>
+              {[
+                { label: 'Ejercicio', value: nombre, set: setNombre, ph: 'ej. Press de Banca' },
+                { label: 'Series', value: series, set: setSeries, ph: '4', kb: 'numeric' as const },
+                { label: 'Reps', value: reps, set: setReps, ph: '10', kb: 'numeric' as const },
+                { label: 'Peso (kg)', value: peso, set: setPeso, ph: '60', kb: 'numeric' as const },
+              ].map(f => (
+                <View key={f.label} style={styles.fieldRow}>
+                  <Text style={styles.fieldLabel}>{f.label}</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={f.value}
+                    onChangeText={f.set}
+                    placeholder={f.ph}
+                    placeholderTextColor={QF.colors.textMuted}
+                    keyboardType={f.kb}
+                  />
+                </View>
+              ))}
+              <TouchableOpacity style={styles.btnPrimary} onPress={guardarRegistro}>
+                <Text style={styles.btnPrimaryText}>Registrar</Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
+
+        {/* ── HISTORIAL ── */}
+        {seccion === 'historial' && (
+          <>
+            <Text style={styles.sectionLabel}>HISTORIAL</Text>
+            {registros.length === 0 && (
+              <View style={styles.emptyCard}><Text style={styles.emptyText}>Sin registros aún</Text></View>
+            )}
+            {registros.map(r => (
+              <View key={r.id} style={styles.logCard}>
+                <View style={styles.logLeft}>
+                  <Text style={styles.logNombre}>{r.nombre}</Text>
+                  <Text style={styles.logDate}>{new Date(r.fecha).toLocaleDateString('es-AR')}</Text>
+                </View>
+                <View style={styles.logRight}>
+                  <Text style={styles.logStat}>{r.series}×{r.repeticiones}</Text>
+                  {r.peso ? <Text style={styles.logPeso}>{r.peso}kg</Text> : null}
+                </View>
+              </View>
+            ))}
+          </>
+        )}
+
+        {/* ── TIMER ── */}
+        {seccion === 'timer' && (
+          <>
+            <Text style={styles.sectionLabel}>CRONÓMETRO DE DESCANSO</Text>
+            <View style={styles.timerCard}>
+              <View style={styles.timerRing}>
+                <View style={[styles.timerFill, {
+                  borderColor: timerPct > 0.5 ? QF.colors.stats.fuerza.main : timerPct > 0.25 ? QF.colors.stats.sabiduria.main : QF.colors.stats.agilidad.main,
+                }]}>
+                  <Text style={styles.timerText}>{mm}:{ss}</Text>
+                </View>
+              </View>
+              <View style={styles.timerBtns}>
+                {[30, 60, 90, 120].map(s => (
+                  <TouchableOpacity key={s} style={styles.timerPreset} onPress={() => setTimer(s)}>
+                    <Text style={styles.timerPresetText}>{s}s</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <TouchableOpacity
+                style={[styles.btnPrimary, { marginTop: 0 }]}
+                onPress={() => {
+                  if (tiempoRestante === 0) { setTiempoRestante(tiempoTotal); setCorriendo(true); }
+                  else setCorriendo(!corriendo);
+                }}
+              >
+                <Text style={styles.btnPrimaryText}>{corriendo ? 'Pausar' : tiempoRestante === 0 ? 'Reiniciar' : 'Iniciar'}</Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
+
+        <View style={{ height: 80 }} />
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
-
-  header: {
-    backgroundColor: colors.card,
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    ...shadow.card,
-  },
-  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  headerIconBadge: {
-    width: 44,
-    height: 44,
-    borderRadius: radius.md,
-    backgroundColor: '#fef2f2',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitulo: { fontSize: font.xl, fontWeight: '900', color: colors.text, letterSpacing: 1 },
-
-  tabsContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.md,
-    gap: spacing.sm,
-    backgroundColor: colors.bg,
-  },
+  container: { flex: 1, backgroundColor: QF.colors.bg },
+  header: { paddingTop: QF.spacing.xl + 16, paddingHorizontal: QF.spacing.lg, paddingBottom: QF.spacing.sm },
+  title: { fontSize: QF.font.xxl, fontWeight: '800', color: QF.colors.textPrimary, marginBottom: QF.spacing.md },
+  tabs: { flexDirection: 'row', gap: QF.spacing.xs },
   tab: {
-    flex: 1,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.sm,
-    backgroundColor: colors.cardAlt,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
+    flex: 1, paddingVertical: 8, borderRadius: QF.radius.lg,
+    backgroundColor: QF.colors.surface, alignItems: 'center',
+    borderWidth: 1, borderColor: QF.colors.cardBorder,
   },
-  tabActivo:      { backgroundColor: GYM_RED, borderColor: GYM_RED },
-  tabTexto:       { color: colors.textSec, fontSize: font.sm, fontWeight: '700' },
-  tabTextoActivo: { color: '#fff' },
+  tabActive: { backgroundColor: QF.colors.stats.fuerza.dim, borderColor: QF.colors.stats.fuerza.main },
+  tabText: { fontSize: QF.font.sm, fontWeight: '600', color: QF.colors.textMuted },
+  tabTextActive: { color: QF.colors.stats.fuerza.main },
 
-  contenido: { flex: 1, paddingHorizontal: spacing.xl, paddingTop: spacing.sm },
+  body: { flex: 1 },
+  bodyContent: { padding: QF.spacing.lg },
 
-  label: { fontSize: font.xs, fontWeight: '800', color: colors.textMuted, letterSpacing: 0.8, marginBottom: spacing.sm },
-  inputLabel: { fontSize: font.sm, fontWeight: '600', color: colors.textSec, marginBottom: spacing.xs },
-
-  input: {
-    backgroundColor: colors.card,
-    color: colors.text,
-    padding: spacing.md,
-    borderRadius: radius.md,
-    fontSize: font.base,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: spacing.md,
+  sectionLabel: {
+    fontSize: 10, fontWeight: '700', color: QF.colors.textMuted,
+    letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: QF.spacing.sm, marginTop: QF.spacing.md,
   },
-
-  fila: { flexDirection: 'row', gap: spacing.sm },
-
-  btnPrimario: {
-    backgroundColor: GYM_RED,
-    padding: spacing.md,
-    borderRadius: radius.md,
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: spacing.xs,
-    marginBottom: spacing.md,
-    shadowColor: GYM_RED,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  btnPrimarioTexto: { color: '#fff', fontSize: font.base, fontWeight: '700' },
-
-  btnGuardar: {
-    backgroundColor: colors.accent,
-    padding: spacing.md,
-    borderRadius: radius.md,
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: spacing.xs,
-    marginTop: spacing.sm,
-    ...shadow.blue,
-  },
-  btnGuardarTexto: { color: '#fff', fontSize: font.base, fontWeight: '700' },
-
   card: {
-    backgroundColor: colors.card,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    marginBottom: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    ...shadow.card,
+    backgroundColor: QF.colors.surface, borderRadius: QF.radius.xxl,
+    borderWidth: 1, borderColor: QF.colors.cardBorder, padding: QF.spacing.lg,
+    alignItems: 'center', gap: QF.spacing.md,
   },
-  rutinaIconBadge: {
-    width: 40,
-    height: 40,
-    borderRadius: radius.md,
-    backgroundColor: '#fef2f2',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cardTitulo:   { fontSize: font.base, fontWeight: '700', color: colors.text },
-  cardSubtexto: { fontSize: font.sm, color: colors.textSec, marginTop: 2 },
-  cardFecha:    { fontSize: font.xs, color: colors.textMuted, marginTop: 2 },
-  btnEliminar:  { padding: spacing.xs },
+  emptyCard: { alignItems: 'center', paddingVertical: 32 },
+  emptyText: { color: QF.colors.textMuted, fontSize: QF.font.md },
 
-  vacioCentro: { alignItems: 'center', paddingTop: spacing.hh, gap: spacing.md },
-  vacio: { color: colors.textMuted, fontSize: font.base, textAlign: 'center' },
+  musculoChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'center' },
+  musculoChip: {
+    backgroundColor: 'rgba(239,68,68,0.12)', borderRadius: QF.radius.full,
+    borderWidth: 1, borderColor: 'rgba(239,68,68,0.3)', paddingHorizontal: 10, paddingVertical: 3,
+  },
+  musculoChipText: { fontSize: 11, fontWeight: '600', color: QF.colors.stats.fuerza.main },
 
-  cronoCentro: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.xl,
-    paddingHorizontal: spacing.md,
+  vistaToggle: { flexDirection: 'row', gap: QF.spacing.sm, marginBottom: QF.spacing.md },
+  vistaBtn: {
+    flex: 1, paddingVertical: 10, borderRadius: QF.radius.xl,
+    backgroundColor: QF.colors.surface, alignItems: 'center',
+    borderWidth: 1, borderColor: QF.colors.cardBorder,
   },
-  cronometroTexto: {
-    fontSize: 88,
-    fontWeight: '200',
-    letterSpacing: 4,
-  },
+  vistaBtnActive: { backgroundColor: QF.colors.accentGlow, borderColor: QF.colors.accent },
+  vistaBtnText: { fontSize: QF.font.sm, fontWeight: '700', color: QF.colors.textSecondary },
+  vistaBtnTextActive: { color: QF.colors.accent },
 
-  barraContenedor: {
-    width: '100%',
-    height: 8,
-    backgroundColor: colors.cardAlt,
-    borderRadius: radius.full,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: colors.border,
+  ejCard: {
+    backgroundColor: QF.colors.surface, borderRadius: QF.radius.xl,
+    borderWidth: 1, borderColor: QF.colors.cardBorder,
+    padding: QF.spacing.md, marginBottom: QF.spacing.sm,
   },
-  barraRelleno: { height: '100%', borderRadius: radius.full },
+  ejCardSelected: { borderColor: QF.colors.stats.fuerza.main, backgroundColor: QF.colors.elevated },
+  ejHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  ejNombre: { fontSize: QF.font.md, fontWeight: '700', color: QF.colors.textPrimary },
+  ejMeta: { fontSize: QF.font.sm, fontWeight: '600', color: QF.colors.stats.fuerza.main },
+  ejDetail: { marginTop: QF.spacing.md, alignItems: 'center', gap: QF.spacing.sm },
+  ejChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'center' },
 
-  presetsContainer: { flexDirection: 'row', gap: spacing.sm },
-  presetBtn: {
-    flex: 1,
-    paddingVertical: spacing.md,
-    borderRadius: radius.md,
-    backgroundColor: colors.cardAlt,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
+  diaCard: {
+    backgroundColor: QF.colors.surface, borderRadius: QF.radius.xl,
+    borderWidth: 1, borderColor: QF.colors.cardBorder,
+    padding: QF.spacing.md, marginBottom: QF.spacing.sm,
   },
-  presetBtnActivo: { backgroundColor: GYM_RED, borderColor: GYM_RED },
-  presetTexto:     { color: colors.textSec, fontSize: font.base, fontWeight: '700' },
-  presetTextoActivo: { color: '#fff' },
+  diaCardHoy: { borderColor: QF.colors.stats.fuerza.main, backgroundColor: QF.colors.elevated },
+  diaNombre: { fontSize: QF.font.md, fontWeight: '800', color: QF.colors.textPrimary, marginBottom: 4 },
+  descansoText: { fontSize: QF.font.sm, color: QF.colors.textMuted, fontStyle: 'italic' },
+  diaEj: { fontSize: QF.font.sm, color: QF.colors.textSecondary, marginTop: 2 },
 
-  btnCrono: {
-    backgroundColor: GYM_RED,
-    padding: spacing.lg,
-    borderRadius: radius.md,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-    shadowColor: GYM_RED,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
+  fieldRow: { width: '100%', gap: 6 },
+  fieldLabel: { fontSize: 11, fontWeight: '700', color: QF.colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' },
+  input: {
+    backgroundColor: QF.colors.bg, borderRadius: QF.radius.lg,
+    borderWidth: 1, borderColor: QF.colors.cardBorder,
+    padding: QF.spacing.md, color: QF.colors.textPrimary, fontSize: QF.font.md,
   },
-  btnCronoTexto: { color: '#fff', fontSize: font.lg, fontWeight: '700' },
+  btnPrimary: {
+    width: '100%', backgroundColor: QF.colors.stats.fuerza.main,
+    borderRadius: QF.radius.xl, paddingVertical: 14, alignItems: 'center', marginTop: QF.spacing.sm,
+  },
+  btnPrimaryText: { color: '#fff', fontWeight: '800', fontSize: QF.font.md },
 
-  btnCronoGris: {
-    backgroundColor: colors.cardAlt,
-    padding: spacing.lg,
-    borderRadius: radius.md,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.xs,
-    borderWidth: 1,
-    borderColor: colors.border,
+  logCard: {
+    backgroundColor: QF.colors.surface, borderRadius: QF.radius.xl,
+    borderWidth: 1, borderColor: QF.colors.cardBorder, borderLeftWidth: 3,
+    borderLeftColor: QF.colors.stats.fuerza.main,
+    padding: QF.spacing.md, marginBottom: QF.spacing.sm,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
   },
-  btnCronoGrisTexto: { color: colors.textSec, fontSize: font.base, fontWeight: '700' },
+  logLeft: { flex: 1 },
+  logRight: { alignItems: 'flex-end' },
+  logNombre: { fontSize: QF.font.md, fontWeight: '700', color: QF.colors.textPrimary },
+  logDate: { fontSize: 11, color: QF.colors.textMuted, marginTop: 2 },
+  logStat: { fontSize: QF.font.sm, fontWeight: '700', color: QF.colors.stats.fuerza.main },
+  logPeso: { fontSize: 11, color: QF.colors.textSecondary },
+
+  timerCard: {
+    backgroundColor: QF.colors.surface, borderRadius: QF.radius.xxl,
+    borderWidth: 1, borderColor: QF.colors.cardBorder,
+    padding: QF.spacing.xl, alignItems: 'center', gap: QF.spacing.lg,
+  },
+  timerRing: { alignItems: 'center', justifyContent: 'center' },
+  timerFill: {
+    width: 160, height: 160, borderRadius: 80, borderWidth: 6,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: QF.colors.elevated,
+  },
+  timerText: { fontSize: 40, fontWeight: '900', color: QF.colors.textPrimary, fontVariant: ['tabular-nums'] },
+  timerBtns: { flexDirection: 'row', gap: QF.spacing.sm },
+  timerPreset: {
+    backgroundColor: QF.colors.bg, borderRadius: QF.radius.lg,
+    borderWidth: 1, borderColor: QF.colors.cardBorder,
+    paddingHorizontal: 16, paddingVertical: 10,
+  },
+  timerPresetText: { fontSize: QF.font.sm, fontWeight: '700', color: QF.colors.textSecondary },
 });

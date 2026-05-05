@@ -23,7 +23,8 @@ const MAPPING = {
   'dumbbell.fill': 'fitness-center',
   'star.fill': 'auto-awesome',
   'calendar.fill': 'calendar-today',
-} as IconMapping;
+  'shield.fill': 'shield',
+} as unknown as IconMapping;
 
 /**
  * An icon component that uses native SF Symbols on iOS, and Material Icons on Android and web.

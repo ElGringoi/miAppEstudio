@@ -1,61 +1,72 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
 import { Platform } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 import { HapticTab } from '@/components/HapticTab';
-import { IconSymbol } from '@/components/ui/IconSymbol';
 import TabBarBackground from '@/components/ui/TabBarBackground';
-import { colors } from '@/constants/theme';
+import { QF } from '@/constants/questflow';
 
 export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: colors.accent,
-        tabBarInactiveTintColor: colors.textMuted,
+        tabBarActiveTintColor: QF.colors.accent,
+        tabBarInactiveTintColor: QF.colors.textMuted,
         headerShown: false,
         tabBarButton: HapticTab,
         tabBarBackground: TabBarBackground,
         tabBarStyle: Platform.select({
-          ios: { position: 'absolute', backgroundColor: colors.card, borderTopColor: colors.border },
-          default: { backgroundColor: colors.card, borderTopColor: colors.border },
+          ios: {
+            position: 'absolute',
+            backgroundColor: QF.colors.surface,
+            borderTopColor: QF.colors.cardBorder,
+          },
+          default: {
+            backgroundColor: QF.colors.surface,
+            borderTopColor: QF.colors.cardBorder,
+          },
         }),
+        tabBarLabelStyle: { fontSize: 10, fontWeight: '600' },
       }}>
       <Tabs.Screen
-        name="materias"
+        name="dashboard"
         options={{
-          title: 'Materias',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="book.fill" color={color} />,
+          title: 'Battle HQ',
+          tabBarIcon: ({ color }) => <Ionicons name="shield-outline" size={24} color={color} />,
         }}
       />
       <Tabs.Screen
-        name="pregunteros"
+        name="calendar"
         options={{
-          title: 'Pregunteros',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="questionmark.circle.fill" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="agenda"
-        options={{
-          title: 'Agenda',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="calendar.fill" color={color} />,
+          title: 'Battle Log',
+          tabBarIcon: ({ color }) => <Ionicons name="calendar-outline" size={24} color={color} />,
         }}
       />
       <Tabs.Screen
         name="gym"
         options={{
           title: 'Gym',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="dumbbell.fill" color={color} />,
+          tabBarIcon: ({ color }) => <Ionicons name="barbell-outline" size={24} color={color} />,
         }}
       />
       <Tabs.Screen
         name="rpg"
         options={{
           title: 'RPG',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="star.fill" color={color} />,
+          tabBarIcon: ({ color }) => <Ionicons name="star-outline" size={24} color={color} />,
         }}
       />
+      <Tabs.Screen
+        name="materias"
+        options={{
+          title: 'Estudio',
+          tabBarIcon: ({ color }) => <Ionicons name="book-outline" size={24} color={color} />,
+        }}
+      />
+      {/* Ocultar tabs legacy del nav bar */}
+      <Tabs.Screen name="agenda" options={{ href: null }} />
+      <Tabs.Screen name="pregunteros" options={{ href: null }} />
     </Tabs>
   );
 }

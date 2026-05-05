@@ -1,707 +1,453 @@
 import {
-  addDoc,
-  collection,
-  doc,
-  getDoc,
-  increment,
-  onSnapshot,
-  orderBy,
-  query,
-  setDoc,
-  updateDoc,
+  addDoc, collection, doc, increment, onSnapshot, setDoc, updateDoc,
 } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
 import {
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+  Dimensions, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { db } from '@/lib/firebase';
 import { useUsuario } from '@/context/UsuarioContext';
-import { colors, radius, spacing, font, shadow } from '@/constants/theme';
+import { QF, StatKey, xpToLevel } from '@/constants/questflow';
 
-type StatKey = 'fuerza' | 'inteligencia' | 'carisma' | 'agilidad' | 'resistencia' | 'sabiduria';
+const { width } = Dimensions.get('window');
 
 type StatsDoc = Record<StatKey, { xp: number }>;
-
-type Habito = {
-  id: string;
-  nombre: string;
-  stat: StatKey;
-  fechaCompletado: string | null;
-};
-
-type Mision = {
-  id: string;
-  titulo: string;
-  completada: boolean;
-  parentId: string | null;
-  orden: number;
-};
-
-type Seccion = 'stats' | 'habitos' | 'misiones';
+type Habito = { id: string; nombre: string; stat: StatKey; fechaCompletado: string | null };
+type Mision = { id: string; titulo: string; completada: boolean; parentId: string | null; orden: number };
+type Seccion = 'stats' | 'quests' | 'misiones';
 
 const HOY = new Date().toISOString().slice(0, 10);
+const STAT_KEYS: StatKey[] = ['fuerza', 'inteligencia', 'carisma', 'agilidad', 'resistencia', 'sabiduria'];
 
-const STATS_INFO: Record<StatKey, { label: string; color: string; descripcion: string; icon: keyof typeof MaterialIcons.glyphMap }> = {
-  fuerza:       { label: 'Fuerza',       color: colors.stat.fuerza,       descripcion: 'Ejercicio y cuerpo',    icon: 'fitness-center' },
-  inteligencia: { label: 'Inteligencia', color: colors.stat.inteligencia, descripcion: 'Estudio y aprendizaje', icon: 'psychology'     },
-  carisma:      { label: 'Carisma',      color: colors.stat.carisma,      descripcion: 'Conexiones sociales',   icon: 'people'         },
-  agilidad:     { label: 'Agilidad',     color: colors.stat.agilidad,     descripcion: 'Orden y productividad', icon: 'bolt'           },
-  resistencia:  { label: 'Resistencia',  color: colors.stat.resistencia,  descripcion: 'Sueño e hidratación',   icon: 'favorite'       },
-  sabiduria:    { label: 'Sabiduría',    color: colors.stat.sabiduria,    descripcion: 'Mente y meditación',    icon: 'menu-book'      },
-};
-
-const STAT_KEYS = Object.keys(STATS_INFO) as StatKey[];
-
-const STATS_INICIALES: StatsDoc = {
-  fuerza:       { xp: 0 },
-  inteligencia: { xp: 0 },
-  carisma:      { xp: 0 },
-  agilidad:     { xp: 0 },
-  resistencia:  { xp: 0 },
-  sabiduria:    { xp: 0 },
-};
-
-const SECCIONES: { key: Seccion; label: string }[] = [
-  { key: 'stats',    label: 'Atributos' },
-  { key: 'habitos',  label: 'Quests'    },
-  { key: 'misiones', label: 'Misiones'  },
-];
-
-const calcNivel    = (xp: number) => Math.floor(xp / 100) + 1;
-const calcXpLocal  = (xp: number) => xp % 100;
-const calcProgreso = (xp: number) => (xp % 100) / 100;
-
-type QuestNodeProps = {
+// ── Mission Tree Node ──────────────────────────────────────────────
+function MisionNode({
+  mision, todas, nivel, onToggle, onAddChild,
+}: {
   mision: Mision;
   todas: Mision[];
   nivel: number;
-  onToggle: (id: string, completada: boolean) => void;
-  onAgregarHijo: (parentId: string, titulo: string) => void;
-};
+  onToggle: (id: string, v: boolean) => void;
+  onAddChild: (parentId: string, titulo: string) => void;
+}) {
+  const [expanded, setExpanded] = useState(true);
+  const [addOpen, setAddOpen] = useState(false);
+  const [newTitle, setNewTitle] = useState('');
+  const children = todas.filter(m => m.parentId === mision.id).sort((a, b) => a.orden - b.orden);
+  const isRoot = nivel === 0;
+  const col = isRoot ? QF.colors.accent : nivel === 1 ? QF.colors.stats.inteligencia.main : QF.colors.textSecondary;
 
-function QuestNode({ mision, todas, nivel, onToggle, onAgregarHijo }: QuestNodeProps) {
-  const [expandida, setExpandida] = useState(true);
-  const [agregarAbierto, setAgregarAbierto] = useState(false);
-  const [nuevaSubmision, setNuevaSubmision] = useState('');
-
-  const hijos = todas
-    .filter((m) => m.parentId === mision.id)
-    .sort((a, b) => a.orden - b.orden);
-
-  const confirmarAgregar = () => {
-    if (!nuevaSubmision.trim()) return;
-    onAgregarHijo(mision.id, nuevaSubmision.trim());
-    setNuevaSubmision('');
-    setAgregarAbierto(false);
-    setExpandida(true);
-  };
-
-  const isRaiz = nivel === 0;
+  function confirm() {
+    if (!newTitle.trim()) return;
+    onAddChild(mision.id, newTitle.trim());
+    setNewTitle(''); setAddOpen(false); setExpanded(true);
+  }
 
   return (
-    <View style={{ marginLeft: nivel * 16, marginBottom: spacing.sm }}>
-      <View style={[styles.misionCard, isRaiz && styles.misionCardRaiz]}>
-        <View style={styles.misionFila}>
-          {hijos.length > 0 ? (
-            <TouchableOpacity onPress={() => setExpandida((v) => !v)} style={styles.expandBtn}>
-              <MaterialIcons
-                name={expandida ? 'expand-more' : 'chevron-right'}
-                size={18}
-                color={colors.textMuted}
-              />
-            </TouchableOpacity>
-          ) : (
-            <View style={styles.expandBtn} />
-          )}
-
-          <TouchableOpacity
-            onPress={() => onToggle(mision.id, mision.completada)}
-            style={[styles.checkbox, mision.completada && styles.checkboxCompleto]}
-          >
-            {mision.completada && (
-              <MaterialIcons name="check" size={12} color="#fff" />
-            )}
-          </TouchableOpacity>
-
-          <Text
-            style={[styles.misionTitulo, mision.completada && styles.misionTachada]}
-            numberOfLines={2}
-          >
+    <View style={{ marginLeft: nivel * 20, marginBottom: 6 }}>
+      <View style={[styles.misionCard, isRoot && styles.misionCardRoot, { borderLeftColor: col }]}>
+        <TouchableOpacity style={styles.misionRow} onPress={() => onToggle(mision.id, !mision.completada)}>
+          <View style={[styles.misionCheck, {
+            borderColor: col,
+            backgroundColor: mision.completada ? col : 'transparent',
+          }]}>
+            {mision.completada && <Text style={styles.checkMark}>✓</Text>}
+          </View>
+          <Text style={[styles.misionTitulo, mision.completada && styles.misionDone, { color: mision.completada ? QF.colors.textMuted : QF.colors.textPrimary }]}>
             {mision.titulo}
           </Text>
+          {children.length > 0 && (
+            <TouchableOpacity onPress={() => setExpanded(v => !v)} style={styles.expandBtn}>
+              <Text style={{ color: QF.colors.textMuted, fontSize: 16 }}>{expanded ? '▾' : '▸'}</Text>
+            </TouchableOpacity>
+          )}
+        </TouchableOpacity>
 
-          <TouchableOpacity
-            onPress={() => setAgregarAbierto((v) => !v)}
-            style={styles.btnSubNueva}
-          >
-            <MaterialIcons name="add" size={16} color={colors.accent} />
+        <View style={styles.misionActions}>
+          <TouchableOpacity onPress={() => setAddOpen(v => !v)}>
+            <Text style={[styles.misionActionText, { color: col }]}>+ sub-misión</Text>
           </TouchableOpacity>
         </View>
 
-        {agregarAbierto && (
-          <View style={styles.inputInlineFila}>
+        {addOpen && (
+          <View style={styles.addChildRow}>
             <TextInput
-              style={styles.inputInline}
-              placeholder="Nueva submisión..."
-              placeholderTextColor={colors.textMuted}
-              value={nuevaSubmision}
-              onChangeText={setNuevaSubmision}
-              autoFocus
+              style={styles.addChildInput}
+              value={newTitle}
+              onChangeText={setNewTitle}
+              placeholder="Nueva sub-misión…"
+              placeholderTextColor={QF.colors.textMuted}
             />
-            <TouchableOpacity onPress={confirmarAgregar} style={styles.btnInlineOk}>
-              <Text style={styles.btnInlineOkTexto}>OK</Text>
+            <TouchableOpacity style={[styles.addChildBtn, { backgroundColor: col }]} onPress={confirm}>
+              <Text style={styles.addChildBtnText}>+</Text>
             </TouchableOpacity>
           </View>
         )}
       </View>
 
-      {expandida &&
-        hijos.map((h) => (
-          <QuestNode
-            key={h.id}
-            mision={h}
-            todas={todas}
-            nivel={nivel + 1}
-            onToggle={onToggle}
-            onAgregarHijo={onAgregarHijo}
-          />
-        ))}
+      {expanded && children.map(child => (
+        <MisionNode
+          key={child.id}
+          mision={child}
+          todas={todas}
+          nivel={nivel + 1}
+          onToggle={onToggle}
+          onAddChild={onAddChild}
+        />
+      ))}
     </View>
   );
 }
 
-export default function RpgScreen() {
+// ── Main Screen ────────────────────────────────────────────────────
+export default function RPGScreen() {
   const { usuario } = useUsuario();
   const [seccion, setSeccion] = useState<Seccion>('stats');
-
-  const [stats, setStats] = useState<StatsDoc>(STATS_INICIALES);
+  const [stats, setStats] = useState<StatsDoc | null>(null);
   const [habitos, setHabitos] = useState<Habito[]>([]);
-  const [nombreHabito, setNombreHabito] = useState('');
-  const [statHabito, setStatHabito] = useState<StatKey>('fuerza');
-  const [agregarHabitoAbierto, setAgregarHabitoAbierto] = useState(false);
   const [misiones, setMisiones] = useState<Mision[]>([]);
+  const [nuevaQuest, setNuevaQuest] = useState('');
+  const [questStat, setQuestStat] = useState<StatKey>('fuerza');
   const [nuevaMision, setNuevaMision] = useState('');
 
   useEffect(() => {
-    if (!usuario) return;
-
+    if (!usuario?.uid) return;
     const uid = usuario.uid;
-
-    const statsRef = doc(db, 'usuarios', uid, 'rpg_stats', 'datos');
-    getDoc(statsRef).then((snap) => {
-      if (!snap.exists()) {
-        setDoc(statsRef, STATS_INICIALES);
-      }
-    });
-
-    const cancelarStats = onSnapshot(statsRef, (snap) => {
+    const s1 = onSnapshot(doc(db, 'usuarios', uid, 'stats', 'main'), snap => {
       if (snap.exists()) setStats(snap.data() as StatsDoc);
     });
-
-    const cancelarHabitos = onSnapshot(
-      query(collection(db, 'usuarios', uid, 'rpg_habitos'), orderBy('nombre')),
-      (snap) => {
-        setHabitos(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Habito, 'id'>) })));
-      }
-    );
-
-    const cancelarMisiones = onSnapshot(
-      query(collection(db, 'usuarios', uid, 'rpg_misiones'), orderBy('orden')),
-      (snap) => {
-        setMisiones(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Mision, 'id'>) })));
-      }
-    );
-
-    return () => {
-      cancelarStats();
-      cancelarHabitos();
-      cancelarMisiones();
-    };
-  }, [usuario]);
-
-  const guardarHabito = async () => {
-    if (!usuario || !nombreHabito.trim()) return;
-    await addDoc(collection(db, 'usuarios', usuario.uid, 'rpg_habitos'), {
-      nombre: nombreHabito.trim(),
-      stat: statHabito,
-      fechaCompletado: null,
+    const s2 = onSnapshot(collection(db, 'usuarios', uid, 'habitos'), snap => {
+      setHabitos(snap.docs.map(d => ({ id: d.id, ...d.data() } as Habito)));
     });
-    setNombreHabito('');
-    setAgregarHabitoAbierto(false);
-  };
+    const s3 = onSnapshot(collection(db, 'usuarios', uid, 'misiones'), snap => {
+      setMisiones(snap.docs.map(d => ({ id: d.id, ...d.data() } as Mision)));
+    });
+    return () => { s1(); s2(); s3(); };
+  }, [usuario?.uid]);
 
-  const toggleHabito = async (habito: Habito) => {
-    if (!usuario) return;
+  async function completarHabito(h: Habito) {
+    if (!usuario?.uid) return;
+    const yaHecho = h.fechaCompletado === HOY;
+    const xpDelta = yaHecho ? -20 : 20;
+    await updateDoc(doc(db, 'usuarios', usuario.uid, 'habitos', h.id), {
+      fechaCompletado: yaHecho ? null : HOY,
+    });
+    await setDoc(
+      doc(db, 'usuarios', usuario.uid, 'stats', 'main'),
+      { [h.stat]: { xp: increment(xpDelta) } },
+      { merge: true }
+    );
+  }
 
-    const yaCompletadoHoy = habito.fechaCompletado === HOY;
-    const habitoRef = doc(db, 'usuarios', usuario.uid, 'rpg_habitos', habito.id);
-    const statsRef  = doc(db, 'usuarios', usuario.uid, 'rpg_stats', 'datos');
+  async function agregarQuest() {
+    if (!usuario?.uid || !nuevaQuest.trim()) return;
+    await addDoc(collection(db, 'usuarios', usuario.uid, 'habitos'), {
+      nombre: nuevaQuest.trim(), stat: questStat, fechaCompletado: null,
+    });
+    setNuevaQuest('');
+  }
 
-    if (!yaCompletadoHoy) {
-      await updateDoc(habitoRef, { fechaCompletado: HOY });
-      await updateDoc(statsRef, { [`${habito.stat}.xp`]: increment(20) });
-    } else {
-      const xpActual = stats[habito.stat]?.xp ?? 0;
-      await updateDoc(habitoRef, { fechaCompletado: null });
-      if (xpActual >= 20) {
-        await updateDoc(statsRef, { [`${habito.stat}.xp`]: increment(-20) });
-      }
-    }
-  };
-
-  const agregarMisionRaiz = async () => {
-    if (!usuario || !nuevaMision.trim()) return;
-    await addDoc(collection(db, 'usuarios', usuario.uid, 'rpg_misiones'), {
-      titulo: nuevaMision.trim(),
-      completada: false,
-      parentId: null,
-      orden: misiones.length,
+  async function agregarMision() {
+    if (!usuario?.uid || !nuevaMision.trim()) return;
+    await addDoc(collection(db, 'usuarios', usuario.uid, 'misiones'), {
+      titulo: nuevaMision.trim(), completada: false, parentId: null, orden: misiones.length,
     });
     setNuevaMision('');
-  };
+  }
 
-  const agregarSubmision = async (parentId: string, titulo: string) => {
-    if (!usuario) return;
-    const hermanos = misiones.filter((m) => m.parentId === parentId);
-    await addDoc(collection(db, 'usuarios', usuario.uid, 'rpg_misiones'), {
-      titulo,
-      completada: false,
-      parentId,
-      orden: hermanos.length,
+  async function toggleMision(id: string, completada: boolean) {
+    if (!usuario?.uid) return;
+    await updateDoc(doc(db, 'usuarios', usuario.uid, 'misiones', id), { completada });
+  }
+
+  async function addChildMision(parentId: string, titulo: string) {
+    if (!usuario?.uid) return;
+    await addDoc(collection(db, 'usuarios', usuario.uid, 'misiones'), {
+      titulo, completada: false, parentId, orden: misiones.filter(m => m.parentId === parentId).length,
     });
-  };
+  }
 
-  const toggleMision = async (id: string, completada: boolean) => {
-    if (!usuario) return;
-    await updateDoc(doc(db, 'usuarios', usuario.uid, 'rpg_misiones', id), {
-      completada: !completada,
-    });
-  };
+  const rootMisiones = misiones.filter(m => m.parentId === null).sort((a, b) => a.orden - b.orden);
 
-  const nivelTotal = STAT_KEYS.reduce((acc, k) => acc + calcNivel(stats[k]?.xp ?? 0), 0);
-
-  const completadosHoy = habitos.filter((h) => h.fechaCompletado === HOY).length;
-  const porcentajeHabitos = habitos.length > 0 ? Math.round((completadosHoy / habitos.length) * 100) : 0;
-
-  const renderStats = () => (
-    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: spacing.hh }}>
-      {STAT_KEYS.map((key) => {
-        const info   = STATS_INFO[key];
-        const xp     = stats[key]?.xp ?? 0;
-        const nivel  = calcNivel(xp);
-        const local  = calcXpLocal(xp);
-        const progr  = calcProgreso(xp);
-        return (
-          <View key={key} style={styles.statCard}>
-            <View style={styles.statEncabezado}>
-              <View style={styles.statLeft}>
-                <View style={[styles.iconBadge, { backgroundColor: info.color + '20' }]}>
-                  <MaterialIcons name={info.icon} size={20} color={info.color} />
-                </View>
-                <View>
-                  <Text style={styles.statNombre}>{info.label}</Text>
-                  <Text style={styles.statDescripcion}>{info.descripcion}</Text>
-                </View>
-              </View>
-              <View style={[styles.nivelPill, { backgroundColor: info.color + '15', borderColor: info.color + '40' }]}>
-                <Text style={[styles.nivelTexto, { color: info.color }]}>Nv. {nivel}</Text>
-              </View>
-            </View>
-            <View style={styles.barraContenedor}>
-              <View style={[styles.barraRelleno, { width: `${progr * 100}%` as `${number}%`, backgroundColor: info.color }]} />
-            </View>
-            <Text style={styles.xpTexto}>{local} / 100 XP</Text>
-          </View>
-        );
-      })}
-    </ScrollView>
-  );
-
-  const renderHabitos = () => (
-    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: spacing.hh }}>
-      <View style={styles.seccionHeader}>
-        <Text style={styles.seccionLabel}>PROGRESO</Text>
-        <View style={styles.porcentajeBadge}>
-          <Text style={styles.porcentajeTexto}>{porcentajeHabitos}%</Text>
-        </View>
-      </View>
-      <View style={styles.barraContenedor}>
-        <View style={[styles.barraRelleno, { width: `${porcentajeHabitos}%` as `${number}%`, backgroundColor: colors.accent }]} />
-      </View>
-
-      <View style={styles.card}>
-        {habitos.map((h, idx) => {
-          const completadoHoy = h.fechaCompletado === HOY;
-          const color = STATS_INFO[h.stat].color;
-          return (
-            <TouchableOpacity
-              key={h.id}
-              style={[styles.habitoFila, idx < habitos.length - 1 && styles.habitoFilaBorde]}
-              onPress={() => toggleHabito(h)}
-              activeOpacity={0.7}
-            >
-              <View style={[styles.iconBadge, { backgroundColor: color + '20' }]}>
-                <MaterialIcons name={STATS_INFO[h.stat].icon} size={16} color={color} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.habitoNombre, completadoHoy && styles.habitoTachado]}>
-                  {h.nombre}
-                </Text>
-                <Text style={[styles.habitoStatLabel, { color }]}>{STATS_INFO[h.stat].label}</Text>
-              </View>
-              <View style={[styles.checkboxHabito, completadoHoy && { backgroundColor: colors.accent, borderColor: colors.accent }]}>
-                {completadoHoy && <MaterialIcons name="check" size={13} color="#fff" />}
-              </View>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-
-      {agregarHabitoAbierto ? (
-        <View style={[styles.card, { marginTop: spacing.md, gap: spacing.md }]}>
-          <TextInput
-            style={styles.input}
-            placeholder="Nombre del hábito"
-            placeholderTextColor={colors.textMuted}
-            value={nombreHabito}
-            onChangeText={setNombreHabito}
-            autoFocus
-          />
-          <Text style={styles.label}>ATRIBUTO</Text>
-          <View style={styles.statSelector}>
-            {STAT_KEYS.map((k) => {
-              const activo = statHabito === k;
-              const col = STATS_INFO[k].color;
-              return (
-                <TouchableOpacity
-                  key={k}
-                  style={[styles.statChip, activo && { backgroundColor: col, borderColor: col }]}
-                  onPress={() => setStatHabito(k)}
-                >
-                  <Text style={[styles.statChipTexto, activo && { color: '#fff' }]}>
-                    {STATS_INFO[k].label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-          <View style={styles.filaAcciones}>
-            <TouchableOpacity style={[styles.btnPrimario, { flex: 1 }]} onPress={guardarHabito}>
-              <Text style={styles.btnPrimarioTexto}>Guardar</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.btnSecundario, { flex: 1 }]}
-              onPress={() => setAgregarHabitoAbierto(false)}
-            >
-              <Text style={styles.btnSecundarioTexto}>Cancelar</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      ) : (
-        <TouchableOpacity
-          style={[styles.btnPrimario, { marginTop: spacing.md }]}
-          onPress={() => setAgregarHabitoAbierto(true)}
-        >
-          <MaterialIcons name="add" size={18} color="#fff" />
-          <Text style={styles.btnPrimarioTexto}>Nuevo hábito</Text>
-        </TouchableOpacity>
-      )}
-    </ScrollView>
-  );
-
-  const renderMisiones = () => {
-    const raices = misiones
-      .filter((m) => m.parentId === null)
-      .sort((a, b) => a.orden - b.orden);
-
-    return (
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: spacing.hh }}>
-        {raices.map((m) => (
-          <QuestNode
-            key={m.id}
-            mision={m}
-            todas={misiones}
-            nivel={0}
-            onToggle={toggleMision}
-            onAgregarHijo={agregarSubmision}
-          />
-        ))}
-
-        <View style={[styles.card, { marginTop: spacing.md, flexDirection: 'row', gap: spacing.sm, alignItems: 'center' }]}>
-          <TextInput
-            style={[styles.input, { flex: 1, marginBottom: 0 }]}
-            placeholder="Nueva misión épica..."
-            placeholderTextColor={colors.textMuted}
-            value={nuevaMision}
-            onChangeText={setNuevaMision}
-          />
-          <TouchableOpacity style={styles.btnIcono} onPress={agregarMisionRaiz}>
-            <MaterialIcons name="add" size={20} color="#fff" />
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-    );
-  };
+  const secciones: { key: Seccion; label: string }[] = [
+    { key: 'stats', label: 'Atributos' },
+    { key: 'quests', label: 'Quests' },
+    { key: 'misiones', label: 'Mission Tree' },
+  ];
 
   return (
     <View style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <View style={styles.headerIconBadge}>
-            <MaterialIcons name="auto-awesome" size={22} color={colors.accent} />
-          </View>
-          <View>
-            <Text style={styles.headerTitulo}>QUESTFLOW</Text>
-            <Text style={styles.headerSub}>Nivel total {nivelTotal}</Text>
-          </View>
+        <Text style={styles.title}>RPG</Text>
+        <View style={styles.tabs}>
+          {secciones.map(s => (
+            <TouchableOpacity
+              key={s.key}
+              style={[styles.tab, seccion === s.key && styles.tabActive]}
+              onPress={() => setSeccion(s.key)}
+            >
+              <Text style={[styles.tabText, seccion === s.key && styles.tabTextActive]}>{s.label}</Text>
+            </TouchableOpacity>
+          ))}
         </View>
       </View>
 
-      <View style={styles.tabsContainer}>
-        {SECCIONES.map((s) => (
-          <TouchableOpacity
-            key={s.key}
-            style={[styles.tab, seccion === s.key && styles.tabActivo]}
-            onPress={() => setSeccion(s.key)}
-          >
-            <Text style={[styles.tabTexto, seccion === s.key && styles.tabTextoActivo]}>
-              {s.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+      <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
 
-      <View style={styles.contenido}>
-        {seccion === 'stats'    && renderStats()}
-        {seccion === 'habitos'  && renderHabitos()}
-        {seccion === 'misiones' && renderMisiones()}
-      </View>
+        {/* ── STATS ── */}
+        {seccion === 'stats' && STAT_KEYS.map(key => {
+          const xp = stats?.[key]?.xp || 0;
+          const { level, progress, xpInLevel } = xpToLevel(xp);
+          const col = QF.colors.stats[key];
+          const info = QF.statLabels[key];
+          const questsDeEsta = habitos.filter(h => h.stat === key);
+          const completadas = questsDeEsta.filter(h => h.fechaCompletado === HOY).length;
+          return (
+            <View key={key} style={[styles.statRow, { borderLeftColor: col.main }]}>
+              <View style={styles.statRowTop}>
+                <View style={styles.statLeft}>
+                  <Text style={styles.statIcon}>{info.icon}</Text>
+                  <View>
+                    <Text style={[styles.statName, { color: col.main }]}>{info.full}</Text>
+                    <Text style={styles.statBadge}>{info.label} · LVL {level}</Text>
+                  </View>
+                </View>
+                <Text style={[styles.statXP, { color: col.main }]}>{xpInLevel}/100 XP</Text>
+              </View>
+              <View style={styles.barBg}>
+                <View style={[styles.barFill, { width: `${Math.round(progress * 100)}%` as any, backgroundColor: col.main }]} />
+              </View>
+              {questsDeEsta.length > 0 && (
+                <Text style={styles.statQuestInfo}>{completadas}/{questsDeEsta.length} quests completadas hoy</Text>
+              )}
+            </View>
+          );
+        })}
+
+        {/* ── QUESTS ── */}
+        {seccion === 'quests' && (
+          <>
+            {/* Add Quest */}
+            <View style={styles.addCard}>
+              <Text style={styles.sectionLabel}>NUEVA QUEST DIARIA</Text>
+              <TextInput
+                style={styles.input}
+                value={nuevaQuest}
+                onChangeText={setNuevaQuest}
+                placeholder="Nombre de la quest…"
+                placeholderTextColor={QF.colors.textMuted}
+              />
+              <Text style={styles.sectionLabel}>ATRIBUTO</Text>
+              <View style={styles.statPicker}>
+                {STAT_KEYS.map(k => {
+                  const col = QF.colors.stats[k];
+                  const sel = questStat === k;
+                  return (
+                    <TouchableOpacity
+                      key={k}
+                      style={[styles.statPickerBtn, { borderColor: col.main, backgroundColor: sel ? col.dim : 'transparent' }]}
+                      onPress={() => setQuestStat(k)}
+                    >
+                      <Text style={{ fontSize: 16 }}>{QF.statLabels[k].icon}</Text>
+                      <Text style={[styles.statPickerLabel, { color: sel ? col.main : QF.colors.textMuted }]}>
+                        {QF.statLabels[k].label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              <TouchableOpacity style={styles.btnAdd} onPress={agregarQuest}>
+                <Text style={styles.btnAddText}>Agregar Quest</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Quests grouped by stat */}
+            {STAT_KEYS.map(key => {
+              const group = habitos.filter(h => h.stat === key);
+              if (group.length === 0) return null;
+              const col = QF.colors.stats[key];
+              return (
+                <View key={key} style={styles.questGroup}>
+                  <View style={styles.questGroupHeader}>
+                    <Text style={styles.questGroupIcon}>{QF.statLabels[key].icon}</Text>
+                    <Text style={[styles.questGroupName, { color: col.main }]}>{QF.statLabels[key].full}</Text>
+                  </View>
+                  {group.map(h => {
+                    const done = h.fechaCompletado === HOY;
+                    return (
+                      <TouchableOpacity
+                        key={h.id}
+                        style={[styles.questCard, { borderLeftColor: col.main, opacity: done ? 0.6 : 1 }]}
+                        onPress={() => completarHabito(h)}
+                      >
+                        <View style={[styles.questCheck, { borderColor: col.main, backgroundColor: done ? col.main : 'transparent' }]}>
+                          {done && <Text style={styles.checkMark}>✓</Text>}
+                        </View>
+                        <Text style={[styles.questNombre, done && styles.questDone]}>{h.nombre}</Text>
+                        {done && <Text style={[styles.xpBadge, { color: col.main }]}>+20 XP</Text>}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              );
+            })}
+          </>
+        )}
+
+        {/* ── MISSION TREE ── */}
+        {seccion === 'misiones' && (
+          <>
+            <View style={styles.addCard}>
+              <Text style={styles.sectionLabel}>NUEVA MISIÓN ÉPICA</Text>
+              <View style={styles.addRow}>
+                <TextInput
+                  style={[styles.input, { flex: 1 }]}
+                  value={nuevaMision}
+                  onChangeText={setNuevaMision}
+                  placeholder="Nombre de la misión…"
+                  placeholderTextColor={QF.colors.textMuted}
+                />
+                <TouchableOpacity style={styles.btnAddInline} onPress={agregarMision}>
+                  <Text style={styles.btnAddInlineText}>+</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {rootMisiones.length === 0 && (
+              <View style={styles.emptyBox}>
+                <Text style={styles.emptyText}>Sin misiones aún. ¡Crea tu primera misión épica!</Text>
+              </View>
+            )}
+
+            {rootMisiones.map(m => (
+              <MisionNode
+                key={m.id}
+                mision={m}
+                todas={misiones}
+                nivel={0}
+                onToggle={toggleMision}
+                onAddChild={addChildMision}
+              />
+            ))}
+          </>
+        )}
+
+        <View style={{ height: 80 }} />
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
-
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: colors.card,
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    ...shadow.card,
-  },
-  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  headerIconBadge: {
-    width: 44,
-    height: 44,
-    borderRadius: radius.md,
-    backgroundColor: colors.accentLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitulo: { fontSize: font.xl, fontWeight: '900', color: colors.text, letterSpacing: 1 },
-  headerSub:    { fontSize: font.sm, color: colors.textSec, marginTop: 1 },
-
-  tabsContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.md,
-    gap: spacing.sm,
-    backgroundColor: colors.bg,
-  },
+  container: { flex: 1, backgroundColor: QF.colors.bg },
+  header: { paddingTop: QF.spacing.xl + 16, paddingHorizontal: QF.spacing.lg, paddingBottom: QF.spacing.sm },
+  title: { fontSize: QF.font.xxl, fontWeight: '800', color: QF.colors.textPrimary, marginBottom: QF.spacing.md },
+  tabs: { flexDirection: 'row', gap: QF.spacing.xs },
   tab: {
-    flex: 1,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.sm,
-    backgroundColor: colors.cardAlt,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
+    flex: 1, paddingVertical: 8, borderRadius: QF.radius.lg,
+    backgroundColor: QF.colors.surface, alignItems: 'center',
+    borderWidth: 1, borderColor: QF.colors.cardBorder,
   },
-  tabActivo:      { backgroundColor: colors.accent, borderColor: colors.accent },
-  tabTexto:       { color: colors.textSec, fontSize: font.sm, fontWeight: '700' },
-  tabTextoActivo: { color: '#fff' },
+  tabActive: { backgroundColor: QF.colors.accentGlow, borderColor: QF.colors.accent },
+  tabText: { fontSize: QF.font.xs, fontWeight: '600', color: QF.colors.textMuted },
+  tabTextActive: { color: QF.colors.accent },
+  body: { flex: 1 },
+  bodyContent: { padding: QF.spacing.lg },
 
-  contenido: { flex: 1, paddingHorizontal: spacing.xl, paddingTop: spacing.sm },
-
-  seccionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
-  seccionLabel:  { fontSize: font.xs, fontWeight: '800', color: colors.textMuted, letterSpacing: 0.8 },
-  porcentajeBadge: { backgroundColor: colors.accentLight, paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: radius.full },
-  porcentajeTexto: { fontSize: font.sm, fontWeight: '700', color: colors.accent },
-
-  card: {
-    backgroundColor: colors.card,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: spacing.md,
-    ...shadow.card,
+  sectionLabel: {
+    fontSize: 10, fontWeight: '700', color: QF.colors.textMuted,
+    letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: QF.spacing.sm,
   },
 
-  statCard: {
-    backgroundColor: colors.card,
-    borderRadius: radius.lg,
-    padding: spacing.lg,
-    marginBottom: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...shadow.card,
+  // Stats
+  statRow: {
+    backgroundColor: QF.colors.surface, borderRadius: QF.radius.xl,
+    borderWidth: 1, borderColor: QF.colors.cardBorder, borderLeftWidth: 3,
+    padding: QF.spacing.md, marginBottom: QF.spacing.sm, gap: 8,
   },
-  statEncabezado: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md },
-  statLeft:       { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  statNombre:     { fontSize: font.base, fontWeight: '800', color: colors.text },
-  statDescripcion:{ fontSize: font.sm, color: colors.textSec, marginTop: 1 },
-  nivelPill:      { paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: radius.full, borderWidth: 1 },
-  nivelTexto:     { fontSize: font.sm, fontWeight: '700' },
+  statRowTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  statLeft: { flexDirection: 'row', alignItems: 'center', gap: QF.spacing.md },
+  statIcon: { fontSize: 22 },
+  statName: { fontSize: QF.font.md, fontWeight: '800' },
+  statBadge: { fontSize: 10, color: QF.colors.textMuted, fontWeight: '600', letterSpacing: 0.5 },
+  statXP: { fontSize: QF.font.sm, fontWeight: '700' },
+  barBg: { height: 5, backgroundColor: QF.colors.cardBorder, borderRadius: QF.radius.full, overflow: 'hidden' },
+  barFill: { height: '100%', borderRadius: QF.radius.full },
+  statQuestInfo: { fontSize: 10, color: QF.colors.textMuted },
 
-  iconBadge: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
+  // Quests
+  addCard: {
+    backgroundColor: QF.colors.surface, borderRadius: QF.radius.xxl,
+    borderWidth: 1, borderColor: QF.colors.cardBorder, padding: QF.spacing.lg, marginBottom: QF.spacing.lg,
   },
-
-  barraContenedor: {
-    height: 6,
-    backgroundColor: colors.cardAlt,
-    borderRadius: radius.full,
-    overflow: 'hidden',
-    marginBottom: spacing.xs,
-  },
-  barraRelleno: { height: '100%', borderRadius: radius.full },
-  xpTexto:      { color: colors.textMuted, fontSize: font.xs, textAlign: 'right' },
-
-  habitoFila:     { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.md, gap: spacing.md },
-  habitoFilaBorde:{ borderBottomWidth: 1, borderBottomColor: colors.borderLight },
-  habitoNombre:   { fontSize: font.base, color: colors.text, fontWeight: '500' },
-  habitoTachado:  { textDecorationLine: 'line-through', color: colors.textMuted },
-  habitoStatLabel:{ fontSize: font.sm, marginTop: 1 },
-  checkboxHabito: {
-    width: 24,
-    height: 24,
-    borderRadius: radius.sm,
-    borderWidth: 2,
-    borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  label:        { fontSize: font.xs, fontWeight: '800', color: colors.textMuted, letterSpacing: 0.8 },
-  statSelector: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  statChip: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: radius.full,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.cardAlt,
-  },
-  statChipTexto: { fontSize: font.sm, fontWeight: '600', color: colors.textSec },
-
   input: {
-    backgroundColor: colors.cardAlt,
-    color: colors.text,
-    padding: spacing.md,
-    borderRadius: radius.md,
-    fontSize: font.base,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: spacing.sm,
+    backgroundColor: QF.colors.bg, borderRadius: QF.radius.lg,
+    borderWidth: 1, borderColor: QF.colors.cardBorder,
+    padding: QF.spacing.md, color: QF.colors.textPrimary, fontSize: QF.font.md,
+    marginBottom: QF.spacing.sm,
   },
-
-  filaAcciones: { flexDirection: 'row', gap: spacing.sm },
-
-  btnPrimario: {
-    backgroundColor: colors.accent,
-    padding: spacing.md,
-    borderRadius: radius.md,
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: spacing.xs,
-    ...shadow.blue,
+  statPicker: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: QF.spacing.sm },
+  statPickerBtn: {
+    borderRadius: QF.radius.lg, borderWidth: 1.5, paddingHorizontal: 10, paddingVertical: 6,
+    alignItems: 'center', gap: 2, minWidth: 48,
   },
-  btnPrimarioTexto: { color: '#fff', fontSize: font.base, fontWeight: '700' },
-
-  btnSecundario: {
-    backgroundColor: colors.cardAlt,
-    padding: spacing.md,
-    borderRadius: radius.md,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
+  statPickerLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
+  btnAdd: {
+    backgroundColor: QF.colors.accent, borderRadius: QF.radius.xl,
+    paddingVertical: 12, alignItems: 'center',
   },
-  btnSecundarioTexto: { color: colors.textSec, fontSize: font.base, fontWeight: '600' },
+  btnAddText: { color: '#fff', fontWeight: '800', fontSize: QF.font.md },
 
-  btnIcono: {
-    width: 44,
-    height: 44,
-    borderRadius: radius.md,
-    backgroundColor: colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...shadow.blue,
+  questGroup: { marginBottom: QF.spacing.lg },
+  questGroupHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+  questGroupIcon: { fontSize: 18 },
+  questGroupName: { fontSize: QF.font.md, fontWeight: '800' },
+  questCard: {
+    backgroundColor: QF.colors.surface, borderRadius: QF.radius.xl,
+    borderWidth: 1, borderColor: QF.colors.cardBorder, borderLeftWidth: 3,
+    padding: QF.spacing.md, marginBottom: 6,
+    flexDirection: 'row', alignItems: 'center', gap: QF.spacing.md,
   },
+  questCheck: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  checkMark: { color: '#fff', fontSize: 11, fontWeight: '800' },
+  questNombre: { flex: 1, fontSize: QF.font.md, fontWeight: '600', color: QF.colors.textPrimary },
+  questDone: { textDecorationLine: 'line-through', color: QF.colors.textMuted },
+  xpBadge: { fontSize: 11, fontWeight: '800' },
 
+  // Mission Tree
   misionCard: {
-    backgroundColor: colors.card,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...shadow.card,
+    backgroundColor: QF.colors.surface, borderRadius: QF.radius.xl,
+    borderWidth: 1, borderColor: QF.colors.cardBorder, borderLeftWidth: 3,
+    padding: QF.spacing.md,
   },
-  misionCardRaiz: { borderColor: colors.accent, borderWidth: 1.5 },
-  misionFila:    { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  expandBtn:     { width: 20, alignItems: 'center' },
-  checkbox: {
-    width: 20,
-    height: 20,
-    borderRadius: 4,
-    borderWidth: 2,
-    borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
+  misionCardRoot: {
+    backgroundColor: QF.colors.elevated,
+    borderColor: QF.colors.accent,
   },
-  checkboxCompleto: { backgroundColor: colors.success, borderColor: colors.success },
-  misionTitulo:  { flex: 1, color: colors.text, fontSize: font.md, fontWeight: '500' },
-  misionTachada: { textDecorationLine: 'line-through', color: colors.textMuted },
-  btnSubNueva:   {
-    width: 28,
-    height: 28,
-    borderRadius: radius.sm,
-    backgroundColor: colors.accentLight,
-    alignItems: 'center',
-    justifyContent: 'center',
+  misionRow: { flexDirection: 'row', alignItems: 'center', gap: QF.spacing.md },
+  misionCheck: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  misionTitulo: { flex: 1, fontSize: QF.font.md, fontWeight: '600' },
+  misionDone: { textDecorationLine: 'line-through' },
+  expandBtn: { padding: 4 },
+  misionActions: { marginTop: 6 },
+  misionActionText: { fontSize: 11, fontWeight: '700' },
+  addChildRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
+  addChildInput: {
+    flex: 1, backgroundColor: QF.colors.bg, borderRadius: QF.radius.md,
+    borderWidth: 1, borderColor: QF.colors.cardBorder,
+    paddingHorizontal: QF.spacing.md, paddingVertical: 8,
+    color: QF.colors.textPrimary, fontSize: QF.font.sm,
   },
-  inputInlineFila: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },
-  inputInline: {
-    flex: 1,
-    backgroundColor: colors.cardAlt,
-    color: colors.text,
-    padding: spacing.sm,
-    borderRadius: radius.sm,
-    fontSize: font.md,
-    borderWidth: 1,
-    borderColor: colors.border,
+  addChildBtn: { borderRadius: QF.radius.md, width: 36, alignItems: 'center', justifyContent: 'center' },
+  addChildBtnText: { color: '#fff', fontWeight: '900', fontSize: 18 },
+
+  addRow: { flexDirection: 'row', gap: 8 },
+  btnAddInline: {
+    backgroundColor: QF.colors.accent, borderRadius: QF.radius.lg,
+    width: 44, alignItems: 'center', justifyContent: 'center',
   },
-  btnInlineOk: {
-    backgroundColor: colors.accent,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.sm,
-    justifyContent: 'center',
-  },
-  btnInlineOkTexto: { color: '#fff', fontWeight: '700', fontSize: font.sm },
+  btnAddInlineText: { color: '#fff', fontWeight: '900', fontSize: 22 },
+
+  emptyBox: { paddingVertical: 40, alignItems: 'center' },
+  emptyText: { color: QF.colors.textMuted, fontSize: QF.font.sm, textAlign: 'center', paddingHorizontal: 20 },
 });
