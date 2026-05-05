@@ -1,0 +1,15 @@
+{
+  "ignorePaths": [
+    "**/node_modules/**",
+    "**/.firebase/**",
+    "**/dist/**",
+    "**/build/**",
+    "**/venv/**",
+    "**/__pycache__/**",
+    "**/.next/**",
+    "**/posibles logos/**",
+    "**/ios/App/Pods/**",
+    "**/android/build/**",
+    "**/android/.gradle/**"
+  ]
+}

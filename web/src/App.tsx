@@ -16,9 +16,9 @@ import {
   isSameDay, isToday, getDay,
 } from 'date-fns';
 import {
-  onAuthStateChanged, signInWithPopup, signOut,
-  GoogleAuthProvider, User,
+  onAuthStateChanged, signInWithPopup, signOut, GoogleAuthProvider,
 } from 'firebase/auth';
+import type { User } from 'firebase/auth';
 import {
   collection, doc, increment, onSnapshot,
   setDoc, updateDoc, addDoc,

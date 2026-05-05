@@ -6,15 +6,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Descripción del Proyecto
 
-**miAppEstudio** es una app multiplataforma (iOS, Android, Web) construida con Expo/React Native. Es una herramienta personal de productividad y estudio con gamificación.
+**miAppEstudio** es una web app de productividad y estudio con gamificación al estilo RPG.
 
 Módulos principales:
-- **Estudio:** materias, pregunteros (quiz), apuntes, ejercicios prácticos
-- **Agenda:** eventos del día + hábitos diarios
-- **Gym:** rutinas de entrenamiento, registro de ejercicios, cronómetro
-- **RPG:** sistema de stats (fuerza, inteligencia, etc.) que sube con hábitos y misiones
+- **Dashboard:** hero stats, hábitos diarios, agenda del día, misiones activas
+- **Agenda/Tareas:** eventos y tareas con recurrencia
+- **Gym:** rutinas de entrenamiento
+- **RPG:** sistema de stats (fuerza, inteligencia, etc.) con misiones
 
-**Estado:** Prototipo activo. Sin tests, sin CI/CD, sin backend propio (usa Firebase directamente desde el cliente).
+**Estado:** Prototipo activo. Sin tests, sin CI/CD. Usa Firebase directamente desde el cliente.
+
+**Directorio de trabajo:** Todo el código vive en `web/`. La raíz del repo solo contiene `.git/`, `.gitignore`, `CLAUDE.md`, y `web/`.
 
 ---
 
@@ -22,107 +24,82 @@ Módulos principales:
 
 | Capa | Tecnología |
 |---|---|
-| Framework | Expo v53, React Native 0.79.2, React 19 |
-| Ruteo | Expo Router v5 (file-based, estilo Next.js) |
-| Lenguaje | TypeScript 5.8.3 (modo estricto) |
-| Estado global | React Context API (`UsuarioContext`) |
+| Framework | Vite 8 + React 19.2 |
+| Lenguaje | TypeScript (modo estricto) |
+| Estilos | Tailwind CSS v4 (`@tailwindcss/vite` plugin, sin config file) |
+| Animaciones | `motion/react` (standalone Motion, no framer-motion) |
+| Gráficos | Recharts (RadarChart) |
 | Auth | Firebase Auth — `signInWithPopup` con `GoogleAuthProvider` |
-| Base de datos | Firestore (agenda, gym, rpg) + AsyncStorage (materias, preguntas) |
-| Íconos | `@expo/vector-icons` (Ionicons) + `expo-symbols` |
-| Linting | ESLint 9 con `eslint-config-expo` |
+| Base de datos | Firestore |
+| Utilidades | date-fns, lucide-react, clsx, tailwind-merge |
 
 ---
 
 ## Comandos de Desarrollo
 
 ```bash
-npx expo start        # Dev server (escanear QR con Expo Go, o abrir en browser)
-npx expo start --web  # Solo web
-npm run lint          # ESLint
+cd web
+npm run dev    # Dev server en http://localhost:5173
+npm run build  # Build de producción
+npm run lint   # ESLint
 ```
-
-> `npm run reset-project` es destructivo — sobreescribe `app/` y `components/`. No ejecutar salvo pedido explícito.
 
 ---
 
 ## Arquitectura
 
-### Ruteo (Expo Router)
-
-Archivos en `app/` se mapean a rutas automáticamente:
-- `app/index.tsx` → `/` (redirige según auth)
-- `app/(tabs)/LoginScreen.tsx` → `/LoginScreen`
-- `app/(tabs)/agenda.tsx` → `/agenda`
-- `app/(tabs)/gym.tsx` → `/gym`
-- `app/(tabs)/rpg.tsx` → `/rpg`
-- `app/materias/index.tsx` → `/materias`
-- `app/materia/[nombre].tsx` → `/materia/:nombre`
-
-`app/(tabs)/MateriasScreen.tsx` está deprecada — usar siempre `app/materias/index.tsx`.
-
-### Flujo de Autenticación
+### Estructura de `web/`
 
 ```
-app/index.tsx → revisa UsuarioContext → redirige a /LoginScreen o /materias
-
-LoginScreen.tsx:
-  signInWithPopup(auth, new GoogleAuthProvider())
-  → UsuarioContext.onAuthStateChanged sincroniza el estado
-  → router.replace('/materias')
-
-UsuarioContext.cerrarSesion():
-  → signOut(auth) → setUsuario(null) → router.replace('/LoginScreen')
+web/
+├── src/
+│   ├── App.tsx          # Componente principal (toda la UI)
+│   ├── App.css          # Estilos globales + Tailwind import
+│   ├── main.tsx         # Entry point de Vite
+│   ├── lib/
+│   │   ├── firebase.ts  # Config Firebase (auth + db)
+│   │   └── utils.ts     # Utilidades (cn())
+│   └── assets/
+├── index.html
+├── vite.config.ts
+├── package.json
+└── tsconfig*.json
 ```
-
-`UsuarioContext` (`context/UsuarioContext.tsx`) escucha `onAuthStateChanged` de Firebase Auth y expone `{ usuario, setUsuario, cerrarSesion, loading }`. Está disponible mediante `useUsuario()`.
 
 ### Firebase
 
-**Usar siempre `@/lib/firebase`** (no `../../config/firebase` — ese archivo está duplicado y será removido):
-
 ```ts
-import { auth, db } from '@/lib/firebase';
+import { auth, db } from './lib/firebase';
 ```
 
-Firestore se usa en agenda, gym y rpg. La estructura de colecciones es por usuario:
-- `usuarios/{uid}/eventos` — eventos de agenda
-- `usuarios/{uid}/habitos` — hábitos (agenda y rpg)
-- `usuarios/{uid}/rutinas` — rutinas de gym
-- `usuarios/{uid}/ejercicios` — registros de gym
-- `usuarios/{uid}/stats` — stats RPG (`{ fuerza: { xp }, inteligencia: { xp }, ... }`)
-- `usuarios/{uid}/misiones` — misiones RPG
+Firestore: colecciones por usuario bajo `usuarios/{uid}/`:
+- `eventos` — eventos de agenda
+- `habitos` — hábitos diarios (campo `fechaCompletado: string`, `stat: StatKey`)
+- `tareas` — tareas con recurrencia (`completedDates: string[]`)
+- `rutinas` — rutinas de gym
+- `stats` — stats RPG (`{ fuerza: { xp }, inteligencia: { xp }, ... }`)
+- `misiones` — misiones RPG (flat list con `parentId`)
 
-AsyncStorage sigue usándose para materias y preguntas:
-- `materias` → `string[]`
-- `preguntas_{materia}` → `Pregunta[]`
+### Tailwind v4
 
-### Sidebar
+No hay archivo `tailwind.config.*`. El plugin se configura solo en `vite.config.ts`:
+```ts
+import tailwindcss from '@tailwindcss/vite';
+// ...plugins: [react(), tailwindcss()]
+```
+CSS usa `@import "tailwindcss"` en `App.css`.
 
-`components/Sidebar.tsx` es un overlay global con navegación principal. Se monta en `app/_layout.tsx` sobre el `<Slot />`. Se oculta automáticamente en `/LoginScreen` y `/`. El botón ☰ aparece en `position: absolute` arriba a la izquierda.
-
-### Sistema de Preguntas
+### Tipos Firestore (en `App.tsx`)
 
 ```ts
-type Pregunta =
-  | { tipo: 'multiple'; pregunta: string; opciones: string[]; correcta: string }
-  | { tipo: 'texto';    pregunta: string; correcta: string }
-  | { tipo: 'vf';       pregunta: string; correcta: 'Verdadero' | 'Falso' }
+type FSStatKey = 'fuerza' | 'inteligencia' | 'carisma' | 'agilidad' | 'resistencia' | 'sabiduria'
+type FSHabito  = { id, nombre, stat: FSStatKey, fechaCompletado: string }
+type FSTarea   = { id, titulo, hora?, recurrence, weekday?, date?, color, completedDates: string[] }
+type FSMision  = { id, titulo, completada, parentId: string | null }
+type FSStatsDoc = Record<FSStatKey, { xp: number }>
 ```
 
-### Stats RPG
-
-Las 6 stats son: `fuerza | inteligencia | carisma | agilidad | resistencia | sabiduria`. Cada hábito en RPG tiene una stat asociada; completarlo incrementa el XP de esa stat en Firestore.
-
-### Alias TypeScript
-
-Usar siempre `@/` como alias raíz (definido en `tsconfig.json`). No usar rutas relativas `../` entre directorios.
-
-### Archivos Específicos por Plataforma
-
-Expo resuelve automáticamente:
-- `*.ios.tsx` → solo iOS
-- `*.web.ts` → solo web
-- El archivo sin sufijo → fallback para el resto
+`import type { User } from 'firebase/auth'` — User es un tipo TS, debe importarse con `import type` para evitar SyntaxError en Vite.
 
 ---
 
@@ -136,20 +113,10 @@ Expo resuelve automáticamente:
 
 ---
 
-## Áreas Sensibles
-
-- `config/firebase.ts` y `lib/firebase.ts` son duplicados — el código nuevo usa `@/lib/firebase`. No crear una tercera instancia de Firebase.
-- `apuntes.tsx` y `ejerciciospracticos.tsx` son stubs intencionales — aún no implementados.
-- EAS Build no está configurado (`app.json` tiene placeholder de proyecto).
-- Sin manejo de errores para flujos offline de Firestore.
-
----
-
 ## Lo Que No Existe
 
-- Tests (no hay Jest, Vitest ni Testing Library)
+- Tests
 - CI/CD
 - Variables de entorno (`.env`)
 - Backend propio / REST API
 - i18n
-- EAS Build configurado
