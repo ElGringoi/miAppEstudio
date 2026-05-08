@@ -1,0 +1,213 @@
+
+<h2 class="sr-only">Plan semanal de ejercicios y dieta para aumento de masa muscular en casa, de lunes a viernes</h2>
+
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--font-sans); color: var(--color-text-primary); }
+  .tabs { display: flex; gap: 4px; margin-bottom: 1.5rem; flex-wrap: wrap; }
+  .tab { padding: 8px 16px; border-radius: var(--border-radius-md); font-size: 13px; font-weight: 500; cursor: pointer; border: 0.5px solid var(--color-border-tertiary); background: transparent; color: var(--color-text-secondary); transition: all 0.15s; }
+  .tab:hover { background: var(--color-background-secondary); }
+  .tab.active { background: #534AB7; color: #fff; border-color: #534AB7; }
+  .day { display: none; }
+  .day.active { display: block; }
+  .section-title { font-size: 16px; font-weight: 500; margin: 1.25rem 0 0.75rem; display: flex; align-items: center; gap: 8px; }
+  .exercise-card { background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); padding: 12px 16px; margin-bottom: 8px; }
+  .exercise-name { font-size: 14px; font-weight: 500; margin-bottom: 4px; }
+  .exercise-detail { font-size: 13px; color: var(--color-text-secondary); }
+  .muscle-tag { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: var(--border-radius-md); background: #EEEDFE; color: #3C3489; margin-right: 4px; margin-top: 4px; }
+  .meal-card { background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); padding: 12px 16px; margin-bottom: 8px; }
+  .meal-time { font-size: 12px; color: #534AB7; font-weight: 500; margin-bottom: 4px; }
+  .meal-name { font-size: 14px; font-weight: 500; margin-bottom: 2px; }
+  .meal-desc { font-size: 13px; color: var(--color-text-secondary); line-height: 1.5; }
+  .macro-bar { display: flex; gap: 12px; margin-top: 1rem; padding: 12px 16px; background: var(--color-background-secondary); border-radius: var(--border-radius-md); }
+  .macro-item { text-align: center; flex: 1; }
+  .macro-val { font-size: 18px; font-weight: 500; }
+  .macro-label { font-size: 11px; color: var(--color-text-secondary); }
+  .note { font-size: 13px; color: var(--color-text-secondary); margin-top: 1rem; padding: 10px 14px; background: var(--color-background-secondary); border-radius: var(--border-radius-md); line-height: 1.6; }
+  .toggle-row { display: flex; gap: 4px; margin-bottom: 1rem; }
+  .toggle-btn { padding: 6px 14px; border-radius: var(--border-radius-md); font-size: 12px; font-weight: 500; cursor: pointer; border: 0.5px solid var(--color-border-tertiary); background: transparent; color: var(--color-text-secondary); }
+  .toggle-btn.active { background: #E1F5EE; color: #085041; border-color: #5DCAA5; }
+  @media (prefers-color-scheme: dark) {
+    .muscle-tag { background: #26215C; color: #AFA9EC; }
+    .tab.active { background: #7F77DD; color: #fff; border-color: #7F77DD; }
+    .toggle-btn.active { background: #085041; color: #9FE1CB; border-color: #0F6E56; }
+  }
+</style>
+
+<div style="padding: 0.5rem 0;">
+
+<div class="tabs" id="dayTabs"></div>
+
+<div class="toggle-row" id="viewToggle">
+  <button class="toggle-btn active" onclick="showView('ejercicios')"><i class="ti ti-barbell" style="font-size:14px;vertical-align:-1px;margin-right:4px" aria-hidden="true"></i>Ejercicios</button>
+  <button class="toggle-btn" onclick="showView('dieta')"><i class="ti ti-salad" style="font-size:14px;vertical-align:-1px;margin-right:4px" aria-hidden="true"></i>Dieta</button>
+</div>
+
+<div id="content"></div>
+
+</div>
+
+<script>
+const days = [
+  {
+    name: "Lunes",
+    label: "Pecho + tríceps",
+    exercises: [
+      { name: "Flexiones clásicas", sets: "4×12-15", muscles: ["Pecho","Tríceps"], note: "Manos al ancho de hombros" },
+      { name: "Flexiones diamante", sets: "3×10-12", muscles: ["Tríceps","Pecho interno"], note: "Manos juntas formando un diamante" },
+      { name: "Flexiones declinadas", sets: "3×10-12", muscles: ["Pecho superior","Hombros"], note: "Pies elevados en silla o cama" },
+      { name: "Flexiones abiertas", sets: "3×12-15", muscles: ["Pecho externo"], note: "Manos más anchas que hombros" },
+      { name: "Dips en silla", sets: "4×10-12", muscles: ["Tríceps","Pecho inferior"], note: "Manos apoyadas en silla, pies adelante" },
+      { name: "Extensión tríceps con peso", sets: "3×12", muscles: ["Tríceps"], note: "Con mochila, bidón o lo que tengas" }
+    ],
+    meals: [
+      { time: "7:30", label: "Desayuno", desc: "3 huevos revueltos + 2 tostadas integrales + 1 banana + mate o café" },
+      { time: "10:30", label: "Snack mañana", desc: "1 puñado de maní + 1 fruta (manzana o naranja)" },
+      { time: "13:00", label: "Almuerzo", desc: "200g pechuga de pollo a la plancha + 1 taza arroz integral + ensalada de tomate y lechuga con aceite de oliva" },
+      { time: "16:30", label: "Merienda pre-entreno", desc: "2 tostadas con queso untable + 1 banana" },
+      { time: "20:00", label: "Cena post-entreno", desc: "2 milanesas de pollo al horno + puré de papa (2 papas medianas con leche) + 1 huevo duro" }
+    ]
+  },
+  {
+    name: "Martes",
+    label: "Espalda + bíceps",
+    exercises: [
+      { name: "Remo con bidones/mochila", sets: "4×12", muscles: ["Espalda","Bíceps"], note: "Inclinado 45°, tirar hacia el abdomen" },
+      { name: "Superman hold", sets: "4×15", muscles: ["Espalda baja","Glúteos"], note: "Boca abajo, elevar brazos y piernas" },
+      { name: "Remo invertido (mesa)", sets: "3×10-12", muscles: ["Espalda media","Bíceps"], note: "Acostado bajo una mesa resistente, tirar" },
+      { name: "Curl bíceps con peso", sets: "4×12", muscles: ["Bíceps"], note: "Con bidón de agua, mochila o bolsa" },
+      { name: "Curl martillo", sets: "3×12", muscles: ["Bíceps","Antebrazo"], note: "Agarre neutro con el peso" },
+      { name: "Encogimientos de hombros", sets: "3×15", muscles: ["Trapecios"], note: "Con peso en cada mano" }
+    ],
+    meals: [
+      { time: "7:30", label: "Desayuno", desc: "Avena (60g) con leche + 1 banana + 1 cda miel + 2 cdas maní picado" },
+      { time: "10:30", label: "Snack mañana", desc: "Yogur natural + granola (30g)" },
+      { time: "13:00", label: "Almuerzo", desc: "Fideos integrales (100g secos) con salsa bolognesa (150g carne picada magra) + queso rallado" },
+      { time: "16:30", label: "Merienda pre-entreno", desc: "Sándwich de pan integral con atún y tomate" },
+      { time: "20:00", label: "Cena post-entreno", desc: "200g carne vacuna magra + batata al horno (1 grande) + ensalada de rúcula con aceite" }
+    ]
+  },
+  {
+    name: "Miércoles",
+    label: "Piernas + core",
+    exercises: [
+      { name: "Sentadillas", sets: "4×15-20", muscles: ["Cuádriceps","Glúteos"], note: "Con mochila cargada para más peso" },
+      { name: "Zancadas caminando", sets: "3×12 c/pierna", muscles: ["Cuádriceps","Glúteos"], note: "Paso largo, rodilla no pasa la punta del pie" },
+      { name: "Sentadilla búlgara", sets: "3×10 c/pierna", muscles: ["Cuádriceps","Glúteos"], note: "Pie trasero elevado en silla" },
+      { name: "Puente de glúteos", sets: "4×15", muscles: ["Glúteos","Isquiotibiales"], note: "Elevar cadera, apretar arriba 2s" },
+      { name: "Elevación de talones", sets: "4×20", muscles: ["Pantorrillas"], note: "En un escalón, rango completo" },
+      { name: "Plancha frontal", sets: "3×45s", muscles: ["Core"], note: "Cuerpo recto, no hundir cadera" },
+      { name: "Plancha lateral", sets: "3×30s c/lado", muscles: ["Oblicuos"], note: "Codo bajo el hombro" }
+    ],
+    meals: [
+      { time: "7:30", label: "Desayuno", desc: "Tortilla de 3 huevos con espinaca + 2 rebanadas pan integral + jugo de naranja natural" },
+      { time: "10:30", label: "Snack mañana", desc: "1 banana + 1 cda de manteca de maní" },
+      { time: "13:00", label: "Almuerzo", desc: "Guiso de lentejas con arroz (1 taza lentejas + 1/2 taza arroz) + verduras + carne" },
+      { time: "16:30", label: "Merienda pre-entreno", desc: "Licuado: leche (300ml) + banana + avena (40g) + miel" },
+      { time: "20:00", label: "Cena post-entreno", desc: "2 supremas de pollo + puré de calabaza + ensalada con huevo duro" }
+    ]
+  },
+  {
+    name: "Jueves",
+    label: "Hombros + core",
+    exercises: [
+      { name: "Pike push-ups", sets: "4×10-12", muscles: ["Hombros","Tríceps"], note: "Cadera elevada en V invertida" },
+      { name: "Elevaciones laterales", sets: "4×15", muscles: ["Deltoides lateral"], note: "Con bidones o botellas de agua" },
+      { name: "Elevaciones frontales", sets: "3×12", muscles: ["Deltoides frontal"], note: "Alternar brazos" },
+      { name: "Press militar con peso", sets: "3×12", muscles: ["Hombros","Tríceps"], note: "Mochila, bidón o bolsa con peso" },
+      { name: "Face pull con toalla", sets: "3×15", muscles: ["Deltoides posterior","Trapecios"], note: "Toalla enganchada en puerta" },
+      { name: "Crunch abdominal", sets: "4×20", muscles: ["Abdominales"], note: "Subir solo hasta omóplatos" },
+      { name: "Bicicleta abdominal", sets: "3×15 c/lado", muscles: ["Oblicuos","Abdominales"], note: "Codo toca rodilla opuesta" }
+    ],
+    meals: [
+      { time: "7:30", label: "Desayuno", desc: "Tostadas francesas: 2 panes integrales en mezcla de huevo y leche + canela + miel" },
+      { time: "10:30", label: "Snack mañana", desc: "Mix de frutos secos (nueces, almendras, pasas) 40g" },
+      { time: "13:00", label: "Almuerzo", desc: "200g carne al horno + 1 taza arroz + ensalada mixta (tomate, zanahoria, lechuga) con aceite" },
+      { time: "16:30", label: "Merienda pre-entreno", desc: "Yogur con banana picada + avena (30g)" },
+      { time: "20:00", label: "Cena post-entreno", desc: "Omelette de 4 huevos con queso y jamón + pan integral + tomate" }
+    ]
+  },
+  {
+    name: "Viernes",
+    label: "Full body + intensidad",
+    exercises: [
+      { name: "Burpees", sets: "3×10", muscles: ["Full body"], note: "Explosivo, ritmo controlado" },
+      { name: "Flexiones clásicas", sets: "3×15", muscles: ["Pecho","Tríceps"], note: "Última serie al fallo" },
+      { name: "Sentadillas con salto", sets: "3×12", muscles: ["Cuádriceps","Glúteos"], note: "Aterrizar suave con rodillas flexionadas" },
+      { name: "Remo con peso", sets: "3×12", muscles: ["Espalda","Bíceps"], note: "Con mochila o bidones" },
+      { name: "Zancadas con peso", sets: "3×10 c/pierna", muscles: ["Piernas","Glúteos"], note: "Mochila cargada" },
+      { name: "Mountain climbers", sets: "3×30s", muscles: ["Core","Cardio"], note: "Ritmo rápido, core activado" },
+      { name: "Plancha con toque de hombros", sets: "3×12 c/lado", muscles: ["Core","Estabilidad"], note: "No rotar cadera" }
+    ],
+    meals: [
+      { time: "7:30", label: "Desayuno", desc: "Avena (60g) cocida con leche + 2 huevos duros + 1 fruta" },
+      { time: "10:30", label: "Snack mañana", desc: "Sándwich de pan integral con queso y palta" },
+      { time: "13:00", label: "Almuerzo", desc: "Pollo al horno (200g) con papas y batata asadas + ensalada con aceite de oliva" },
+      { time: "16:30", label: "Merienda pre-entreno", desc: "Licuado de banana + avena + leche + 1 cda miel" },
+      { time: "20:00", label: "Cena post-entreno", desc: "Hamburguesas caseras (2 de 100g carne magra) en pan integral + lechuga, tomate + 1 huevo frito" }
+    ]
+  }
+];
+
+const macros = { cals: "2800-3000", prot: "150-170g", carbs: "350-400g", fat: "80-90g" };
+
+const tabsEl = document.getElementById("dayTabs");
+const contentEl = document.getElementById("content");
+let currentDay = 0;
+let currentView = "ejercicios";
+
+days.forEach((d, i) => {
+  const btn = document.createElement("button");
+  btn.className = "tab" + (i === 0 ? " active" : "");
+  btn.textContent = d.name;
+  btn.onclick = () => selectDay(i);
+  tabsEl.appendChild(btn);
+});
+
+function selectDay(i) {
+  currentDay = i;
+  document.querySelectorAll(".tab").forEach((t, idx) => t.classList.toggle("active", idx === i));
+  render();
+}
+
+function showView(v) {
+  currentView = v;
+  document.querySelectorAll(".toggle-btn").forEach((b, idx) => b.classList.toggle("active", (v === "ejercicios" && idx === 0) || (v === "dieta" && idx === 1)));
+  render();
+}
+
+function render() {
+  const d = days[currentDay];
+  let html = "";
+
+  if (currentView === "ejercicios") {
+    html += `<div class="section-title"><i class="ti ti-flame" style="font-size:18px;color:#D85A30" aria-hidden="true"></i>${d.label}</div>`;
+    d.exercises.forEach(ex => {
+      html += `<div class="exercise-card">
+        <div class="exercise-name">${ex.name}</div>
+        <div class="exercise-detail">${ex.sets} — ${ex.note}</div>
+        <div>${ex.muscles.map(m => `<span class="muscle-tag">${m}</span>`).join("")}</div>
+      </div>`;
+    });
+    html += `<div class="note"><i class="ti ti-info-circle" style="font-size:14px;vertical-align:-1px;margin-right:4px" aria-hidden="true"></i><strong>Descanso:</strong> 60-90s entre series. Calentamiento 5 min antes (jumping jacks, trote en el lugar). Si un ejercicio se vuelve fácil, agregá peso con mochila cargada.</div>`;
+  } else {
+    d.meals.forEach(m => {
+      html += `<div class="meal-card">
+        <div class="meal-time"><i class="ti ti-clock" style="font-size:13px;vertical-align:-1px;margin-right:3px" aria-hidden="true"></i>${m.time}</div>
+        <div class="meal-name">${m.label}</div>
+        <div class="meal-desc">${m.desc}</div>
+      </div>`;
+    });
+    html += `<div class="macro-bar">
+      <div class="macro-item"><div class="macro-val">${macros.cals}</div><div class="macro-label">kcal/día</div></div>
+      <div class="macro-item"><div class="macro-val">${macros.prot}</div><div class="macro-label">proteína</div></div>
+      <div class="macro-item"><div class="macro-val">${macros.carbs}</div><div class="macro-label">carbos</div></div>
+      <div class="macro-item"><div class="macro-val">${macros.fat}</div><div class="macro-label">grasas</div></div>
+    </div>`;
+    html += `<div class="note"><i class="ti ti-droplet" style="font-size:14px;vertical-align:-1px;margin-right:4px" aria-hidden="true"></i><strong>Hidratación:</strong> 2.5-3 litros de agua por día. Las comidas son orientativas, podés intercambiar entre días.</div>`;
+  }
+  contentEl.innerHTML = html;
+}
+
+render();
+</script>
