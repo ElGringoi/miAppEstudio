@@ -1,0 +1,29 @@
+import React from 'react';
+import { Dumbbell, Heart, Brain, Zap, Sparkles, Star } from 'lucide-react';
+import type { FSStatKey, EstadoLibro, TipoMaterial, Stat } from '../types';
+
+export const HOY = new Date().toISOString().slice(0, 10);
+export const FS_KEYS: FSStatKey[] = ['fuerza', 'salud', 'inteligencia', 'agilidad', 'carisma', 'fe'];
+export const DIAS_CORTO = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+export const DIAS_LETRA = ['D', 'L', 'M', 'X', 'J', 'V', 'S'];
+
+export const STAT_META: Record<FSStatKey, Omit<Stat, 'value' | 'max' | 'level'>> = {
+  fuerza:       { name: 'Fuerza',        icon: <Dumbbell className="w-4 h-4" />, color: 'bg-red-500',     shortName: 'STR', description: 'Rendimiento físico y entrenamiento.' },
+  salud:        { name: 'Salud',         icon: <Heart    className="w-4 h-4" />, color: 'bg-rose-500',    shortName: 'SAL', description: 'Bienestar físico y hábitos de vida.'  },
+  inteligencia: { name: 'Inteligencia',  icon: <Brain    className="w-4 h-4" />, color: 'bg-blue-500',    shortName: 'INT', description: 'Aprendizaje y resolución de problemas.' },
+  agilidad:     { name: 'Agilidad',      icon: <Zap      className="w-4 h-4" />, color: 'bg-emerald-500', shortName: 'AGI', description: 'Velocidad, reflejos y precisión.'      },
+  carisma:      { name: 'Carisma',       icon: <Sparkles className="w-4 h-4" />, color: 'bg-yellow-500',  shortName: 'CHA', description: 'Comunicación y liderazgo.'            },
+  fe:           { name: 'Fe',            icon: <Star     className="w-4 h-4" />, color: 'bg-violet-500',  shortName: 'FE',  description: 'Propósito, espiritualidad y valores.'  },
+};
+
+export const ESTADO_LIBRO_META: Record<EstadoLibro, { label: string; color: string }> = {
+  pendiente: { label: 'Pendiente', color: 'bg-slate-100 dark:bg-slate-800 text-slate-500' },
+  leyendo:   { label: 'Leyendo',   color: 'bg-blue-100 dark:bg-blue-900/30 text-blue-600' },
+  leido:     { label: 'Leído',     color: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600' },
+};
+
+export const MATERIAL_ICON: Record<TipoMaterial, React.ReactNode> = {
+  nota:   <span className="text-xs">📝</span>,
+  video:  <span className="text-xs">🎥</span>,
+  enlace: <span className="text-xs">🔗</span>,
+};

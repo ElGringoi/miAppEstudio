@@ -57,6 +57,7 @@ web/
 │   ├── App.css          # Estilos globales + Tailwind import
 │   ├── main.tsx         # Entry point de Vite
 │   ├── lib/
+
 │   │   ├── firebase.ts  # Config Firebase (auth + db)
 │   │   └── utils.ts     # Utilidades (cn())
 │   └── assets/

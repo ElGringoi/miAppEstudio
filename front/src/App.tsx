@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   LayoutDashboard, Calendar as CalendarIcon, Zap, Settings,
-  CheckCircle2, Plus, Target, Sword, Brain, Flame, Dumbbell,
-  ChevronRight, Bell, Search, Trophy, Sparkles,
-  Repeat, CalendarDays, LogOut, Trash2, X, PlayCircle, Utensils, Pencil, Heart, Star,
+  CheckCircle2, Plus, Target, Sword, Flame, Dumbbell,
+  ChevronRight, Bell, Search, Trophy, Menu, Pencil,
+  Repeat, CalendarDays, LogOut, Trash2, X, Utensils,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
@@ -25,306 +25,20 @@ import {
   setDoc, updateDoc, addDoc, deleteDoc,
 } from 'firebase/firestore';
 import { auth, db } from './lib/firebase';
-
-// ─── Firestore types ──────────────────────────────────────────────────────────
-
-type FSStatKey = 'fuerza' | 'salud' | 'inteligencia' | 'agilidad' | 'carisma' | 'fe';
-type FSStatsDoc = Record<FSStatKey, { xp: number }>;
-type FSHabito  = { id: string; nombre: string; stat: FSStatKey; fechaCompletado: string | null; xpValue?: number };
-type FSEvento  = { id: string; titulo: string; hora?: string; fecha: string };
-type FSMision  = { id: string; titulo: string; completada: boolean; parentId: string | null; orden: number };
-type FSTarea   = { id: string; titulo: string; hora?: string; recurrence: 'once' | 'daily' | 'weekly'; weekday?: number; date?: string; color: string; completedDates: string[] };
-type GCalEvent   = { id: string; summary?: string; start: { dateTime?: string; date?: string }; end: { dateTime?: string; date?: string } };
-type FSEjercicio = { id: string; nombre: string; series?: number; reps?: string; notas?: string; mediaUrl?: string; lastCompletedDate: string | null };
-type FSRutina    = { id: string; nombre: string; diasSemana: number[]; ejercicios: FSEjercicio[]; orden: number };
-type EstadoLibro  = 'leyendo' | 'leido' | 'pendiente';
-type FSCapitulo   = { id: string; numero: number; titulo?: string; leido: boolean; notas?: string };
-type FSLibro      = { id: string; titulo: string; autor?: string; estado: EstadoLibro; capitulos: FSCapitulo[]; xpPorCapitulo: number };
-type TipoMaterial = 'nota' | 'video' | 'enlace';
-type FSMaterial   = { id: string; tipo: TipoMaterial; titulo: string; contenido?: string; url?: string };
-type FSTareaFac   = { id: string; titulo: string; fecha?: string; completada: boolean };
-type FSExamen     = { id: string; titulo: string; fecha?: string; nota?: number; notaMax: number };
-type FSMateria    = { id: string; nombre: string; color: string; materiales: FSMaterial[]; tareas: FSTareaFac[]; examenes: FSExamen[] };
-
-// ─── UI types ─────────────────────────────────────────────────────────────────
-
-interface Stat { name: string; value: number; max: number; level: number; icon: React.ReactNode; color: string; description: string; shortName: string; }
-interface Habit { id: string; name: string; stat: FSStatKey; icon: React.ReactNode; completed: boolean; attribute: string; xpValue: number; }
-interface MissionNode { id: string; title: string; type: 'epic' | 'milestone' | 'task'; progress: number; children?: MissionNode[]; }
-interface Task { id: string; title: string; time: string; color: string; completed: boolean; recurrence: 'once' | 'daily' | 'weekly'; weekday?: number; date?: string; completedDates: string[]; }
-
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const HOY = new Date().toISOString().slice(0, 10);
-const FS_KEYS: FSStatKey[] = ['fuerza', 'salud', 'inteligencia', 'agilidad', 'carisma', 'fe'];
-
-const STAT_META: Record<FSStatKey, Omit<Stat, 'value' | 'max' | 'level'>> = {
-  fuerza:       { name: 'Fuerza',        icon: <Dumbbell className="w-4 h-4" />, color: 'bg-red-500',     shortName: 'STR', description: 'Rendimiento físico y entrenamiento.' },
-  salud:        { name: 'Salud',         icon: <Heart    className="w-4 h-4" />, color: 'bg-rose-500',    shortName: 'SAL', description: 'Bienestar físico y hábitos de vida.'  },
-  inteligencia: { name: 'Inteligencia',  icon: <Brain    className="w-4 h-4" />, color: 'bg-blue-500',    shortName: 'INT', description: 'Aprendizaje y resolución de problemas.' },
-  agilidad:     { name: 'Agilidad',      icon: <Zap      className="w-4 h-4" />, color: 'bg-emerald-500', shortName: 'AGI', description: 'Velocidad, reflejos y precisión.'      },
-  carisma:      { name: 'Carisma',       icon: <Sparkles className="w-4 h-4" />, color: 'bg-yellow-500',  shortName: 'CHA', description: 'Comunicación y liderazgo.'            },
-  fe:           { name: 'Fe',            icon: <Star     className="w-4 h-4" />, color: 'bg-violet-500',  shortName: 'FE',  description: 'Propósito, espiritualidad y valores.'  },
-};
-
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function xpLevel(xp: number) {
-  return { level: Math.floor(xp / 100) + 1, xpInLevel: xp % 100 };
-}
-
-function statsFromDoc(fsDoc: FSStatsDoc | null): Stat[] {
-  return FS_KEYS.map(key => {
-    const xp = fsDoc?.[key]?.xp ?? 0;
-    const { level, xpInLevel } = xpLevel(xp);
-    return { ...STAT_META[key], value: xpInLevel, max: 100, level };
-  });
-}
-
-function buildTree(misiones: FSMision[]): MissionNode {
-  const empty: MissionNode = { id: 'root', title: 'My Missions', type: 'epic', progress: 0, children: [] };
-  if (!misiones.length) return empty;
-
-  function node(m: FSMision, depth: number): MissionNode {
-    const kids = misiones.filter(c => c.parentId === m.id).sort((a, b) => a.orden - b.orden).map(c => node(c, depth + 1));
-    const prog = kids.length ? Math.round(kids.filter(k => k.progress === 100).length / kids.length * 100) : m.completada ? 100 : 0;
-    return { id: m.id, title: m.titulo, type: depth === 0 ? 'epic' : depth === 1 ? 'milestone' : 'task', progress: prog, children: kids.length ? kids : undefined };
-  }
-
-  const roots = misiones.filter(m => !m.parentId).sort((a, b) => a.orden - b.orden);
-  if (!roots.length) return empty;
-  if (roots.length === 1) return node(roots[0], 0);
-  const children = roots.map(r => node(r, 1));
-  return { id: 'root', title: 'My Missions', type: 'epic', progress: Math.round(children.reduce((s, c) => s + c.progress, 0) / children.length), children };
-}
-
-function youtubeEmbedUrl(url: string): string | null {
-  const m = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/);
-  return m ? `https://www.youtube.com/embed/${m[1]}` : null;
-}
-
-function isImageUrl(url: string): boolean {
-  return /\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i.test(url);
-}
-
-// ─── Sub-components ───────────────────────────────────────────────────────────
-
-const ProgressBar = ({ value, max, color, className }: { value: number; max: number; color: string; className?: string }) => (
-  <div className={cn('w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden', className)}>
-    <motion.div
-      initial={{ width: 0 }} animate={{ width: `${(value / max) * 100}%` }}
-      transition={{ duration: 0.8, ease: 'easeOut' }}
-      className={cn('h-full rounded-full', color)}
-    />
-  </div>
-);
-
-const StatCard = ({ stat }: { stat: Stat }) => (
-  <div className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-shadow">
-    <div className="flex justify-between items-center mb-2">
-      <div className="flex items-center gap-2">
-        <div className={cn('p-1.5 rounded-lg text-white', stat.color)}>{stat.icon}</div>
-        <div>
-          <span className="text-sm font-bold text-slate-700 dark:text-slate-200 block">{stat.name}</span>
-          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wide">Lv.{stat.level}</span>
-        </div>
-      </div>
-      <span className="text-xs font-mono font-bold text-slate-500">{stat.value}/100 xp</span>
-    </div>
-    <ProgressBar value={stat.value} max={stat.max} color={stat.color} />
-    <p className="text-[10px] text-slate-400 mt-2 leading-tight">{stat.description}</p>
-  </div>
-);
-
-
-
-const DIAS_CORTO = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
-
-const ESTADO_LIBRO_META: Record<EstadoLibro, { label: string; color: string }> = {
-  pendiente: { label: 'Pendiente', color: 'bg-slate-100 dark:bg-slate-800 text-slate-500' },
-  leyendo:   { label: 'Leyendo',   color: 'bg-blue-100 dark:bg-blue-900/30 text-blue-600' },
-  leido:     { label: 'Leído',     color: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600' },
-};
-
-const MATERIAL_ICON: Record<TipoMaterial, React.ReactNode> = {
-  nota:   <span className="text-xs">📝</span>,
-  video:  <span className="text-xs">🎥</span>,
-  enlace: <span className="text-xs">🔗</span>,
-};
-
-const CapituloRow = ({ cap, onToggle, onSave }: {
-  cap: FSCapitulo; onToggle: () => void; onSave: (notas: string) => void;
-}) => {
-  const [open, setOpen] = React.useState(false);
-  const [notas, setNotas] = React.useState(cap.notas ?? '');
-  return (
-    <div className={cn('rounded-xl border transition-all', cap.leido ? 'border-blue-200 dark:border-blue-800 bg-blue-50/30 dark:bg-blue-900/10' : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900')}>
-      <div className="flex items-center gap-3 px-4 py-3">
-        <div onClick={onToggle} className={cn('w-6 h-6 rounded-md border-2 flex items-center justify-center shrink-0 cursor-pointer transition-all',
-          cap.leido ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-300 dark:border-slate-600 hover:border-blue-400')}>
-          {cap.leido && <CheckCircle2 className="w-3.5 h-3.5" />}
-        </div>
-        <p className={cn('flex-1 text-sm font-medium', cap.leido && 'line-through text-slate-400')}>
-          Cap. {cap.numero}{cap.titulo ? ` — ${cap.titulo}` : ''}
-        </p>
-        {cap.notas && <span className="text-[10px] text-slate-400 italic">con nota</span>}
-        <button onClick={() => setOpen(v => !v)} className="text-slate-400 hover:text-blue-500 transition-colors p-1">
-          <ChevronRight className={cn('w-4 h-4 transition-transform', open && 'rotate-90')} />
-        </button>
-      </div>
-      {open && (
-        <div className="px-4 pb-3">
-          <textarea value={notas} onChange={e => setNotas(e.target.value)}
-            onBlur={() => onSave(notas)} placeholder="Anotaciones del capítulo..."
-            className="w-full text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 resize-none min-h-[80px]" />
-        </div>
-      )}
-    </div>
-  );
-};
-const DIAS_LETRA = ['D', 'L', 'M', 'X', 'J', 'V', 'S'];
-
-const EjercicioRow = ({ ejercicio, onToggle, onDelete, onEdit }: {
-  ejercicio: FSEjercicio; onToggle: () => void; onDelete: () => void; onEdit: () => void;
-}) => {
-  const [showMedia, setShowMedia] = React.useState(false);
-  const done     = ejercicio.lastCompletedDate === HOY;
-  const embedUrl = ejercicio.mediaUrl ? youtubeEmbedUrl(ejercicio.mediaUrl) : null;
-  const isImg    = ejercicio.mediaUrl ? isImageUrl(ejercicio.mediaUrl) : false;
-  return (
-    <div className={cn('group rounded-2xl border-2 transition-all overflow-hidden',
-      done ? 'border-blue-200 dark:border-blue-900/40 bg-blue-50/30 dark:bg-blue-900/10'
-           : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900')}>
-      <div className="flex items-center gap-4 p-4 cursor-pointer" onClick={onToggle}>
-        <div className={cn('w-10 h-10 rounded-xl border-2 flex items-center justify-center shrink-0 transition-all',
-          done ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-500/30' : 'border-slate-200 dark:border-slate-700')}>
-          {done && <CheckCircle2 className="w-5 h-5" />}
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className={cn('font-bold text-sm', done && 'line-through text-slate-400')}>{ejercicio.nombre}</p>
-          {(ejercicio.series || ejercicio.reps) && (
-            <p className="text-[10px] font-bold text-slate-400 mt-0.5">
-              {ejercicio.series ? `${ejercicio.series} series` : ''}
-              {ejercicio.series && ejercicio.reps ? ' × ' : ''}
-              {ejercicio.reps ?? ''}
-            </p>
-          )}
-        </div>
-        <div className="flex items-center gap-1 shrink-0">
-          {ejercicio.mediaUrl && (
-            <button onClick={e => { e.stopPropagation(); setShowMedia(v => !v); }}
-              className={cn('p-2 rounded-xl transition-all', showMedia ? 'bg-red-100 dark:bg-red-900/20 text-red-500' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400')}>
-              <PlayCircle className="w-4 h-4" />
-            </button>
-          )}
-          <button onClick={e => { e.stopPropagation(); onEdit(); }}
-            className="opacity-0 group-hover:opacity-100 p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 transition-all">
-            <Pencil className="w-4 h-4" />
-          </button>
-          <button onClick={e => { e.stopPropagation(); onDelete(); }}
-            className="opacity-0 group-hover:opacity-100 p-2 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 text-red-400 transition-all">
-            <Trash2 className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-      {ejercicio.notas && <p className="px-4 pb-3 text-[11px] text-slate-400 italic">{ejercicio.notas}</p>}
-      {showMedia && embedUrl && (
-        <div className="px-4 pb-4">
-          <iframe src={embedUrl} className="w-full aspect-video rounded-xl border border-slate-100 dark:border-slate-800"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
-        </div>
-      )}
-      {showMedia && isImg && ejercicio.mediaUrl && (
-        <div className="px-4 pb-4">
-          <img src={ejercicio.mediaUrl} alt={ejercicio.nombre} className="w-full max-h-72 object-cover rounded-xl" />
-        </div>
-      )}
-    </div>
-  );
-};
-
-const MissionNodeComp = ({
-  node, onAdd, onToggle, level = 0,
-}: {
-  node: MissionNode; onAdd: (id: string, t: string) => void;
-  onToggle: (id: string) => void; level?: number;
-}) => {
-  const [adding, setAdding] = useState(false);
-  const [newTitle, setNewTitle] = useState('');
-  const done = node.progress === 100;
-  return (
-    <div className="flex flex-col items-center">
-      <div className={cn('relative p-4 rounded-xl border-2 min-w-[200px] text-center transition-all cursor-pointer',
-        node.type === 'epic'      ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-500/20' :
-        node.type === 'milestone' ? 'bg-white dark:bg-slate-900 border-blue-200 dark:border-slate-700' :
-                                    'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700',
-        done && node.type !== 'epic' && 'opacity-60'
-      )} onClick={() => node.id !== 'root' && onToggle(node.id)}>
-        <h4 className={cn('text-xs font-bold mb-2', node.type === 'epic' ? 'text-white' : 'text-slate-800 dark:text-slate-100', done && node.type !== 'epic' && 'line-through')}>{node.title}</h4>
-        <div className="w-full h-1.5 bg-black/10 dark:bg-white/10 rounded-full overflow-hidden">
-          <div className={cn('h-full', node.type === 'epic' ? 'bg-white' : 'bg-blue-500')} style={{ width: `${node.progress}%` }} />
-        </div>
-        <div className="flex justify-between items-center mt-2">
-          <span className="text-[10px] opacity-70">{node.progress}%</span>
-          <button onClick={e => { e.stopPropagation(); setAdding(!adding); }}
-            className={cn('p-1 rounded-md', node.type === 'epic' ? 'hover:bg-white/20' : 'hover:bg-slate-100 dark:hover:bg-slate-800')}>
-            <Plus className="w-3 h-3" />
-          </button>
-        </div>
-        <AnimatePresence>
-          {adding && (
-            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="mt-3 pt-3 border-t border-black/10 dark:border-white/10 overflow-hidden">
-              <input autoFocus type="text" value={newTitle} onChange={e => setNewTitle(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && newTitle) { onAdd(node.id, newTitle); setNewTitle(''); setAdding(false); } }}
-                onClick={e => e.stopPropagation()}
-                placeholder="Mission title…"
-                className="w-full bg-transparent border-none text-[10px] focus:outline-none placeholder:opacity-50" />
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-      {node.children && node.children.length > 0 && (
-        <div className="relative pt-8 flex gap-8">
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-px h-8 bg-slate-200 dark:bg-slate-700" />
-          {node.children.map((child, idx) => (
-            <div key={child.id} className="relative">
-              {node.children!.length > 1 && (
-                <div className={cn('absolute top-0 h-px bg-slate-200 dark:bg-slate-700',
-                  idx === 0 ? 'left-1/2 right-0' : idx === node.children!.length - 1 ? 'left-0 right-1/2' : 'left-0 right-0'
-                )} />
-              )}
-              <MissionNodeComp node={child} onAdd={onAdd} onToggle={onToggle} level={level + 1} />
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
-
-const LoginScreen = ({ onLogin }: { onLogin: () => void }) => (
-  <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center p-4">
-    <div className="bg-white dark:bg-slate-900 rounded-3xl p-12 border border-slate-200 dark:border-slate-800 shadow-xl text-center max-w-sm w-full">
-      <div className="h-16 w-16 rounded-2xl bg-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-500/30 mx-auto mb-6">
-        <CheckCircle2 className="w-9 h-9" />
-      </div>
-      <h1 className="font-black text-2xl tracking-tight mb-1">QUESTFLOW</h1>
-      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Battle Station</p>
-      <p className="text-slate-500 text-sm mb-10 leading-relaxed">Tu productividad como un RPG.<br />Completá quests, subí de nivel.</p>
-      <button onClick={onLogin}
-        className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-blue-600 text-white rounded-2xl font-bold hover:opacity-90 shadow-lg shadow-blue-500/20 transition-all">
-        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none">
-          <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#fff" />
-          <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#fff" fillOpacity=".7" />
-          <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#fff" fillOpacity=".5" />
-          <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#fff" fillOpacity=".9" />
-        </svg>
-        Continuar con Google
-      </button>
-    </div>
-  </div>
-);
+import type {
+  FSStatKey, FSStatsDoc, FSHabito, FSEvento, FSMision, FSTarea,
+  GCalEvent, FSEjercicio, FSRutina, EstadoLibro, FSCapitulo, FSLibro,
+  TipoMaterial, FSMaterial, FSTareaFac, FSExamen, FSMateria,
+  FSEntradaDiario, FSObjetivoCHA, Habit, Task, HabitRecurrence,
+} from './types';
+import { HOY, FS_KEYS, STAT_META, DIAS_CORTO, DIAS_LETRA, ESTADO_LIBRO_META, MATERIAL_ICON } from './utils/constants';
+import { xpLevel, statsFromDoc, buildTree, youtubeEmbedUrl, isHabitActiveToday, isHabitDoneToday, isDateInCurrentWeek, habitRecurrenceLabel } from './utils/helpers';
+import { ProgressBar } from './components/ProgressBar';
+import { StatCard } from './components/StatCard';
+import { CapituloRow } from './components/CapituloRow';
+import { EjercicioRow } from './components/EjercicioRow';
+import { MissionNodeComp } from './components/MissionNodeComp';
+import { LoginScreen } from './components/LoginScreen';
 
 // ─── App ──────────────────────────────────────────────────────────────────────
 
@@ -340,8 +54,9 @@ export default function App() {
   const [fsTareas,   setFsTareas]   = useState<FSTarea[]>([]);
 
   // UI state
-  const [tab,     setTab]     = useState('dashboard');
-  const [selDate, setSelDate] = useState(new Date());
+  const [tab,         setTab]         = useState('dashboard');
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [selDate,     setSelDate]     = useState(new Date());
 
   const [attrStat, setAttrStat] = useState<FSStatKey>('fuerza');
 
@@ -368,9 +83,16 @@ export default function App() {
   const [matSubTab,       setMatSubTab]       = useState<'materiales' | 'tareas' | 'examenes'>('materiales');
   const [targetMateriaId, setTargetMateriaId] = useState<string | null>(null);
 
+  // Carisma — Diario + Objetivos (pendiente de implementar UI)
+  const [_fsDiario,         setFsDiario]          = useState<FSEntradaDiario[]>([]);
+  const [_fsObjetivosCHA,   setFsObjetivosCHA]    = useState<FSObjetivoCHA[]>([]);
+  const [_expandedEntrada,  _setExpandedEntrada]  = useState<string | null>(null);
+  const [_nuevaObjetivoTxt, _setNuevaObjetivoTxt] = useState('');
+
   // Modal state
-  const [modal, setModal] = useState<'habit' | 'task' | 'evento' | 'rutina' | 'ejercicio' | 'libro' | 'materia' | 'material' | 'tareaFac' | 'examen' | null>(null);
-  const [habitForm,    setHabitForm]    = useState({ nombre: '', stat: 'fuerza' as FSStatKey });
+  const [modal, setModal] = useState<'habit' | 'task' | 'evento' | 'rutina' | 'ejercicio' | 'libro' | 'materia' | 'material' | 'tareaFac' | 'examen' | 'entrada_diario' | null>(null);
+  const [editingHabitId, setEditingHabitId] = useState<string | null>(null);
+  const [habitForm,      setHabitForm]      = useState({ nombre: '', stat: 'fuerza' as FSStatKey, recurrence: 'daily' as HabitRecurrence, diasSemana: [] as number[] });
   const [taskForm,     setTaskForm]     = useState({ titulo: '', hora: '', recurrence: 'once' as FSTarea['recurrence'], weekday: 1, date: HOY, color: '#3b82f6' });
   const [eventoForm,   setEventoForm]   = useState({ titulo: '', hora: '', fecha: HOY });
   const [rutinaForm,   setRutinaForm]   = useState({ nombre: '', diasSemana: [] as number[] });
@@ -379,7 +101,8 @@ export default function App() {
   const [materiaForm,   setMateriaForm]   = useState({ nombre: '', color: '#6366f1' });
   const [materialForm,  setMaterialForm]  = useState({ tipo: 'nota' as TipoMaterial, titulo: '', contenido: '', url: '' });
   const [tareaFacForm,  setTareaFacForm]  = useState({ titulo: '', fecha: '' });
-  const [examenForm,    setExamenForm]    = useState({ titulo: '', fecha: '', nota: '', notaMax: '10' });
+  const [examenForm,        setExamenForm]        = useState({ titulo: '', fecha: '', nota: '', notaMax: '10' });
+  const [_entradaDiarioForm, _setEntradaDiarioForm] = useState({ titulo: '', contenido: '' });
   const [modalError,    setModalError]    = useState<string | null>(null);
 
   // Clear modal error when modal type changes
@@ -428,22 +151,32 @@ export default function App() {
     const u5 = onSnapshot(collection(db, 'usuarios', uid, 'tareas'),   s => setFsTareas(s.docs.map(d => ({ id: d.id, ...d.data() } as FSTarea))));
     const u6 = onSnapshot(collection(db, 'usuarios', uid, 'rutinas'),  s => setFsRutinas(s.docs.map(d => ({ id: d.id, ...d.data() } as FSRutina))));
     const u7 = onSnapshot(collection(db, 'usuarios', uid, 'libros'),   s => setFsLibros(s.docs.map(d => ({ id: d.id, ...d.data() } as FSLibro))));
-    const u8 = onSnapshot(collection(db, 'usuarios', uid, 'materias'), s => setFsMaterias(s.docs.map(d => ({ id: d.id, ...d.data() } as FSMateria))));
-    return () => { u1(); u2(); u3(); u4(); u5(); u6(); u7(); u8(); };
+    const u8  = onSnapshot(collection(db, 'usuarios', uid, 'materias'),      s => setFsMaterias(s.docs.map(d => ({ id: d.id, ...d.data() } as FSMateria))));
+    const u9  = onSnapshot(collection(db, 'usuarios', uid, 'diario'),        s => setFsDiario(s.docs.map(d => ({ id: d.id, ...d.data() } as FSEntradaDiario))));
+    const u10 = onSnapshot(collection(db, 'usuarios', uid, 'objetivos_cha'), s => setFsObjetivosCHA(s.docs.map(d => ({ id: d.id, ...d.data() } as FSObjetivoCHA))));
+    return () => { u1(); u2(); u3(); u4(); u5(); u6(); u7(); u8(); u9(); u10(); };
   }, [user?.uid]);
 
   // ── Derived ───────────────────────────────────────────────────────────────
 
   const stats    = statsFromDoc(fsStats);
   const missions = buildTree(fsMisiones);
-  const radarData = stats.map(s => ({ subject: s.shortName, A: s.value, fullMark: 100 }));
+  const maxStatXp = Math.max(...FS_KEYS.map(k => fsStats?.[k]?.xp ?? 0), 1);
+  const radarData = FS_KEYS.map(k => ({
+    subject: STAT_META[k].shortName,
+    A: Math.round(((fsStats?.[k]?.xp ?? 0) / maxStatXp) * 100),
+    fullMark: 100,
+  }));
 
   const habits: Habit[] = fsHabitos.map(h => ({
     id: h.id, name: h.nombre, stat: h.stat,
     icon: STAT_META[h.stat]?.icon ?? <Zap className="w-4 h-4" />,
-    completed: h.fechaCompletado === HOY,
+    completed: isHabitDoneToday(h),
+    activeToday: isHabitActiveToday(h),
     attribute: STAT_META[h.stat]?.name ?? h.stat,
     xpValue: h.xpValue ?? 20,
+    recurrence: h.recurrence ?? 'daily',
+    diasSemana: h.diasSemana ?? [],
   }));
 
   const todayEventos = fsEventos.filter(e => e.fecha === HOY);
@@ -466,11 +199,11 @@ export default function App() {
       }));
   };
 
-  const done = habits.filter(h => h.completed).length;
+  const habitsToday  = habits.filter(h => h.activeToday);
+  const done         = habitsToday.filter(h => h.completed).length;
 
-  const totalXp    = fsStats ? FS_KEYS.reduce((s, k) => s + (fsStats[k]?.xp ?? 0), 0) : 0;
-  const heroLevel  = Math.floor(totalXp / 600) + 1;
-  const xpInLevel  = totalXp % 600;
+  const totalXp                                   = fsStats ? FS_KEYS.reduce((s, k) => s + (fsStats[k]?.xp ?? 0), 0) : 0;
+  const { level: heroLevel, xpInLevel, xpForNext: heroXpForNext } = xpLevel(totalXp);
   const initials   = (user?.displayName ?? 'H').split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
 
   // ── Firestore writes ──────────────────────────────────────────────────────
@@ -478,9 +211,13 @@ export default function App() {
   async function toggleHabit(id: string) {
     if (!user?.uid) return;
     const h = fsHabitos.find(x => x.id === id);
-    if (!h) return;
-    const yaHecho = h.fechaCompletado === HOY;
-    await updateDoc(doc(db, 'usuarios', user.uid, 'habitos', id), { fechaCompletado: yaHecho ? null : HOY });
+    if (!h || !isHabitActiveToday(h)) return;
+    const yaHecho = isHabitDoneToday(h);
+    const prev = h.completedDates ?? (h.fechaCompletado ? [h.fechaCompletado] : []);
+    const next = yaHecho
+      ? (h.recurrence === 'once_week' ? prev.filter(d => !isDateInCurrentWeek(d)) : prev.filter(d => d !== HOY))
+      : [...prev, HOY];
+    await updateDoc(doc(db, 'usuarios', user.uid, 'habitos', id), { completedDates: next, fechaCompletado: null });
     const xp = h.xpValue ?? 20;
     await setDoc(doc(db, 'usuarios', user.uid, 'stats', 'main'), { [h.stat]: { xp: increment(yaHecho ? -xp : xp) } }, { merge: true });
   }
@@ -511,13 +248,30 @@ export default function App() {
     await updateDoc(doc(db, 'usuarios', user.uid, 'misiones', id), { completada: !m.completada });
   }
 
-  async function addHabit() {
+  function openEditHabit(id: string) {
+    const h = fsHabitos.find(x => x.id === id);
+    if (!h) return;
+    setEditingHabitId(id);
+    setHabitForm({ nombre: h.nombre, stat: h.stat, recurrence: h.recurrence ?? 'daily', diasSemana: h.diasSemana ?? [] });
+    setModal('habit');
+  }
+
+  async function saveHabit() {
     if (!user?.uid || !habitForm.nombre.trim()) return;
+    const data = {
+      nombre: habitForm.nombre.trim(),
+      stat: habitForm.stat,
+      recurrence: habitForm.recurrence,
+      diasSemana: habitForm.recurrence === 'weekly' ? habitForm.diasSemana : [],
+    };
     try {
-      await addDoc(collection(db, 'usuarios', user.uid, 'habitos'), {
-        nombre: habitForm.nombre.trim(), stat: habitForm.stat, fechaCompletado: null,
-      });
-      setHabitForm({ nombre: '', stat: 'fuerza' });
+      if (editingHabitId) {
+        await updateDoc(doc(db, 'usuarios', user.uid, 'habitos', editingHabitId), data);
+        setEditingHabitId(null);
+      } else {
+        await addDoc(collection(db, 'usuarios', user.uid, 'habitos'), { ...data, fechaCompletado: null, completedDates: [] });
+      }
+      setHabitForm({ nombre: '', stat: 'fuerza', recurrence: 'daily', diasSemana: [] });
       setModal(null);
     } catch (e: unknown) {
       setModalError((e as Error).message ?? 'Error al guardar');
@@ -957,64 +711,108 @@ export default function App() {
   return (
     <div className="flex min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
 
+      {/* ── Backdrop mobile ── */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/40 z-20 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       {/* ── Sidebar ── */}
-      <aside className="w-64 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col fixed h-full z-20">
-        <div className="p-6 flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-500/30">
-            <CheckCircle2 className="w-6 h-6" />
-          </div>
-          <div>
-            <h1 className="font-black text-lg leading-none tracking-tight">QUESTFLOW</h1>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Lv.{heroLevel} Hero</p>
-          </div>
+      <aside className={cn(
+        'border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col fixed h-full z-30 transition-all duration-300 overflow-hidden',
+        sidebarOpen
+          ? 'translate-x-0 w-64'
+          : '-translate-x-full md:translate-x-0 w-64 md:w-16'
+      )}>
+        {/* Logo + toggle */}
+        <div className={cn('flex items-center border-b border-slate-100 dark:border-slate-800 shrink-0', sidebarOpen ? 'p-4 gap-3 justify-between' : 'p-3 justify-center')}>
+          {sidebarOpen && (
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="h-9 w-9 shrink-0 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-500/30">
+                <CheckCircle2 className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <h1 className="font-black text-base leading-none tracking-tight">QUESTFLOW</h1>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Lv.{heroLevel} Hero</p>
+              </div>
+            </div>
+          )}
+          <button
+            onClick={() => setSidebarOpen(v => !v)}
+            className="shrink-0 p-1.5 rounded-lg text-slate-400 hover:text-blue-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
+            title={sidebarOpen ? 'Colapsar' : 'Expandir'}
+          >
+            <ChevronRight className={cn('w-4 h-4 transition-transform duration-300 hidden md:block', sidebarOpen && 'rotate-180')} />
+            <X className="w-4 h-4 md:hidden" />
+          </button>
         </div>
 
-        <nav className="flex-1 px-4 mt-4 space-y-1">
+        {/* Nav items */}
+        <nav className={cn('flex-1 mt-2 space-y-1 overflow-y-auto', sidebarOpen ? 'px-3' : 'px-2')}>
           {NAV.map(item => (
-            <button key={item.id} onClick={() => setTab(item.id)}
-              className={cn('w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group',
+            <button key={item.id} onClick={() => { setTab(item.id); if (window.innerWidth < 768) setSidebarOpen(false); }}
+              title={!sidebarOpen ? item.label : undefined}
+              className={cn(
+                'w-full flex items-center rounded-xl transition-all duration-200 group',
+                sidebarOpen ? 'gap-3 px-4 py-3' : 'justify-center px-2 py-3',
                 tab === item.id ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
               )}>
-              <span className={cn(tab === item.id ? 'text-white' : 'group-hover:text-blue-500 transition-colors')}>{item.icon}</span>
-              <span className="font-semibold text-sm">{item.label}</span>
+              <span className={cn('shrink-0', tab === item.id ? 'text-white' : 'group-hover:text-blue-500 transition-colors')}>{item.icon}</span>
+              {sidebarOpen && <span className="font-semibold text-sm">{item.label}</span>}
             </button>
           ))}
         </nav>
 
-        <div className="p-4 border-t border-slate-200 dark:border-slate-800">
-          <div className="bg-blue-50 dark:bg-blue-900/20 rounded-2xl p-4 mb-4 relative overflow-hidden group">
-            <div className="relative z-10">
-              <p className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-1">Hero XP</p>
-              <div className="flex justify-between items-end mb-2">
-                <span className="text-xs font-bold">{xpInLevel} xp</span>
-                <span className="text-[10px] opacity-60">/ 600</span>
+        {/* Footer */}
+        <div className={cn('border-t border-slate-200 dark:border-slate-800 shrink-0', sidebarOpen ? 'p-4' : 'p-2')}>
+          {sidebarOpen && (
+            <div className="bg-blue-50 dark:bg-blue-900/20 rounded-2xl p-4 mb-4 relative overflow-hidden group">
+              <div className="relative z-10">
+                <p className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-1">Hero XP</p>
+                <div className="flex justify-between items-end mb-2">
+                  <span className="text-xs font-bold">{xpInLevel} xp</span>
+                  <span className="text-[10px] opacity-60">/ {heroXpForNext}</span>
+                </div>
+                <ProgressBar value={xpInLevel} max={heroXpForNext} color="bg-blue-600" className="h-1.5" />
               </div>
-              <ProgressBar value={xpInLevel} max={600} color="bg-blue-600" className="h-1.5" />
+              <Sword className="absolute -right-4 -bottom-4 w-20 h-20 text-blue-500/10 group-hover:rotate-12 transition-transform duration-500" />
             </div>
-            <Sword className="absolute -right-4 -bottom-4 w-20 h-20 text-blue-500/10 group-hover:rotate-12 transition-transform duration-500" />
-          </div>
-          <div className="flex items-center gap-3 px-2">
+          )}
+          <div className={cn('flex items-center gap-3', !sidebarOpen && 'justify-center')}>
             {user.photoURL
-              ? <img src={user.photoURL} className="h-10 w-10 rounded-full border-2 border-blue-200" />
-              : <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm">{initials}</div>
+              ? <img src={user.photoURL} className="h-9 w-9 shrink-0 rounded-full border-2 border-blue-200" />
+              : <div className="h-9 w-9 shrink-0 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm">{initials}</div>
             }
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold truncate">{user.displayName}</p>
-              <p className="text-[10px] text-slate-500 truncate">{user.email}</p>
-            </div>
+            {sidebarOpen && (
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold truncate">{user.displayName}</p>
+                <p className="text-[10px] text-slate-500 truncate">{user.email}</p>
+              </div>
+            )}
           </div>
         </div>
       </aside>
 
       {/* ── Main ── */}
-      <main className="flex-1 ml-64 p-8">
-        <header className="flex justify-between items-center mb-8">
-          <div>
-            <p className="text-slate-500 dark:text-slate-400 font-medium text-sm">{PAGE_SUB[tab]}</p>
-            <h2 className="text-4xl font-black tracking-tighter mt-1">{PAGE_TITLE[tab]}</h2>
+      <main className={cn('flex-1 p-4 md:p-8 transition-all duration-300', sidebarOpen ? 'ml-0 md:ml-64' : 'ml-0 md:ml-16')}>
+        <header className="flex justify-between items-center mb-6 md:mb-8 gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            {/* Hamburger — solo mobile */}
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="md:hidden shrink-0 p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+            <div className="min-w-0">
+              <p className="text-slate-500 dark:text-slate-400 font-medium text-xs md:text-sm truncate">{PAGE_SUB[tab]}</p>
+              <h2 className="text-2xl md:text-4xl font-black tracking-tighter mt-0.5 truncate">{PAGE_TITLE[tab]}</h2>
+            </div>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="relative">
+          <div className="flex items-center gap-2 md:gap-4 shrink-0">
+            <div className="relative hidden md:block">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <input type="text" placeholder="Search quests…" className="pl-10 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 w-64" />
             </div>
@@ -1046,15 +844,15 @@ export default function App() {
                       <h3 className="text-xl font-black text-white tracking-tight">{user.displayName}</h3>
                       <span className="text-[10px] font-black bg-blue-500/20 border border-blue-400/30 text-blue-300 px-3 py-1 rounded-full uppercase tracking-widest">Hero</span>
                     </div>
-                    <p className="text-slate-400 text-xs mb-3">{xpInLevel} / 600 XP — nivel {heroLevel}</p>
+                    <p className="text-slate-400 text-xs mb-3">{xpInLevel} / {heroXpForNext} XP — nivel {heroLevel}</p>
                     <div className="flex items-center gap-3">
                       <div className="flex-1 h-2 bg-slate-800 rounded-full overflow-hidden border border-slate-700/50">
-                        <motion.div initial={{ width: 0 }} animate={{ width: `${(xpInLevel / 600) * 100}%` }} transition={{ duration: 1, ease: 'easeOut' }} className="h-full bg-gradient-to-r from-blue-600 to-blue-400 rounded-full" />
+                        <motion.div initial={{ width: 0 }} animate={{ width: `${(xpInLevel / heroXpForNext) * 100}%` }} transition={{ duration: 1, ease: 'easeOut' }} className="h-full bg-gradient-to-r from-blue-600 to-blue-400 rounded-full" />
                       </div>
-                      <span className="text-[10px] font-black text-slate-500 whitespace-nowrap">{Math.round((xpInLevel / 600) * 100)}%</span>
+                      <span className="text-[10px] font-black text-slate-500 whitespace-nowrap">{Math.round((xpInLevel / heroXpForNext) * 100)}%</span>
                     </div>
                   </div>
-                  <div className="grid grid-cols-3 gap-2 shrink-0">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 w-full sm:w-auto shrink-0">
                     {FS_KEYS.map(k => {
                       const { level } = xpLevel(fsStats?.[k]?.xp ?? 0);
                       return (
@@ -1151,12 +949,12 @@ export default function App() {
                   <section className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800">
                     <div className="flex items-center justify-between mb-4">
                       <h3 className="font-black text-sm flex items-center gap-2"><Zap className="w-5 h-5 text-blue-600" /> DAILY QUESTS</h3>
-                      <span className="text-[10px] font-black bg-blue-100 dark:bg-blue-900/30 text-blue-600 px-2 py-1 rounded-full">{Math.round((done / Math.max(habits.length, 1)) * 100)}% DONE</span>
+                      <span className="text-[10px] font-black bg-blue-100 dark:bg-blue-900/30 text-blue-600 px-2 py-1 rounded-full">{Math.round((done / Math.max(habitsToday.length, 1)) * 100)}% DONE</span>
                     </div>
-                    {habits.length === 0
-                      ? <p className="text-[11px] text-slate-400 text-center py-4">Sin quests. Agregalas en la pantalla Quests.</p>
+                    {habitsToday.length === 0
+                      ? <p className="text-[11px] text-slate-400 text-center py-4">Sin quests para hoy.</p>
                       : <div className="space-y-2">
-                          {habits.slice(0, 6).map(h => (
+                          {habitsToday.slice(0, 6).map(h => (
                             <div key={h.id} onClick={() => toggleHabit(h.id)} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer">
                               <div className={cn('w-8 h-8 rounded-lg flex items-center justify-center shrink-0', h.completed ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-400')}>{h.icon}</div>
                               <p className={cn('font-bold text-xs flex-1', h.completed && 'line-through text-slate-400')}>{h.name}</p>
@@ -1168,8 +966,8 @@ export default function App() {
                         </div>
                     }
                     <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
-                      <ProgressBar value={done} max={Math.max(habits.length, 1)} color="bg-blue-600" />
-                      <p className="text-[10px] text-slate-400 mt-1.5">{done}/{habits.length} · +{done * 20} XP</p>
+                      <ProgressBar value={done} max={Math.max(habitsToday.length, 1)} color="bg-blue-600" />
+                      <p className="text-[10px] text-slate-400 mt-1.5">{done}/{habitsToday.length} · +{done * 20} XP</p>
                     </div>
                   </section>
 
@@ -1437,7 +1235,7 @@ export default function App() {
                     <h3 className="text-xl font-black tracking-tight uppercase flex items-center gap-3">
                       <Utensils className="w-6 h-6 text-orange-500" /> ALIMENTACIÓN
                     </h3>
-                    <button onClick={() => { setHabitForm({ nombre: '', stat: 'fuerza' }); setModal('habit'); }}
+                    <button onClick={() => { setHabitForm({ nombre: '', stat: 'fuerza', recurrence: 'daily', diasSemana: [] }); setModal('habit'); }}
                       className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-xl text-xs font-bold hover:opacity-90 shadow-md shadow-orange-500/20">
                       <Plus className="w-4 h-4" /> Nuevo hábito
                     </button>
@@ -1446,7 +1244,7 @@ export default function App() {
                     <div className="py-12 text-center border-2 border-dashed border-slate-100 dark:border-slate-800 rounded-3xl">
                       <Utensils className="w-12 h-12 text-slate-200 dark:text-slate-800 mx-auto mb-3" />
                       <p className="font-bold text-slate-400">Sin hábitos STR aún.</p>
-                      <button onClick={() => { setHabitForm({ nombre: '', stat: 'fuerza' }); setModal('habit'); }}
+                      <button onClick={() => { setHabitForm({ nombre: '', stat: 'fuerza', recurrence: 'daily', diasSemana: [] }); setModal('habit'); }}
                         className="mt-2 text-xs text-blue-500 font-bold hover:underline">+ Agregar hábito</button>
                     </div>
                   ) : (
@@ -1575,14 +1373,14 @@ export default function App() {
                 <section className="space-y-3">
                   <div className="flex items-center justify-between">
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Fuentes de XP</p>
-                    <button onClick={() => { setHabitForm({ nombre: '', stat: attrStat }); setModal('habit'); }}
+                    <button onClick={() => { setHabitForm({ nombre: '', stat: attrStat, recurrence: 'daily', diasSemana: [] }); setModal('habit'); }}
                       className="text-[10px] font-bold text-blue-500 hover:underline">+ Nueva quest</button>
                   </div>
 
                   {linked.length === 0 && attrStat !== 'fuerza' && (
                     <div className="py-8 text-center border-2 border-dashed border-slate-100 dark:border-slate-800 rounded-2xl">
                       <p className="text-sm text-slate-400">Sin fuentes de XP para {meta.name}.</p>
-                      <button onClick={() => { setHabitForm({ nombre: '', stat: attrStat }); setModal('habit'); }}
+                      <button onClick={() => { setHabitForm({ nombre: '', stat: attrStat, recurrence: 'daily', diasSemana: [] }); setModal('habit'); }}
                         className="mt-2 text-xs text-blue-500 font-bold hover:underline">+ Agregar quest</button>
                     </div>
                   )}
@@ -1928,30 +1726,44 @@ export default function App() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {habits.map(h => (
                         <motion.div key={h.id} layout
-                          className={cn('group relative flex items-center gap-5 p-6 rounded-2xl border-2 cursor-pointer transition-all',
-                            h.completed ? 'border-blue-200 dark:border-blue-900/40 bg-blue-50/50 dark:bg-blue-900/10' : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-blue-200')}
-                          onClick={() => toggleHabit(h.id)}>
-                          <div className={cn('w-14 h-14 rounded-2xl flex items-center justify-center shrink-0', h.completed ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' : 'bg-slate-100 dark:bg-slate-800 text-slate-400')}>
+                          className={cn('group relative flex items-center gap-4 p-5 rounded-2xl border-2 transition-all',
+                            !h.activeToday
+                              ? 'border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 opacity-50 cursor-not-allowed'
+                              : h.completed
+                                ? 'border-blue-200 dark:border-blue-900/40 bg-blue-50/50 dark:bg-blue-900/10 cursor-pointer'
+                                : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-blue-200 cursor-pointer')}
+                          onClick={() => h.activeToday && toggleHabit(h.id)}>
+                          <div className={cn('w-12 h-12 rounded-2xl flex items-center justify-center shrink-0', h.completed ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' : 'bg-slate-100 dark:bg-slate-800 text-slate-400')}>
                             <div className="scale-150">{h.icon}</div>
                           </div>
-                          <div className="flex-1">
-                            <p className={cn('font-black text-base', h.completed && 'line-through text-slate-400')}>{h.name}</p>
-                            <p className="text-[10px] font-bold text-blue-500 mt-1 uppercase tracking-widest">{h.attribute}</p>
+                          <div className="flex-1 min-w-0">
+                            <p className={cn('font-black text-sm', h.completed && 'line-through text-slate-400')}>{h.name}</p>
+                            <div className="flex items-center gap-2 mt-1 flex-wrap">
+                              <span className="text-[10px] font-bold text-blue-500 uppercase tracking-widest">{h.attribute}</span>
+                              <span className="text-[10px] text-slate-400">·</span>
+                              <span className="text-[10px] text-slate-400 font-medium">{habitRecurrenceLabel(h.recurrence, h.diasSemana, DIAS_CORTO)}</span>
+                            </div>
                           </div>
-                          <div className={cn('w-8 h-8 rounded-xl border-2 flex items-center justify-center shrink-0', h.completed ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-200 dark:border-slate-700')}>
-                            {h.completed && <CheckCircle2 className="w-5 h-5" />}
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button onClick={e => { e.stopPropagation(); openEditHabit(h.id); }}
+                              className="opacity-0 group-hover:opacity-100 p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 transition-all">
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                            <button onClick={e => { e.stopPropagation(); deleteHabit(h.id); }}
+                              className="opacity-0 group-hover:opacity-100 p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-400 transition-all">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                            <div className={cn('w-8 h-8 rounded-xl border-2 flex items-center justify-center', h.completed ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-200 dark:border-slate-700')}>
+                              {h.completed && <CheckCircle2 className="w-5 h-5" />}
+                            </div>
                           </div>
-                          <button onClick={e => { e.stopPropagation(); deleteHabit(h.id); }}
-                            className="opacity-0 group-hover:opacity-100 p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-400 hover:text-red-600 transition-all">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
                         </motion.div>
                       ))}
                     </div>
-                    <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 border border-slate-200 dark:border-slate-800">
-                      <h4 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">Overall Progress</h4>
-                      <ProgressBar value={done} max={Math.max(habits.length, 1)} color="bg-blue-600" className="h-3" />
-                      <p className="text-sm font-bold text-slate-500 mt-3">{done} of {habits.length} complete · +{done * 20} XP earned</p>
+                    <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 md:p-8 border border-slate-200 dark:border-slate-800">
+                      <h4 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">Progreso de hoy</h4>
+                      <ProgressBar value={done} max={Math.max(habitsToday.length, 1)} color="bg-blue-600" className="h-3" />
+                      <p className="text-sm font-bold text-slate-500 mt-3">{done} de {habitsToday.length} completadas hoy · +{done * 20} XP</p>
                     </div>
                   </>
               }
@@ -2047,7 +1859,7 @@ export default function App() {
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
-            onClick={() => { setModal(null); setTargetEjercicioId(null); setTargetMateriaId(null); setModalError(null); }}>
+            onClick={() => { setModal(null); setEditingHabitId(null); setTargetEjercicioId(null); setTargetMateriaId(null); setModalError(null); }}>
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 16 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 16 }}
               className="bg-white dark:bg-slate-900 rounded-3xl p-8 border border-slate-200 dark:border-slate-800 w-full max-w-md shadow-2xl"
@@ -2055,9 +1867,9 @@ export default function App() {
 
               <div className="flex items-center justify-between mb-6">
                 <h3 className="font-black text-lg">
-                  {modal === 'habit' ? '+ Nueva Quest' : modal === 'task' ? '+ Nueva Tarea' : modal === 'evento' ? '+ Nuevo Evento' : modal === 'rutina' ? '+ Nueva Rutina' : modal === 'libro' ? '+ Nuevo Libro' : modal === 'materia' ? '+ Nueva Materia' : modal === 'material' ? '+ Nuevo Material' : modal === 'tareaFac' ? '+ Nueva Tarea' : modal === 'examen' ? '+ Nuevo Examen' : targetEjercicioId ? 'Editar Ejercicio' : '+ Nuevo Ejercicio'}
+                  {modal === 'habit' ? (editingHabitId ? 'Editar Quest' : '+ Nueva Quest') : modal === 'task' ? '+ Nueva Tarea' : modal === 'evento' ? '+ Nuevo Evento' : modal === 'rutina' ? '+ Nueva Rutina' : modal === 'libro' ? '+ Nuevo Libro' : modal === 'materia' ? '+ Nueva Materia' : modal === 'material' ? '+ Nuevo Material' : modal === 'tareaFac' ? '+ Nueva Tarea' : modal === 'examen' ? '+ Nuevo Examen' : targetEjercicioId ? 'Editar Ejercicio' : '+ Nuevo Ejercicio'}
                 </h3>
-                <button onClick={() => { setModal(null); setTargetEjercicioId(null); setTargetMateriaId(null); setModalError(null); }} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors">
+                <button onClick={() => { setModal(null); setEditingHabitId(null); setTargetEjercicioId(null); setTargetMateriaId(null); setModalError(null); }} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors">
                   <X className="w-4 h-4" />
                 </button>
               </div>
@@ -2069,9 +1881,39 @@ export default function App() {
                     <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Nombre</label>
                     <input autoFocus type="text" value={habitForm.nombre}
                       onChange={e => setHabitForm(p => ({ ...p, nombre: e.target.value }))}
-                      onKeyDown={e => e.key === 'Enter' && addHabit()}
+                      onKeyDown={e => e.key === 'Enter' && saveHabit()}
                       placeholder="Ej: Leer 30 min"
                       className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Frecuencia</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {([['daily', 'Diaria'], ['weekdays', 'Lun — Vie'], ['once_week', '1× semana'], ['weekly', 'Días fijos']] as [HabitRecurrence, string][]).map(([val, label]) => (
+                        <button key={val} onClick={() => setHabitForm(p => ({ ...p, recurrence: val }))}
+                          className={cn('py-2.5 rounded-xl border-2 text-xs font-bold transition-all',
+                            habitForm.recurrence === val ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-600' : 'border-slate-200 dark:border-slate-700 hover:border-blue-200 text-slate-500')}>
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                    {habitForm.recurrence === 'weekly' && (
+                      <div className="mt-3">
+                        <p className="text-[10px] text-slate-400 mb-2">Elegí los días</p>
+                        <div className="flex gap-2 flex-wrap">
+                          {DIAS_LETRA.map((d, i) => (
+                            <button key={i} onClick={() => {
+                              const cur = habitForm.diasSemana;
+                              const next = cur.includes(i) ? cur.filter(x => x !== i) : [...cur, i];
+                              setHabitForm(p => ({ ...p, diasSemana: next }));
+                            }}
+                              className={cn('w-9 h-9 rounded-full text-xs font-black transition-all',
+                                habitForm.diasSemana.includes(i) ? 'bg-blue-600 text-white shadow-md shadow-blue-500/30' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-blue-100')}>
+                              {d}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                   <div>
                     <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Stat</label>
@@ -2079,16 +1921,16 @@ export default function App() {
                       {FS_KEYS.map(k => (
                         <button key={k} onClick={() => setHabitForm(p => ({ ...p, stat: k }))}
                           className={cn('flex items-center gap-2 p-3 rounded-xl border-2 transition-all text-xs font-bold',
-                            habitForm.stat === k ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-600' : 'border-slate-200 dark:border-slate-700 hover:border-blue-200')}>
+                            habitForm.stat === k ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-600' : 'border-slate-200 dark:border-slate-700 hover:border-blue-200 text-slate-500')}>
                           <span>{STAT_META[k].icon}</span>
                           <span>{STAT_META[k].shortName}</span>
                         </button>
                       ))}
                     </div>
                   </div>
-                  <button onClick={addHabit} disabled={!habitForm.nombre.trim()}
+                  <button onClick={saveHabit} disabled={!habitForm.nombre.trim() || (habitForm.recurrence === 'weekly' && habitForm.diasSemana.length === 0)}
                     className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold hover:opacity-90 disabled:opacity-40 transition-all">
-                    Agregar Quest
+                    {editingHabitId ? 'Guardar cambios' : 'Agregar Quest'}
                   </button>
                 </div>
               )}
