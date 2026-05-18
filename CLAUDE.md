@@ -10,13 +10,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Módulos principales:
 - **Dashboard:** hero stats, hábitos diarios, agenda del día, misiones activas
-- **Agenda/Tareas:** eventos y tareas con recurrencia
-- **Gym:** rutinas de entrenamiento
-- **RPG:** sistema de stats (fuerza, inteligencia, etc.) con misiones
+- **Calendar:** eventos y tareas con recurrencia + integración Google Calendar
+- **Gym:** rutinas de entrenamiento (tabs: entreno / comida)
+- **Attributes:** stats RPG con sub-módulos por stat (inteligencia → biblioteca/facultad; carisma → objetivos)
+- **Habits (Quests):** hábitos con recurrencia y XP configurable
+- **Missions:** árbol de misiones jerárquico (epic → milestone → task)
+- **Settings:** configuración + conexión Google Calendar
 
 **Estado:** Prototipo activo. Sin tests, sin CI/CD. Usa Firebase directamente desde el cliente.
 
-**Directorio de trabajo:** Todo el código vive en `web/`. La raíz del repo solo contiene `.git/`, `.gitignore`, `CLAUDE.md`, y `web/`.
+**Directorio raíz del proyecto:** `package.json` y todo el código fuente están en la raíz del repo (directorio `front/src/`). No existe carpeta `web/`.
 
 ---
 
@@ -25,12 +28,12 @@ Módulos principales:
 | Capa | Tecnología |
 |---|---|
 | Framework | Vite 8 + React 19.2 |
-| Lenguaje | TypeScript (modo estricto) |
+| Lenguaje | TypeScript 6 (modo estricto) |
 | Estilos | Tailwind CSS v4 (`@tailwindcss/vite` plugin, sin config file) |
 | Animaciones | `motion/react` (standalone Motion, no framer-motion) |
 | Gráficos | Recharts (RadarChart) |
 | Auth | Firebase Auth — `signInWithPopup` con `GoogleAuthProvider` |
-| Base de datos | Firestore |
+| Base de datos | Firestore (listeners en tiempo real con `onSnapshot`) |
 | Utilidades | date-fns, lucide-react, clsx, tailwind-merge |
 
 ---
@@ -38,34 +41,50 @@ Módulos principales:
 ## Comandos de Desarrollo
 
 ```bash
-cd web
-npm run dev    # Dev server en http://localhost:5173
-npm run build  # Build de producción
-npm run lint   # ESLint
+npm run dev      # Dev server en http://localhost:5173
+npm run build    # tsc -b && vite build
+npm run lint     # ESLint
+npm run preview  # Preview del build de producción
 ```
+
+Los comandos se ejecutan desde la raíz del repo (donde está `package.json`).
 
 ---
 
 ## Arquitectura
 
-### Estructura de `web/`
+### Estructura de `front/src/`
 
 ```
-web/
-├── src/
-│   ├── App.tsx          # Componente principal (toda la UI)
-│   ├── App.css          # Estilos globales + Tailwind import
-│   ├── main.tsx         # Entry point de Vite
-│   ├── lib/
-
-│   │   ├── firebase.ts  # Config Firebase (auth + db)
-│   │   └── utils.ts     # Utilidades (cn())
-│   └── assets/
-├── index.html
-├── vite.config.ts
-├── package.json
-└── tsconfig*.json
+front/src/
+├── App.tsx              # Componente raíz: todo el estado global y lógica de negocio
+├── App.css              # Estilos globales + @import "tailwindcss"
+├── main.tsx             # Entry point de Vite
+├── types.ts             # Todos los tipos FS y UI (FSStatKey, FSHabito, Stat, etc.)
+├── lib/
+│   ├── firebase.ts      # Config Firebase (auth + db)
+│   └── utils.ts         # cn() con clsx + tailwind-merge
+├── utils/
+│   ├── constants.tsx    # HOY, FS_KEYS, STAT_META, DIAS_CORTO, DIAS_LETRA, ESTADO_LIBRO_META, MATERIAL_ICON
+│   └── helpers.ts       # xpLevel, statsFromDoc, buildTree, isHabitActiveToday/Done, habitRecurrenceLabel, youtubeEmbedUrl
+└── components/
+    ├── LoginScreen.tsx
+    ├── StatCard.tsx
+    ├── ProgressBar.tsx
+    ├── MissionNodeComp.tsx
+    ├── CapituloRow.tsx      # Fila de capítulo en biblioteca
+    └── EjercicioRow.tsx     # Fila de ejercicio en rutina gym
 ```
+
+### Patrón de App.tsx
+
+`App.tsx` es un único componente gigante con:
+1. **Estado Firestore** — un `useState` por colección, poblado via `onSnapshot`
+2. **Estado UI** — `tab` (navegación principal), modals, forms
+3. **Handlers async** — todas las escrituras a Firestore
+4. **Render condicional por tab** — `{tab === 'dashboard' && (...)}`
+
+Los componentes en `components/` son presentacionales puros; los componentes en `utils/` son helpers de lógica pura. No hay custom hooks.
 
 ### Firebase
 
@@ -73,34 +92,45 @@ web/
 import { auth, db } from './lib/firebase';
 ```
 
-Firestore: colecciones por usuario bajo `usuarios/{uid}/`:
-- `eventos` — eventos de agenda
-- `habitos` — hábitos diarios (campo `fechaCompletado: string`, `stat: StatKey`)
-- `tareas` — tareas con recurrencia (`completedDates: string[]`)
-- `rutinas` — rutinas de gym
-- `stats` — stats RPG (`{ fuerza: { xp }, inteligencia: { xp }, ... }`)
-- `misiones` — misiones RPG (flat list con `parentId`)
+Todas las colecciones viven bajo `usuarios/{uid}/`:
+
+| Colección | Tipo | Notas |
+|---|---|---|
+| `stats/main` | `FSStatsDoc` | Doc único; `{ fuerza: { xp }, salud: { xp }, ... }` |
+| `habitos` | `FSHabito[]` | `completedDates: string[]` para recurrencia semanal |
+| `eventos` | `FSEvento[]` | — |
+| `tareas` | `FSTarea[]` | `completedDates: string[]` |
+| `misiones` | `FSMision[]` | Flat list con `parentId` y `orden` |
+| `rutinas` | `FSRutina[]` | Ejercicios embebidos en el doc |
+| `libros` | `FSLibro[]` | Capítulos embebidos; `xpPorCapitulo` configurable |
+| `materias` | `FSMateria[]` | Materiales, tareas y exámenes embebidos |
+| `diario` | `FSEntradaDiario[]` | UI pendiente de implementar |
+| `objetivos_cha` | `FSObjetivoCHA[]` | Objetivos de Carisma |
+
+### Tipos (en `types.ts`)
+
+```ts
+type FSStatKey = 'fuerza' | 'salud' | 'inteligencia' | 'agilidad' | 'carisma' | 'fe'
+```
+
+`import type { User } from 'firebase/auth'` — siempre `import type` para evitar SyntaxError en Vite.
+
+### Sistema de XP / Niveles
+
+Progresión incremental: cada nivel requiere 100 XP más que el anterior (L1→L2: 100, L2→L3: 200, …). Implementado en `helpers.ts:xpLevel()`.
+
+### Google Calendar
+
+Integración opcional. El token OAuth se obtiene vía `reauthenticateWithPopup` con scope `calendar.readonly` y se almacena en `localStorage` con expiración (`gcal_token` + `gcal_token_exp`). Se usa para mostrar eventos en la vista Calendar junto a los eventos propios de Firestore.
 
 ### Tailwind v4
 
-No hay archivo `tailwind.config.*`. El plugin se configura solo en `vite.config.ts`:
+Sin `tailwind.config.*`. Plugin configurado en `vite.config.ts`:
 ```ts
 import tailwindcss from '@tailwindcss/vite';
-// ...plugins: [react(), tailwindcss()]
+// plugins: [react(), tailwindcss()]
 ```
 CSS usa `@import "tailwindcss"` en `App.css`.
-
-### Tipos Firestore (en `App.tsx`)
-
-```ts
-type FSStatKey = 'fuerza' | 'inteligencia' | 'carisma' | 'agilidad' | 'resistencia' | 'sabiduria'
-type FSHabito  = { id, nombre, stat: FSStatKey, fechaCompletado: string }
-type FSTarea   = { id, titulo, hora?, recurrence, weekday?, date?, color, completedDates: string[] }
-type FSMision  = { id, titulo, completada, parentId: string | null }
-type FSStatsDoc = Record<FSStatKey, { xp: number }>
-```
-
-`import type { User } from 'firebase/auth'` — User es un tipo TS, debe importarse con `import type` para evitar SyntaxError en Vite.
 
 ---
 
@@ -121,3 +151,4 @@ type FSStatsDoc = Record<FSStatKey, { xp: number }>
 - Variables de entorno (`.env`)
 - Backend propio / REST API
 - i18n
+- Custom hooks (toda la lógica está en `App.tsx`)
