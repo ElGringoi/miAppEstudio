@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   LayoutDashboard, Calendar as CalendarIcon, Zap, Settings,
   CheckCircle2, Plus, Target, Sword, Brain, Flame, Dumbbell,
@@ -21,7 +21,7 @@ import {
 import type { User } from 'firebase/auth';
 import {
   collection, doc, increment, onSnapshot,
-  setDoc, updateDoc, addDoc,
+  updateDoc, addDoc, writeBatch,
 } from 'firebase/firestore';
 import { auth, db } from './lib/firebase';
 
@@ -97,6 +97,16 @@ function buildTree(misiones: FSMision[]): MissionNode {
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
+
+const CheckBox = ({ completed, size = 'sm' }: { completed: boolean; size?: 'sm' | 'lg' }) => (
+  <div className={cn(
+    'flex items-center justify-center shrink-0',
+    size === 'sm' ? 'w-5 h-5 rounded-md border-2' : 'w-8 h-8 rounded-xl border-2',
+    completed ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-200 dark:border-slate-700'
+  )}>
+    {completed && <CheckCircle2 className={size === 'sm' ? 'w-3 h-3' : 'w-5 h-5'} />}
+  </div>
+);
 
 const ProgressBar = ({ value, max, color, className }: { value: number; max: number; color: string; className?: string }) => (
   <div className={cn('w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden', className)}>
@@ -263,6 +273,8 @@ const LoginScreen = ({ onLogin }: { onLogin: () => void }) => (
 export default function App() {
   const [user, setUser]           = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [dataReady,   setDataReady]   = useState(false);
+  const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
 
   // Firestore raw state
   const [fsStats,    setFsStats]    = useState<FSStatsDoc | null>(null);
@@ -276,35 +288,43 @@ export default function App() {
   const [selDate, setSelDate] = useState(new Date());
   const [gymView, setGymView] = useState<'today' | 'weekly'>('today');
 
+  function showToast(msg: string, ok = false) {
+    setToast({ msg, ok });
+    setTimeout(() => setToast(null), 3500);
+  }
+
   // Auth listener
   useEffect(() => onAuthStateChanged(auth, u => { setUser(u); setAuthLoading(false); }), []);
 
   // Firestore listeners
   useEffect(() => {
     if (!user?.uid) return;
+    setDataReady(false);
     const uid = user.uid;
-    const u1 = onSnapshot(doc(db, 'usuarios', uid, 'stats', 'main'), s => setFsStats(s.exists() ? s.data() as FSStatsDoc : null));
-    const u2 = onSnapshot(collection(db, 'usuarios', uid, 'habitos'),  s => setFsHabitos(s.docs.map(d => ({ id: d.id, ...d.data() } as FSHabito))));
-    const u3 = onSnapshot(collection(db, 'usuarios', uid, 'eventos'),  s => setFsEventos(s.docs.map(d => ({ id: d.id, ...d.data() } as FSEvento))));
-    const u4 = onSnapshot(collection(db, 'usuarios', uid, 'misiones'), s => setFsMisiones(s.docs.map(d => ({ id: d.id, ...d.data() } as FSMision))));
-    const u5 = onSnapshot(collection(db, 'usuarios', uid, 'tareas'),   s => setFsTareas(s.docs.map(d => ({ id: d.id, ...d.data() } as FSTarea))));
+    let loaded = 0;
+    const markLoaded = () => { if (++loaded === 5) setDataReady(true); };
+    const u1 = onSnapshot(doc(db, 'usuarios', uid, 'stats', 'main'), s => { setFsStats(s.exists() ? s.data() as FSStatsDoc : null); markLoaded(); });
+    const u2 = onSnapshot(collection(db, 'usuarios', uid, 'habitos'),  s => { setFsHabitos(s.docs.map(d => ({ id: d.id, ...d.data() } as FSHabito))); markLoaded(); });
+    const u3 = onSnapshot(collection(db, 'usuarios', uid, 'eventos'),  s => { setFsEventos(s.docs.map(d => ({ id: d.id, ...d.data() } as FSEvento))); markLoaded(); });
+    const u4 = onSnapshot(collection(db, 'usuarios', uid, 'misiones'), s => { setFsMisiones(s.docs.map(d => ({ id: d.id, ...d.data() } as FSMision))); markLoaded(); });
+    const u5 = onSnapshot(collection(db, 'usuarios', uid, 'tareas'),   s => { setFsTareas(s.docs.map(d => ({ id: d.id, ...d.data() } as FSTarea))); markLoaded(); });
     return () => { u1(); u2(); u3(); u4(); u5(); };
   }, [user?.uid]);
 
   // ── Derived ───────────────────────────────────────────────────────────────
 
-  const stats    = statsFromDoc(fsStats);
-  const missions = buildTree(fsMisiones);
-  const radarData = stats.map(s => ({ subject: s.shortName, A: s.value, fullMark: 100 }));
+  const stats      = useMemo(() => statsFromDoc(fsStats), [fsStats]);
+  const missions   = useMemo(() => buildTree(fsMisiones), [fsMisiones]);
+  const radarData  = useMemo(() => stats.map(s => ({ subject: s.shortName, A: s.value, fullMark: 100 })), [stats]);
 
-  const habits: Habit[] = fsHabitos.map(h => ({
+  const habits: Habit[] = useMemo(() => fsHabitos.map(h => ({
     id: h.id, name: h.nombre, stat: h.stat,
     icon: STAT_META[h.stat]?.icon ?? <Zap className="w-4 h-4" />,
     completed: h.fechaCompletado === HOY,
     attribute: STAT_META[h.stat]?.name ?? h.stat,
-  }));
+  })), [fsHabitos]);
 
-  const todayEventos = fsEventos.filter(e => e.fecha === HOY);
+  const todayEventos = useMemo(() => fsEventos.filter(e => e.fecha === HOY), [fsEventos]);
 
   const filterTasks = (d: Date): Task[] => {
     const dStr = d.toISOString().slice(0, 10);
@@ -338,8 +358,14 @@ export default function App() {
     const h = fsHabitos.find(x => x.id === id);
     if (!h) return;
     const yaHecho = h.fechaCompletado === HOY;
-    await updateDoc(doc(db, 'usuarios', user.uid, 'habitos', id), { fechaCompletado: yaHecho ? null : HOY });
-    await setDoc(doc(db, 'usuarios', user.uid, 'stats', 'main'), { [h.stat]: { xp: increment(yaHecho ? -20 : 20) } }, { merge: true });
+    try {
+      const batch = writeBatch(db);
+      batch.update(doc(db, 'usuarios', user.uid, 'habitos', id), { fechaCompletado: yaHecho ? null : HOY });
+      batch.set(doc(db, 'usuarios', user.uid, 'stats', 'main'), { [h.stat]: { xp: increment(yaHecho ? -20 : 20) } }, { merge: true });
+      await batch.commit();
+    } catch {
+      showToast('Error al guardar el hábito');
+    }
   }
 
   async function toggleTask(id: string, d: Date) {
@@ -348,24 +374,38 @@ export default function App() {
     const t = fsTareas.find(x => x.id === id);
     if (!t) return;
     const prev = t.completedDates ?? [];
-    const next = prev.includes(dStr) ? prev.filter(x => x !== dStr) : [...prev, dStr];
-    await updateDoc(doc(db, 'usuarios', user.uid, 'tareas', id), { completedDates: next });
+    const toggled = prev.includes(dStr) ? prev.filter(x => x !== dStr) : [...prev, dStr];
+    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 90);
+    const next = toggled.filter(x => x >= cutoff.toISOString().slice(0, 10));
+    try {
+      await updateDoc(doc(db, 'usuarios', user.uid, 'tareas', id), { completedDates: next });
+    } catch {
+      showToast('Error al guardar la tarea');
+    }
   }
 
   async function addMission(parentId: string, title: string) {
     if (!user?.uid) return;
     const realParent = parentId === 'root' ? null : parentId;
-    await addDoc(collection(db, 'usuarios', user.uid, 'misiones'), {
-      titulo: title, completada: false, parentId: realParent,
-      orden: fsMisiones.filter(m => m.parentId === realParent).length,
-    });
+    try {
+      await addDoc(collection(db, 'usuarios', user.uid, 'misiones'), {
+        titulo: title, completada: false, parentId: realParent,
+        orden: fsMisiones.filter(m => m.parentId === realParent).length,
+      });
+    } catch {
+      showToast('Error al agregar la misión');
+    }
   }
 
   async function toggleMission(id: string) {
     if (!user?.uid) return;
     const m = fsMisiones.find(x => x.id === id);
     if (!m) return;
-    await updateDoc(doc(db, 'usuarios', user.uid, 'misiones', id), { completada: !m.completada });
+    try {
+      await updateDoc(doc(db, 'usuarios', user.uid, 'misiones', id), { completada: !m.completada });
+    } catch {
+      showToast('Error al actualizar la misión');
+    }
   }
 
   // ── Auth states ───────────────────────────────────────────────────────────
@@ -379,6 +419,15 @@ export default function App() {
   );
 
   if (!user) return <LoginScreen onLogin={() => signInWithPopup(auth, new GoogleAuthProvider())} />;
+
+  if (!dataReady) return (
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center gap-3">
+      <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}>
+        <CheckCircle2 className="w-8 h-8 text-blue-600" />
+      </motion.div>
+      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Loading hero data…</p>
+    </div>
+  );
 
   // ── Nav ───────────────────────────────────────────────────────────────────
 
@@ -404,6 +453,21 @@ export default function App() {
 
   return (
     <div className="flex min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
+
+      {/* ── Toast ── */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 16 }}
+            className={cn(
+              'fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-xl shadow-lg text-sm font-semibold text-white pointer-events-none',
+              toast.ok ? 'bg-emerald-600' : 'bg-red-600'
+            )}
+          >
+            {toast.msg}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── Sidebar ── */}
       <aside className="w-64 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col fixed h-full z-20">
@@ -586,9 +650,7 @@ export default function App() {
                             <div key={h.id} onClick={() => toggleHabit(h.id)} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer">
                               <div className={cn('w-8 h-8 rounded-lg flex items-center justify-center shrink-0', h.completed ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-400')}>{h.icon}</div>
                               <p className={cn('font-bold text-xs flex-1', h.completed && 'line-through text-slate-400')}>{h.name}</p>
-                              <div className={cn('w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0', h.completed ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-200 dark:border-slate-700')}>
-                                {h.completed && <CheckCircle2 className="w-3 h-3" />}
-                              </div>
+                              <CheckBox completed={h.completed} />
                             </div>
                           ))}
                         </div>
@@ -676,9 +738,7 @@ export default function App() {
                           )}
                         </div>
                       </div>
-                      <div className={cn('w-8 h-8 rounded-xl border-2 flex items-center justify-center', task.completed ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-200 dark:border-slate-700')}>
-                        {task.completed && <CheckCircle2 className="w-5 h-5" />}
-                      </div>
+                      <CheckBox completed={task.completed} size="lg" />
                     </div>
                   )) : (
                     <div className="py-12 text-center border-2 border-dashed border-slate-100 dark:border-slate-800 rounded-3xl">
@@ -720,9 +780,7 @@ export default function App() {
                               <div className={cn('w-8 h-8 rounded-lg flex items-center justify-center text-xs', h.completed ? 'bg-blue-600 text-white' : 'bg-white dark:bg-slate-900 text-slate-400 border border-slate-200 dark:border-slate-700')}>{h.icon}</div>
                               <p className="text-xs font-bold">{h.name}</p>
                             </div>
-                            <div className={cn('w-5 h-5 rounded-md border-2 flex items-center justify-center', h.completed ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-200 dark:border-slate-700')}>
-                              {h.completed && <CheckCircle2 className="w-3 h-3" />}
-                            </div>
+                            <CheckBox completed={h.completed} />
                           </div>
                         )) : <p className="text-[10px] text-slate-400 text-center py-4 border-2 border-dashed border-slate-100 dark:border-slate-800 rounded-xl">Sin quests. Agregalas desde la app mobile.</p>}
                       </div>
@@ -795,9 +853,7 @@ export default function App() {
                             <p className={cn('font-black text-base', h.completed && 'line-through text-slate-400')}>{h.name}</p>
                             <p className="text-[10px] font-bold text-blue-500 mt-1 uppercase tracking-widest">{h.attribute}</p>
                           </div>
-                          <div className={cn('w-8 h-8 rounded-xl border-2 flex items-center justify-center shrink-0', h.completed ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-200 dark:border-slate-700')}>
-                            {h.completed && <CheckCircle2 className="w-5 h-5" />}
-                          </div>
+                          <CheckBox completed={h.completed} size="lg" />
                         </motion.div>
                       ))}
                     </div>
