@@ -12,6 +12,7 @@ import {
   Radar, RadarChart, PolarGrid, PolarAngleAxis,
   PolarRadiusAxis, ResponsiveContainer,
   LineChart, Line, XAxis, YAxis,
+  BarChart, Bar, Tooltip, Cell,
 } from 'recharts';
 import {
   format, addDays, startOfWeek, eachDayOfInterval,
@@ -31,10 +32,10 @@ import type {
   FSStatKey, FSStatsDoc, FSHabito, FSEvento, FSMision, FSTarea,
   GCalEvent, FSEjercicio, FSRutina, EstadoLibro, FSCapitulo, FSLibro,
   TipoMaterial, FSMaterial, FSTareaFac, FSExamen, FSMateria,
-  FSEntradaDiario, FSObjetivoCHA, FSTransaccion, Habit, Task, HabitRecurrence, TabId,
+  FSEntradaDiario, FSObjetivoCHA, FSTransaccion, Habit, Task, HabitRecurrence, TabId, Moneda,
 } from './types';
 import confetti from 'canvas-confetti';
-import { HOY, FS_KEYS, STAT_META, DIAS_CORTO, DIAS_LETRA, ESTADO_LIBRO_META, MATERIAL_ICON, CATEGORIAS_GASTO, CATEGORIAS_INGRESO, CLASS_META, RANK_META } from './utils/constants';
+import { HOY, FS_KEYS, STAT_META, DIAS_CORTO, DIAS_LETRA, ESTADO_LIBRO_META, MATERIAL_ICON, CATEGORIAS_GASTO, CATEGORIAS_INGRESO, CLASS_META, RANK_META, MONEDA_META } from './utils/constants';
 import { xpLevel, statsFromDoc, buildTree, youtubeEmbedUrl, isHabitActiveToday, isHabitDoneToday, isDateInCurrentWeek, habitRecurrenceLabel, calcStreak, calcMainLevel, rankFromLevel, assignClass, calcXpPerDay } from './utils/helpers';
 import { ProgressBar } from './components/ProgressBar';
 import { StatCard } from './components/StatCard';
@@ -91,7 +92,9 @@ export default function App() {
   // Transacciones
   const [fsTransacciones,  setFsTransacciones]  = useState<FSTransaccion[]>([]);
   const [showTxModal,      setShowTxModal]      = useState(false);
-  const [txForm,           setTxForm]           = useState({ descripcion: '', monto: '', tipo: 'gasto' as 'ingreso' | 'gasto', categoria: '', fecha: HOY });
+  const [editingTxId,      setEditingTxId]      = useState<string | null>(null);
+  const [txMesFilter,      setTxMesFilter]      = useState(HOY.slice(0, 7));
+  const [txForm,           setTxForm]           = useState({ descripcion: '', monto: '', tipo: 'gasto' as 'ingreso' | 'gasto', categoria: '', fecha: HOY, moneda: 'ARS' as Moneda });
 
   // Carisma — Diario + Objetivos (pendiente de implementar UI)
   const [_fsDiario,         setFsDiario]          = useState<FSEntradaDiario[]>([]);
@@ -224,14 +227,33 @@ export default function App() {
   const todayEventos = useMemo(() => fsEventos.filter(e => e.fecha === HOY), [fsEventos]);
 
   const txStats = useMemo(() => {
-    const mesActual = HOY.slice(0, 7);
-    const txMes = fsTransacciones.filter(t => t.fecha.startsWith(mesActual));
+    const txMes = fsTransacciones.filter(t => t.fecha.startsWith(txMesFilter));
     const ingresosMes = txMes.filter(t => t.tipo === 'ingreso').reduce((s, t) => s + t.monto, 0);
     const gastosMes   = txMes.filter(t => t.tipo === 'gasto').reduce((s, t) => s + t.monto, 0);
-    const saldoTotal  = fsTransacciones.reduce((s, t) => s + (t.tipo === 'ingreso' ? t.monto : -t.monto), 0);
-    const ordenadas   = [...fsTransacciones].sort((a, b) => b.fecha.localeCompare(a.fecha));
-    return { ingresosMes, gastosMes, saldoTotal, ordenadas };
-  }, [fsTransacciones]);
+
+    // Saldo por moneda
+    const porMoneda: Record<string, { ingresos: number; gastos: number; saldo: number }> = {};
+    for (const t of fsTransacciones) {
+      const m = t.moneda ?? 'ARS';
+      if (!porMoneda[m]) porMoneda[m] = { ingresos: 0, gastos: 0, saldo: 0 };
+      porMoneda[m].saldo += t.tipo === 'ingreso' ? t.monto : -t.monto;
+      if (t.tipo === 'ingreso') porMoneda[m].ingresos += t.monto;
+      else porMoneda[m].gastos += t.monto;
+    }
+
+    // Gráfico por categoría (del mes filtrado)
+    const catMap: Record<string, number> = {};
+    for (const t of txMes.filter(t => t.tipo === 'gasto')) {
+      const cat = t.categoria || '📦 Otro';
+      catMap[cat] = (catMap[cat] ?? 0) + t.monto;
+    }
+    const porCategoria = Object.entries(catMap)
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, value]) => ({ name: name.split(' ').slice(1).join(' ') || name, value }));
+
+    const ordenadas = [...fsTransacciones].sort((a, b) => b.fecha.localeCompare(a.fecha));
+    return { ingresosMes, gastosMes, porMoneda, porCategoria, ordenadas };
+  }, [fsTransacciones, txMesFilter]);
 
   // Nivel principal, rango y clase
   const mainLevelData = useMemo(() => calcMainLevel(fsStats), [fsStats]);
@@ -844,19 +866,37 @@ export default function App() {
     return ev.start.dateTime ? format(new Date(ev.start.dateTime), 'HH:mm') : 'Todo el día';
   }
 
-  async function addTransaccion() {
+  function openEditTx(t: FSTransaccion) {
+    setEditingTxId(t.id);
+    setTxForm({ descripcion: t.descripcion, monto: t.monto.toString(), tipo: t.tipo, categoria: t.categoria, fecha: t.fecha, moneda: t.moneda ?? 'ARS' });
+    setShowTxModal(true);
+  }
+
+  function closeTxModal() {
+    setShowTxModal(false);
+    setEditingTxId(null);
+    setTxForm({ descripcion: '', monto: '', tipo: 'gasto', categoria: '', fecha: HOY, moneda: 'ARS' });
+  }
+
+  async function saveTransaccion() {
     if (!user?.uid || !txForm.descripcion.trim() || !txForm.monto) return;
+    const data = {
+      descripcion: txForm.descripcion.trim(),
+      monto: parseFloat(txForm.monto),
+      tipo: txForm.tipo,
+      categoria: txForm.categoria || (txForm.tipo === 'ingreso' ? '💼 Trabajo' : '📦 Otro'),
+      fecha: txForm.fecha,
+      moneda: txForm.moneda,
+    };
     try {
-      await addDoc(collection(db, 'usuarios', user.uid, 'transacciones'), {
-        descripcion: txForm.descripcion.trim(),
-        monto: parseFloat(txForm.monto),
-        tipo: txForm.tipo,
-        categoria: txForm.categoria || (txForm.tipo === 'ingreso' ? '💼 Trabajo' : '📦 Otro'),
-        fecha: txForm.fecha,
-      });
-      setShowTxModal(false);
-      setTxForm({ descripcion: '', monto: '', tipo: 'gasto', categoria: '', fecha: HOY });
-      showToast('Transacción guardada', true);
+      if (editingTxId) {
+        await updateDoc(doc(db, 'usuarios', user.uid, 'transacciones', editingTxId), data);
+        showToast('Transacción actualizada', true);
+      } else {
+        await addDoc(collection(db, 'usuarios', user.uid, 'transacciones'), data);
+        showToast('Transacción guardada', true);
+      }
+      closeTxModal();
     } catch {
       showToast('Error al guardar la transacción');
     }
@@ -936,18 +976,21 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* ── Modal: Nueva transacción ── */}
+      {/* ── Modal: Nueva / Editar transacción ── */}
       <AnimatePresence>
         {showTxModal && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
-            onClick={() => setShowTxModal(false)}>
+            onClick={closeTxModal}>
             <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
               onClick={e => e.stopPropagation()}
               className="bg-white dark:bg-slate-900 rounded-3xl p-8 w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800 space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="font-black text-lg flex items-center gap-2"><Wallet className="w-5 h-5 text-emerald-600" /> Nueva transacción</h3>
-                <button onClick={() => setShowTxModal(false)} className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"><X className="w-4 h-4" /></button>
+                <h3 className="font-black text-lg flex items-center gap-2">
+                  <Wallet className="w-5 h-5 text-emerald-600" />
+                  {editingTxId ? 'Editar transacción' : 'Nueva transacción'}
+                </h3>
+                <button onClick={closeTxModal} className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"><X className="w-4 h-4" /></button>
               </div>
               <div className="flex bg-slate-100 dark:bg-slate-800 rounded-xl p-1 gap-1">
                 {(['gasto', 'ingreso'] as const).map(t => (
@@ -960,8 +1003,16 @@ export default function App() {
               </div>
               <input placeholder="Descripción" value={txForm.descripcion} onChange={e => setTxForm(f => ({ ...f, descripcion: e.target.value }))}
                 className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm font-bold focus:outline-none focus:border-emerald-500 transition-colors" />
-              <input type="number" placeholder="Monto" value={txForm.monto} onChange={e => setTxForm(f => ({ ...f, monto: e.target.value }))}
-                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm font-bold focus:outline-none focus:border-emerald-500 transition-colors" />
+              <div className="flex gap-3">
+                <input type="number" placeholder="Monto" value={txForm.monto} onChange={e => setTxForm(f => ({ ...f, monto: e.target.value }))}
+                  className="flex-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm font-bold focus:outline-none focus:border-emerald-500 transition-colors" />
+                <select value={txForm.moneda} onChange={e => setTxForm(f => ({ ...f, moneda: e.target.value as Moneda }))}
+                  className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-3 text-sm font-bold focus:outline-none focus:border-emerald-500 transition-colors">
+                  {Object.entries(MONEDA_META).map(([code, m]) => (
+                    <option key={code} value={code}>{m.flag} {code}</option>
+                  ))}
+                </select>
+              </div>
               <select value={txForm.categoria} onChange={e => setTxForm(f => ({ ...f, categoria: e.target.value }))}
                 className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm font-bold focus:outline-none focus:border-emerald-500 transition-colors">
                 <option value="">Categoría (opcional)</option>
@@ -969,9 +1020,9 @@ export default function App() {
               </select>
               <input type="date" value={txForm.fecha} onChange={e => setTxForm(f => ({ ...f, fecha: e.target.value }))}
                 className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm font-bold focus:outline-none focus:border-emerald-500 transition-colors" />
-              <button onClick={addTransaccion} disabled={!txForm.descripcion.trim() || !txForm.monto}
+              <button onClick={saveTransaccion} disabled={!txForm.descripcion.trim() || !txForm.monto}
                 className="w-full py-3 bg-emerald-600 text-white rounded-xl text-sm font-black hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg shadow-emerald-500/20">
-                Guardar
+                {editingTxId ? 'Actualizar' : 'Guardar'}
               </button>
             </motion.div>
           </motion.div>
@@ -2114,43 +2165,80 @@ export default function App() {
 
           {/* ══ TREASURY ══ */}
           {tab === 'billetera' && (
-            <motion.div key="billetera" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-8">
+            <motion.div key="billetera" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-6">
               <div className="flex items-center justify-between">
                 <h3 className="text-2xl font-black tracking-tight uppercase flex items-center gap-3"><Wallet className="w-7 h-7 text-emerald-600" /> TREASURY</h3>
-                <button onClick={() => setShowTxModal(true)}
+                <button onClick={() => { setEditingTxId(null); setTxForm({ descripcion: '', monto: '', tipo: 'gasto', categoria: '', fecha: HOY, moneda: 'ARS' }); setShowTxModal(true); }}
                   className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-black hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/20">
                   <Plus className="w-4 h-4" /> Nueva transacción
                 </button>
               </div>
 
-              {/* Tarjetas resumen */}
-              <div className="grid grid-cols-3 gap-4">
-                <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Saldo Total</p>
-                  <p className={cn('text-2xl font-black', txStats.saldoTotal >= 0 ? 'text-emerald-600' : 'text-red-500')}>
-                    ${txStats.saldoTotal.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-                  </p>
+              {/* Saldos por moneda */}
+              {Object.keys(txStats.porMoneda).length > 0 && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {Object.entries(txStats.porMoneda).map(([code, vals]) => {
+                    const m = MONEDA_META[code] ?? { symbol: code, flag: '💱' };
+                    return (
+                      <div key={code} className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">{m.flag} Saldo {code}</p>
+                        <p className={cn('text-xl font-black', vals.saldo >= 0 ? 'text-emerald-600' : 'text-red-500')}>
+                          {m.symbol} {vals.saldo.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                        </p>
+                      </div>
+                    );
+                  })}
                 </div>
-                <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm">
-                  <div className="flex items-center gap-1.5 mb-2">
-                    <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Ingresos del mes</p>
+              )}
+
+              {/* Filtro de mes + resumen */}
+              <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-black uppercase tracking-widest text-slate-400">Resumen del mes</h4>
+                  <input type="month" value={txMesFilter} onChange={e => setTxMesFilter(e.target.value)}
+                    className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs font-bold focus:outline-none focus:border-emerald-500 transition-colors" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex items-center gap-3 p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl">
+                    <TrendingUp className="w-5 h-5 text-emerald-500 shrink-0" />
+                    <div>
+                      <p className="text-[10px] font-black text-emerald-600 uppercase">Ingresos</p>
+                      <p className="font-black text-emerald-700 dark:text-emerald-400 text-sm">+${txStats.ingresosMes.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</p>
+                    </div>
                   </div>
-                  <p className="text-2xl font-black text-emerald-600">+${txStats.ingresosMes.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</p>
-                </div>
-                <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm">
-                  <div className="flex items-center gap-1.5 mb-2">
-                    <TrendingDown className="w-3.5 h-3.5 text-red-500" />
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Gastos del mes</p>
+                  <div className="flex items-center gap-3 p-3 bg-red-50 dark:bg-red-900/20 rounded-xl">
+                    <TrendingDown className="w-5 h-5 text-red-500 shrink-0" />
+                    <div>
+                      <p className="text-[10px] font-black text-red-600 uppercase">Gastos</p>
+                      <p className="font-black text-red-600 dark:text-red-400 text-sm">-${txStats.gastosMes.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</p>
+                    </div>
                   </div>
-                  <p className="text-2xl font-black text-red-500">-${txStats.gastosMes.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</p>
                 </div>
+
+                {/* Gráfico por categoría */}
+                {txStats.porCategoria.length > 0 && (
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Gastos por categoría</p>
+                    <ResponsiveContainer width="100%" height={120}>
+                      <BarChart data={txStats.porCategoria} layout="vertical" margin={{ left: 0, right: 12, top: 0, bottom: 0 }}>
+                        <XAxis type="number" hide />
+                        <YAxis type="category" dataKey="name" width={70} tick={{ fontSize: 10, fontWeight: 700, fill: '#94a3b8' }} />
+                        <Tooltip formatter={(v) => typeof v === 'number' ? `$${v.toLocaleString('es-AR', { minimumFractionDigits: 2 })}` : v} contentStyle={{ fontSize: 11, borderRadius: 8 }} />
+                        <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+                          {txStats.porCategoria.map((_, i) => (
+                            <Cell key={i} fill={['#10b981','#f59e0b','#3b82f6','#ef4444','#8b5cf6','#ec4899','#14b8a6','#f97316'][i % 8]} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
               </div>
 
               {/* Lista de transacciones */}
               <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 overflow-hidden">
                 <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800">
-                  <h4 className="text-xs font-black uppercase tracking-widest text-slate-400">Transacciones</h4>
+                  <h4 className="text-xs font-black uppercase tracking-widest text-slate-400">Todas las transacciones</h4>
                 </div>
                 {txStats.ordenadas.length === 0
                   ? <div className="py-16 text-center">
@@ -2159,24 +2247,33 @@ export default function App() {
                       <p className="text-sm text-slate-400 mt-1">Registrá tu primer movimiento.</p>
                     </div>
                   : <div className="divide-y divide-slate-50 dark:divide-slate-800/50">
-                      {txStats.ordenadas.map(t => (
-                        <div key={t.id} className="flex items-center gap-4 px-6 py-4 hover:bg-slate-50 dark:hover:bg-slate-800/30 group transition-colors">
-                          <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0', t.tipo === 'ingreso' ? 'bg-emerald-500' : 'bg-red-500')}>
-                            {t.tipo === 'ingreso' ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
+                      {txStats.ordenadas.map(t => {
+                        const mon = MONEDA_META[t.moneda ?? 'ARS'] ?? MONEDA_META['ARS'];
+                        return (
+                          <div key={t.id} className="flex items-center gap-4 px-6 py-4 hover:bg-slate-50 dark:hover:bg-slate-800/30 group transition-colors">
+                            <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0', t.tipo === 'ingreso' ? 'bg-emerald-500' : 'bg-red-500')}>
+                              {t.tipo === 'ingreso' ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-bold text-sm truncate">{t.descripcion}</p>
+                              <p className="text-[10px] text-slate-400 font-medium mt-0.5">{t.categoria} · {t.fecha} · <span className="font-black">{mon.flag} {t.moneda ?? 'ARS'}</span></p>
+                            </div>
+                            <p className={cn('font-black text-sm shrink-0', t.tipo === 'ingreso' ? 'text-emerald-600' : 'text-red-500')}>
+                              {t.tipo === 'ingreso' ? '+' : '-'}{mon.symbol} {t.monto.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                            </p>
+                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                              <button onClick={() => openEditTx(t)}
+                                className="p-1.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 text-slate-300 hover:text-blue-500 transition-all">
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                              <button onClick={() => deleteTransaccion(t.id)}
+                                className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-slate-300 hover:text-red-500 transition-all">
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-bold text-sm truncate">{t.descripcion}</p>
-                            <p className="text-[10px] text-slate-400 font-medium mt-0.5">{t.categoria} · {t.fecha}</p>
-                          </div>
-                          <p className={cn('font-black text-sm shrink-0', t.tipo === 'ingreso' ? 'text-emerald-600' : 'text-red-500')}>
-                            {t.tipo === 'ingreso' ? '+' : '-'}${t.monto.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-                          </p>
-                          <button onClick={() => deleteTransaccion(t.id)}
-                            className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-slate-300 hover:text-red-500 transition-all">
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                 }
               </div>

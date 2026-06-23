@@ -5,6 +5,14 @@ import type { FSStatKey, EstadoLibro, TipoMaterial, Stat } from '../types';
 export const HOY = new Date().toISOString().slice(0, 10);
 export const CATEGORIAS_GASTO   = ['🍔 Comida', '🚗 Transporte', '🏠 Vivienda', '💊 Salud', '📚 Educación', '🎮 Ocio', '🛒 Compras', '📦 Otro'];
 export const CATEGORIAS_INGRESO = ['💼 Trabajo', '💻 Freelance', '📈 Inversión', '🎁 Regalo', '📦 Otro'];
+export const MONEDA_META: Record<string, { symbol: string; label: string; flag: string }> = {
+  ARS: { symbol: '$',    label: 'Peso Arg.',  flag: '🇦🇷' },
+  USD: { symbol: 'U$S',  label: 'Dólar',      flag: '🇺🇸' },
+  EUR: { symbol: '€',    label: 'Euro',        flag: '🇪🇺' },
+  BRL: { symbol: 'R$',   label: 'Real',        flag: '🇧🇷' },
+  CLP: { symbol: 'CLP$', label: 'Peso Chi.',   flag: '🇨🇱' },
+  UYU: { symbol: '$U',   label: 'Peso Uru.',   flag: '🇺🇾' },
+};
 export const FS_KEYS: FSStatKey[] = ['fuerza', 'salud', 'inteligencia', 'agilidad', 'carisma', 'fe'];
 export const DIAS_CORTO = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 export const DIAS_LETRA = ['D', 'L', 'M', 'X', 'J', 'V', 'S'];
