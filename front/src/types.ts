@@ -22,6 +22,7 @@ export type FSExamen    = { id: string; titulo: string; fecha?: string; nota?: n
 export type FSMateria   = { id: string; nombre: string; color: string; materiales: FSMaterial[]; tareas: FSTareaFac[]; examenes: FSExamen[] };
 export type FSEntradaDiario = { id: string; fecha: string; titulo?: string; contenido: string };
 export type FSObjetivoCHA   = { id: string; titulo: string; completado: boolean; orden: number };
+export type FSTransaccion   = { id: string; descripcion: string; monto: number; tipo: 'ingreso' | 'gasto'; categoria: string; fecha: string };
 
 // ─── UI types ─────────────────────────────────────────────────────────────────
 
