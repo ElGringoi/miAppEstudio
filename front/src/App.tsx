@@ -1,10 +1,10 @@
-import { useEffect, useState, useMemo, type ReactNode } from 'react';
+import { useEffect, useState, useMemo, useRef, type ReactNode } from 'react';
 import {
   LayoutDashboard, Calendar as CalendarIcon, Zap, Settings,
   CheckCircle2, Plus, Target, Sword, Flame, Dumbbell,
   ChevronRight, Bell, Search, Trophy, Menu, Pencil,
   Repeat, CalendarDays, LogOut, Trash2, X, Utensils,
-  Wallet, TrendingUp, TrendingDown,
+  Wallet, TrendingUp, TrendingDown, Download,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
@@ -32,11 +32,12 @@ import type {
   FSStatKey, FSStatsDoc, FSHabito, FSEvento, FSMision, FSTarea,
   GCalEvent, FSEjercicio, FSRutina, EstadoLibro, FSCapitulo, FSLibro,
   TipoMaterial, FSMaterial, FSTareaFac, FSExamen, FSMateria,
-  FSEntradaDiario, FSObjetivoCHA, FSTransaccion, Habit, Task, HabitRecurrence, TabId, Moneda,
+  FSEntradaDiario, FSObjetivoCHA, FSTransaccion, Habit, Task, HabitRecurrence, TabId, Moneda, LevelUpEvent,
 } from './types';
+import CalendarHeatmap from 'react-calendar-heatmap';
 import confetti from 'canvas-confetti';
-import { HOY, FS_KEYS, STAT_META, DIAS_CORTO, DIAS_LETRA, ESTADO_LIBRO_META, MATERIAL_ICON, CATEGORIAS_GASTO, CATEGORIAS_INGRESO, CLASS_META, RANK_META, MONEDA_META } from './utils/constants';
-import { xpLevel, statsFromDoc, buildTree, youtubeEmbedUrl, isHabitActiveToday, isHabitDoneToday, isDateInCurrentWeek, habitRecurrenceLabel, calcStreak, calcMainLevel, rankFromLevel, assignClass, calcXpPerDay } from './utils/helpers';
+import { HOY, FS_KEYS, STAT_META, DIAS_CORTO, DIAS_LETRA, ESTADO_LIBRO_META, MATERIAL_ICON, CATEGORIAS_GASTO, CATEGORIAS_INGRESO, CLASS_META, RANK_META, MONEDA_META, PRIORIDAD_META } from './utils/constants';
+import { xpLevel, statsFromDoc, buildTree, youtubeEmbedUrl, isHabitActiveToday, isHabitDoneToday, isDateInCurrentWeek, habitRecurrenceLabel, calcStreak, calcMainLevel, rankFromLevel, assignClass, calcXpPerDay, streakMultiplier, calcXpBySource } from './utils/helpers';
 import { ProgressBar } from './components/ProgressBar';
 import { StatCard } from './components/StatCard';
 import { CapituloRow } from './components/CapituloRow';
@@ -99,6 +100,22 @@ export default function App() {
   // Carisma — Diario + Objetivos (pendiente de implementar UI)
   const [_fsDiario,         setFsDiario]          = useState<FSEntradaDiario[]>([]);
   const [_fsObjetivosCHA,   setFsObjetivosCHA]    = useState<FSObjetivoCHA[]>([]);
+
+  // ── Nuevas mejoras ────────────────────────────────────────────────────────
+  const [levelUpEvent,     setLevelUpEvent]     = useState<LevelUpEvent | null>(null);
+  const prevMainLevel = useRef<number | null>(null);
+
+  // Dashboard
+  const [todayFocus, setTodayFocus] = useState<string>(() => localStorage.getItem(`focus_${HOY}`) ?? '');
+
+  // Habits
+  const [filterHabitStat,  setFilterHabitStat]  = useState<FSStatKey | 'all'>('all');
+  const [analyticsRange,   setAnalyticsRange]   = useState<7 | 30 | 90>(7);
+
+  // Missions
+  const [missionSearch,     setMissionSearch]     = useState('');
+  // Settings
+  const [discordWebhookUrl, setDiscordWebhookUrl] = useState<string>('');
   const [_expandedEntrada,  _setExpandedEntrada]  = useState<string | null>(null);
   const [_nuevaObjetivoTxt, _setNuevaObjetivoTxt] = useState('');
 
@@ -136,6 +153,16 @@ export default function App() {
       document.documentElement.classList.add('dark');
     }
   }, []);
+
+  // Detector de level-up del personaje principal
+  useEffect(() => {
+    const current = calcMainLevel(fsStats).level;
+    if (prevMainLevel.current !== null && current > prevMainLevel.current) {
+      confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 } });
+      showToast(`¡Subiste al Nivel ${current}!`, true);
+    }
+    prevMainLevel.current = current;
+  }, [fsStats]);
 
   // Load GCal token from localStorage
   useEffect(() => {
@@ -262,6 +289,32 @@ export default function App() {
 
   // XP por día y logros
   const xpPerDay = calcXpPerDay(fsHabitos, 14);
+
+  // Heatmap data (últimos 365 días)
+  const heatmapData = useMemo(() => {
+    const counts: Record<string, number> = {};
+    fsHabitos.forEach(h => { h.completedDates?.forEach(d => { counts[d] = (counts[d] ?? 0) + 1; }); });
+    return Object.entries(counts).map(([date, count]) => ({ date, count }));
+  }, [fsHabitos]);
+
+  // Misiones filtradas para búsqueda
+  const filteredMisiones = useMemo(() => {
+    if (!missionSearch.trim()) return fsMisiones;
+    const q = missionSearch.toLowerCase();
+    const matchIds = new Set(fsMisiones.filter(m => m.titulo.toLowerCase().includes(q)).map(m => m.id));
+    fsMisiones.forEach(m => { if (matchIds.has(m.id) && m.parentId) matchIds.add(m.parentId); });
+    return fsMisiones.filter(m => matchIds.has(m.id));
+  }, [fsMisiones, missionSearch]);
+
+  // Account stats para settings
+  const accountStats = useMemo(() => {
+    const totalXP = FS_KEYS.reduce((s, k) => s + (fsStats?.[k]?.xp ?? 0), 0);
+    const mesStr  = HOY.slice(0, 7);
+    const habitosMes = fsHabitos.reduce((s, h) => s + (h.completedDates?.filter(d => d.startsWith(mesStr)).length ?? 0), 0);
+    const misionesCompletadas = fsMisiones.filter(m => m.completada).length;
+    const librosTerminados = fsLibros.filter(l => l.estado === 'leido').length;
+    return { totalXP, habitosMes, misionesCompletadas, librosTerminados };
+  }, [fsStats, fsHabitos, fsMisiones, fsLibros]);
   const logrosUnlocked = useMemo(() => {
     const ids: string[] = [];
     if (fsHabitos.some(h => (h.completedDates?.length ?? 0) > 0)) ids.push('primera_quest');
@@ -315,12 +368,29 @@ export default function App() {
       : [...prev, HOY];
     const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 90);
     const next = toggled.filter(d => d >= cutoff.toISOString().slice(0, 10));
-    const xp = h.xpValue ?? 20;
+    const baseXp = h.xpValue ?? 20;
+    const streak = calcStreak(prev, h.recurrence ?? 'daily');
+    const mult   = yaHecho ? 1 : streakMultiplier(streak);
+    const xpFinal = Math.round(baseXp * mult);
     try {
+      const xpBefore = fsStats?.[h.stat]?.xp ?? 0;
+      const oldLevel = xpLevel(xpBefore).level;
+      const newLevel = xpLevel(xpBefore + (yaHecho ? -xpFinal : xpFinal)).level;
+
       const batch = writeBatch(db);
       batch.update(doc(db, 'usuarios', user.uid, 'habitos', id), { completedDates: next, fechaCompletado: null });
-      batch.set(doc(db, 'usuarios', user.uid, 'stats', 'main'), { [h.stat]: { xp: increment(yaHecho ? -xp : xp) } }, { merge: true });
+      batch.set(doc(db, 'usuarios', user.uid, 'stats', 'main'), { [h.stat]: { xp: increment(yaHecho ? -xpFinal : xpFinal) } }, { merge: true });
       await batch.commit();
+
+      if (!yaHecho) {
+        if (newLevel > oldLevel) {
+          setLevelUpEvent({ stat: h.stat, oldLevel, newLevel, xp: xpFinal });
+          confetti({ particleCount: 80, spread: 60, origin: { y: 0.6 } });
+        } else {
+          const multLabel = mult > 1 ? ` (×${mult})` : '';
+          showToast(`+${xpFinal} XP ${STAT_META[h.stat].shortName}${multLabel}`, true);
+        }
+      }
     } catch {
       showToast('Error al guardar el hábito');
     }
@@ -847,6 +917,14 @@ export default function App() {
     }
   }
 
+  // Exportar datos como JSON
+  function exportarDatos() {
+    const blob = new Blob([JSON.stringify({ habitos: fsHabitos, misiones: fsMisiones, eventos: fsEventos, stats: fsStats, transacciones: fsTransacciones }, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'miAppEstudio-backup.json'; a.click();
+  }
+
+  // Discord webhook
+
   function disconnectGCal() {
     setGcalToken(null);
     setGcalEvents([]);
@@ -959,7 +1037,14 @@ export default function App() {
   };
 
   return (
-    <div className="flex min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
+    <div className="flex min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 relative overflow-hidden">
+
+      {/* ── Ambient orbs (solo dark mode) ── */}
+      <div className="pointer-events-none fixed inset-0 z-0 hidden dark:block">
+        <div className="absolute -top-40 -left-40 w-80 h-80 rounded-full bg-violet-600/10 blur-3xl" />
+        <div className="absolute top-1/3 -right-32 w-72 h-72 rounded-full bg-blue-600/8 blur-3xl" />
+        <div className="absolute bottom-0 left-1/3 w-96 h-64 rounded-full bg-pink-600/6 blur-3xl" />
+      </div>
 
       {/* ── Toast ── */}
       <AnimatePresence>
@@ -1024,6 +1109,27 @@ export default function App() {
                 className="w-full py-3 bg-emerald-600 text-white rounded-xl text-sm font-black hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg shadow-emerald-500/20">
                 {editingTxId ? 'Actualizar' : 'Guardar'}
               </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Stat-up overlay ── */}
+      <AnimatePresence>
+        {levelUpEvent && (
+          <motion.div
+            className="fixed inset-0 z-[60] flex items-center justify-center pointer-events-none"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          >
+            <motion.div
+              initial={{ scale: 0.7, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 1.1, opacity: 0 }} transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+              onAnimationComplete={() => { setTimeout(() => setLevelUpEvent(null), 2200); }}
+              className="px-10 py-8 rounded-3xl backdrop-blur-xl bg-black/80 border border-white/20 text-center shadow-2xl"
+            >
+              <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">{STAT_META[levelUpEvent.stat].name}</p>
+              <p className="text-6xl font-black text-white mb-1">NIVEL {levelUpEvent.newLevel}</p>
+              <p className="text-emerald-400 font-bold">+{levelUpEvent.xp} XP</p>
             </motion.div>
           </motion.div>
         )}
@@ -1168,9 +1274,17 @@ export default function App() {
                       </span>
                     </div>
                     <p className="text-slate-400 text-xs mb-1">{xpInLevel} / {heroXpForNext} XP — nivel {heroLevel}</p>
-                    <p className={cn('text-xs font-bold mb-3', RANK_META[heroRank]?.color ?? 'text-slate-400')}>
+                    <p className={cn('text-xs font-bold mb-1', RANK_META[heroRank]?.color ?? 'text-slate-400')}>
                       Nivel Principal {mainLevelData.level} · {RANK_META[heroRank]?.label}
                     </p>
+                    {(() => {
+                      const nextLvl = RANK_META[heroRank]?.next;
+                      if (nextLvl && nextLvl !== Infinity) {
+                        const diff = nextLvl - mainLevelData.level;
+                        return <p className="text-[10px] text-slate-500 mb-3">⚡ {diff} nivel{diff !== 1 ? 'es' : ''} para {Object.entries(RANK_META).find(([,v]) => v.next === nextLvl)?.[0] ?? ''}-Rank</p>;
+                      }
+                      return <p className="text-[10px] text-amber-400 mb-3">👑 Rango máximo — Monarch</p>;
+                    })()}
                     <div className="flex items-center gap-3">
                       <div className="flex-1 h-2 bg-slate-800 rounded-full overflow-hidden border border-slate-700/50">
                         <motion.div initial={{ width: 0 }} animate={{ width: `${(xpInLevel / heroXpForNext) * 100}%` }} transition={{ duration: 1, ease: 'easeOut' }} className="h-full bg-gradient-to-r from-blue-600 to-blue-400 rounded-full" />
@@ -1193,6 +1307,18 @@ export default function App() {
                 </div>
               </div>
 
+              {/* Widget: Foco del día */}
+              <div className="bg-gradient-to-r from-violet-600/10 to-blue-600/10 border border-violet-500/20 rounded-2xl p-4 flex items-center gap-4">
+                <Target className="w-5 h-5 text-violet-400 shrink-0" />
+                <input
+                  type="text"
+                  value={todayFocus}
+                  onChange={e => { setTodayFocus(e.target.value); localStorage.setItem(`focus_${HOY}`, e.target.value); }}
+                  placeholder="¿En qué te vas a enfocar hoy?"
+                  className="flex-1 bg-transparent text-sm font-bold placeholder-slate-500 outline-none text-slate-100"
+                />
+              </div>
+
               {/* Stats + Radar */}
               <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2">
@@ -1204,19 +1330,25 @@ export default function App() {
                     {stats.map(s => <StatCard key={s.name} stat={s} />)}
                   </div>
                 </div>
-                <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800 flex flex-col items-center justify-center">
+                <motion.div initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.5 }}
+                  className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800 flex flex-col items-center justify-center">
                   <h4 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">Performance Radar</h4>
                   <div className="w-full h-60">
                     <ResponsiveContainer width="100%" height="100%">
                       <RadarChart cx="50%" cy="50%" outerRadius="80%" data={radarData}>
-                        <PolarGrid stroke="#e2e8f0" />
+                        <defs>
+                          <filter id="stat-glow"><feGaussianBlur stdDeviation="3" result="coloredBlur" /><feMerge><feMergeNode in="coloredBlur" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
+                        </defs>
+                        <PolarGrid stroke="#334155" />
                         <PolarAngleAxis dataKey="subject" tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 700 }} />
                         <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
-                        <Radar name="Stats" dataKey="A" stroke="#2563eb" fill="#3b82f6" fillOpacity={0.6} />
+                        <Radar name="Stats" dataKey="A" stroke="#7c3aed" fill="#7c3aed" fillOpacity={0.4}
+                          isAnimationActive animationDuration={800} animationEasing="ease-out"
+                          style={{ filter: 'url(#stat-glow)' }} />
                       </RadarChart>
                     </ResponsiveContainer>
                   </div>
-                </div>
+                </motion.div>
               </section>
 
               {/* Agenda + Side panel */}
@@ -1721,6 +1853,22 @@ export default function App() {
                   );
                 })()}
 
+                {/* ── XP Breakdown por hábito ── */}
+                {calcXpBySource(fsHabitos, attrStat).length > 0 && (
+                  <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Top fuentes de XP</p>
+                    <div className="space-y-2">
+                      {calcXpBySource(fsHabitos, attrStat).slice(0, 5).map(src => (
+                        <div key={src.nombre} className="flex items-center gap-3">
+                          <p className="text-xs font-bold flex-1 truncate">{src.nombre}</p>
+                          <span className="text-[10px] text-slate-400">×{src.veces}</span>
+                          <span className="text-xs font-black text-blue-500">{src.xpTotal} XP</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* ── Fuerza: acceso al Gym ── */}
                 {attrStat === 'fuerza' && (
                   <button onClick={() => setTab('gym')}
@@ -2072,17 +2220,33 @@ export default function App() {
 
           {/* ══ QUESTS ══ */}
           {tab === 'habits' && (
-            <motion.div key="habits" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-8">
-              <div className="flex items-center justify-between">
+            <motion.div key="habits" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-6">
+              <div className="flex items-center justify-between flex-wrap gap-3">
                 <h3 className="text-2xl font-black tracking-tight uppercase flex items-center gap-3"><Zap className="w-7 h-7 text-blue-600" /> DAILY QUESTS</h3>
-                <div className="flex items-center gap-3">
-                  <span className="text-sm font-black text-slate-500">{done}/{habits.length} completadas</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-black text-slate-500">{done}/{habits.length}</span>
                   <button onClick={() => setModal('habit')}
                     className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold hover:opacity-90 transition-all shadow-md shadow-blue-500/20">
                     <Plus className="w-4 h-4" /> Nueva Quest
                   </button>
                 </div>
               </div>
+
+              {/* Filtro por stat */}
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                <button onClick={() => setFilterHabitStat('all')}
+                  className={cn('px-3 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition-all', filterHabitStat === 'all' ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500')}>
+                  Todas
+                </button>
+                {FS_KEYS.map(k => (
+                  <button key={k} onClick={() => setFilterHabitStat(k)}
+                    className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition-all',
+                      filterHabitStat === k ? `${STAT_META[k].color} text-white` : 'bg-slate-100 dark:bg-slate-800 text-slate-500')}>
+                    {STAT_META[k].icon} {STAT_META[k].shortName}
+                  </button>
+                ))}
+              </div>
+
               {habits.length === 0
                 ? <div className="py-16 text-center border-2 border-dashed border-slate-100 dark:border-slate-800 rounded-3xl">
                     <Zap className="w-12 h-12 text-slate-200 mx-auto mb-4" />
@@ -2091,57 +2255,102 @@ export default function App() {
                   </div>
                 : <>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {habits.map(h => (
-                        <motion.div key={h.id} layout
-                          className={cn('group relative flex items-center gap-4 p-5 rounded-2xl border-2 transition-all',
-                            !h.activeToday
-                              ? 'border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 opacity-50 cursor-not-allowed'
-                              : h.completed
-                                ? 'border-blue-200 dark:border-blue-900/40 bg-blue-50/50 dark:bg-blue-900/10 cursor-pointer'
-                                : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-blue-200 cursor-pointer')}
-                          onClick={() => h.activeToday && toggleHabit(h.id)}>
-                          <div className={cn('w-12 h-12 rounded-2xl flex items-center justify-center shrink-0', h.completed ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' : 'bg-slate-100 dark:bg-slate-800 text-slate-400')}>
-                            <div className="scale-150">{h.icon}</div>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <p className={cn('font-black text-sm', h.completed && 'line-through text-slate-400')}>{h.name}</p>
-                              {(() => {
-                                const fh = fsHabitos.find(x => x.id === h.id);
-                                const streak = fh ? calcStreak(fh.completedDates ?? [], fh.recurrence ?? 'daily') : 0;
-                                return streak > 0 ? (
-                                  <span className="flex items-center gap-0.5 text-[10px] font-black text-orange-400">
+                      {habits.filter(h => filterHabitStat === 'all' || h.stat === filterHabitStat).map(h => {
+                        const fh = fsHabitos.find(x => x.id === h.id);
+                        const streak = fh ? calcStreak(fh.completedDates ?? [], fh.recurrence ?? 'daily') : 0;
+                        const mult = streakMultiplier(streak);
+                        return (
+                          <motion.div key={h.id} layout whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}
+                            className={cn('group relative flex items-center gap-4 p-5 rounded-2xl border-2 transition-all',
+                              !h.activeToday
+                                ? 'border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 opacity-50 cursor-not-allowed'
+                                : h.completed
+                                  ? 'border-blue-200 dark:border-blue-900/40 bg-blue-50/50 dark:bg-blue-900/10 cursor-pointer'
+                                  : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-blue-200 cursor-pointer')}
+                            onClick={() => h.activeToday && toggleHabit(h.id)}>
+                            <div className={cn('w-12 h-12 rounded-2xl flex items-center justify-center shrink-0', h.completed ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' : 'bg-slate-100 dark:bg-slate-800 text-slate-400')}>
+                              <div className="scale-150">{h.icon}</div>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className={cn('font-black text-sm', h.completed && 'line-through text-slate-400')}>{h.name}</p>
+                                {streak > 0 && (
+                                  <span className={cn('flex items-center gap-0.5 text-[10px] font-black px-1.5 py-0.5 rounded-full',
+                                    streak >= 30 ? 'bg-red-600 text-white' : streak >= 7 ? 'bg-orange-500 text-white' : 'bg-orange-400 text-white')}>
                                     <Flame className="w-3 h-3" /> {streak}
                                   </span>
-                                ) : null;
-                              })()}
+                                )}
+                                {mult > 1 && !h.completed && (
+                                  <span className="text-[10px] font-black text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded-full">×{mult}</span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                <span className="text-[10px] font-bold text-blue-500 uppercase tracking-widest">{h.attribute}</span>
+                                <span className="text-[10px] text-slate-400">·</span>
+                                <span className="text-[10px] text-slate-400 font-medium">{habitRecurrenceLabel(h.recurrence, h.diasSemana, DIAS_CORTO)}</span>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-2 mt-1 flex-wrap">
-                              <span className="text-[10px] font-bold text-blue-500 uppercase tracking-widest">{h.attribute}</span>
-                              <span className="text-[10px] text-slate-400">·</span>
-                              <span className="text-[10px] text-slate-400 font-medium">{habitRecurrenceLabel(h.recurrence, h.diasSemana, DIAS_CORTO)}</span>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button onClick={e => { e.stopPropagation(); openEditHabit(h.id); }}
+                                className="opacity-0 group-hover:opacity-100 p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 transition-all">
+                                <Pencil className="w-4 h-4" />
+                              </button>
+                              <button onClick={e => { e.stopPropagation(); deleteHabit(h.id); }}
+                                className="opacity-0 group-hover:opacity-100 p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-400 transition-all">
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                              <div className={cn('w-8 h-8 rounded-xl border-2 flex items-center justify-center', h.completed ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-200 dark:border-slate-700')}>
+                                {h.completed && <CheckCircle2 className="w-5 h-5" />}
+                              </div>
                             </div>
-                          </div>
-                          <div className="flex items-center gap-1 shrink-0">
-                            <button onClick={e => { e.stopPropagation(); openEditHabit(h.id); }}
-                              className="opacity-0 group-hover:opacity-100 p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 transition-all">
-                              <Pencil className="w-4 h-4" />
-                            </button>
-                            <button onClick={e => { e.stopPropagation(); deleteHabit(h.id); }}
-                              className="opacity-0 group-hover:opacity-100 p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-400 transition-all">
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                            <div className={cn('w-8 h-8 rounded-xl border-2 flex items-center justify-center', h.completed ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-200 dark:border-slate-700')}>
-                              {h.completed && <CheckCircle2 className="w-5 h-5" />}
-                            </div>
-                          </div>
-                        </motion.div>
-                      ))}
+                          </motion.div>
+                        );
+                      })}
                     </div>
-                    <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 md:p-8 border border-slate-200 dark:border-slate-800">
-                      <h4 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">Progreso de hoy</h4>
-                      <ProgressBar value={done} max={Math.max(habitsToday.length, 1)} color="bg-blue-600" className="h-3" />
-                      <p className="text-sm font-bold text-slate-500 mt-3">{done} de {habitsToday.length} completadas hoy · +{done * 20} XP</p>
+
+                    {/* Progreso + Analytics */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800">
+                        <h4 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">Progreso de hoy</h4>
+                        <ProgressBar value={done} max={Math.max(habitsToday.length, 1)} color="bg-blue-600" className="h-3" />
+                        <p className="text-sm font-bold text-slate-500 mt-3">{done} de {habitsToday.length} completadas hoy</p>
+                      </div>
+                      <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800">
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="text-xs font-black uppercase tracking-widest text-slate-400">XP ganado</h4>
+                          <div className="flex gap-1">
+                            {([7, 30, 90] as const).map(d => (
+                              <button key={d} onClick={() => setAnalyticsRange(d)}
+                                className={cn('px-2 py-1 rounded-lg text-[10px] font-black transition-all', analyticsRange === d ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800')}>
+                                {d}d
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <ResponsiveContainer width="100%" height={80}>
+                          <BarChart data={calcXpPerDay(fsHabitos, analyticsRange)} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+                            <Bar dataKey="xp" fill="#3b82f6" radius={[2, 2, 0, 0]} />
+                            <Tooltip formatter={(v) => typeof v === 'number' ? [`${v} XP`, ''] : [v, '']} contentStyle={{ fontSize: 11, borderRadius: 8 }} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+
+                    {/* Heatmap */}
+                    <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800">
+                      <h4 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">Historial de completado</h4>
+                      <CalendarHeatmap
+                        startDate={new Date(new Date().getTime() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)}
+                        endDate={HOY}
+                        values={heatmapData}
+                        classForValue={v => {
+                          if (!v || v.count === 0) return 'color-empty';
+                          if (v.count >= 5) return 'color-scale-4';
+                          return `color-scale-${Math.min(v.count, 3)}`;
+                        }}
+                        tooltipDataAttrs={(v) => ({ 'data-tip': v?.date ? `${v.date}: ${(v as { date: string; count: number }).count} hábito(s)` : 'Sin datos' } as Record<string, string>)}
+                        showWeekdayLabels
+                      />
                     </div>
                   </>
               }
@@ -2150,14 +2359,48 @@ export default function App() {
 
           {/* ══ MISSIONS ══ */}
           {tab === 'missions' && (
-            <motion.div key="missions" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-8">
-              <div className="flex items-center justify-between">
+            <motion.div key="missions" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-6">
+              <div className="flex items-center justify-between flex-wrap gap-3">
                 <h3 className="text-2xl font-black tracking-tight uppercase flex items-center gap-3"><Target className="w-7 h-7 text-blue-600" /> MISSION TREE</h3>
-                <p className="text-sm text-slate-400">Hacé click en un nodo para togglear · + para agregar sub-misión</p>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-slate-500">{fsMisiones.filter(m => m.completada).length}/{fsMisiones.length} completadas</span>
+                </div>
               </div>
+
+              {/* Barra de búsqueda + stats */}
+              <div className="flex gap-3 flex-wrap">
+                <div className="relative flex-1 min-w-48">
+                  <input
+                    type="text" value={missionSearch} onChange={e => setMissionSearch(e.target.value)}
+                    placeholder="Buscar misión..."
+                    className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-sm pl-9 focus:outline-none focus:border-blue-500 transition-colors"
+                  />
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
+                </div>
+                {missionSearch && (
+                  <button onClick={() => setMissionSearch('')} className="px-3 py-2 rounded-xl text-xs font-bold text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all">✕ Limpiar</button>
+                )}
+              </div>
+
+              {/* Resumen rápido por prioridad */}
+              {fsMisiones.some(m => m.prioridad) && (
+                <div className="flex gap-2 flex-wrap">
+                  {(['urgente', 'alta', 'media', 'baja'] as const).map(p => {
+                    const count = fsMisiones.filter(m => m.prioridad === p && !m.completada).length;
+                    if (!count) return null;
+                    const meta = PRIORIDAD_META[p];
+                    return (
+                      <span key={p} className={cn('text-[10px] font-black px-2.5 py-1 rounded-full', meta.bg, meta.color)}>
+                        {meta.label} ×{count}
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+
               <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 border border-slate-200 dark:border-slate-800 overflow-x-auto">
                 <div className="flex justify-center min-w-max pb-8">
-                  <MissionNodeComp node={missions} onAdd={addMission} onToggle={toggleMission} />
+                  <MissionNodeComp node={buildTree(filteredMisiones)} onAdd={addMission} onToggle={toggleMission} />
                 </div>
               </div>
             </motion.div>
@@ -2284,6 +2527,23 @@ export default function App() {
           {tab === 'settings' && (
             <motion.div key="settings" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-8">
               <h3 className="text-2xl font-black tracking-tight uppercase flex items-center gap-3"><Settings className="w-7 h-7 text-blue-600" /> SETTINGS</h3>
+
+              {/* Stats de cuenta */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {[
+                  { label: 'XP Total', value: accountStats.totalXP.toLocaleString(), icon: '⭐' },
+                  { label: 'Hábitos este mes', value: accountStats.habitosMes, icon: '✅' },
+                  { label: 'Misiones completadas', value: accountStats.misionesCompletadas, icon: '🎯' },
+                  { label: 'Libros terminados', value: accountStats.librosTerminados, icon: '📚' },
+                ].map(s => (
+                  <div key={s.label} className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 text-center">
+                    <p className="text-2xl mb-1">{s.icon}</p>
+                    <p className="text-xl font-black">{s.value}</p>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{s.label}</p>
+                  </div>
+                ))}
+              </div>
+
               <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 border border-slate-200 dark:border-slate-800 space-y-6 max-w-lg">
                 <div>
                   <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Hero Name</label>
@@ -2297,6 +2557,17 @@ export default function App() {
                 <div>
                   <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Hero Level</label>
                   <input type="text" value={`Level ${heroLevel} · ${totalXp} XP total`} disabled className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm font-bold focus:outline-none opacity-60 cursor-not-allowed" />
+                </div>
+
+                {/* Discord Webhook */}
+                <div className="pt-4 border-t border-slate-100 dark:border-slate-800">
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Discord Webhook (notificaciones)</label>
+                  <input
+                    type="url" value={discordWebhookUrl} onChange={e => setDiscordWebhookUrl(e.target.value)}
+                    placeholder="https://discord.com/api/webhooks/..."
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 transition-colors"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1">Recibirás notificaciones en Discord al subir de nivel.</p>
                 </div>
 
                 {/* Google Calendar */}
@@ -2333,6 +2604,16 @@ export default function App() {
                       </button>
                     </div>
                   )}
+                </div>
+
+                {/* Exportar datos */}
+                <div className="pt-4 border-t border-slate-100 dark:border-slate-800">
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Datos</label>
+                  <button onClick={exportarDatos}
+                    className="flex items-center gap-2 px-5 py-3 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold hover:bg-blue-50 dark:hover:bg-blue-900/10 hover:border-blue-400 transition-all">
+                    <Download className="w-4 h-4" /> Exportar backup JSON
+                  </button>
+                  <p className="text-[10px] text-slate-400 mt-1.5">Descarga todos tus datos como archivo JSON.</p>
                 </div>
 
                 <div className="pt-4 border-t border-slate-100 dark:border-slate-800">

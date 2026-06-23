@@ -3,6 +3,13 @@ import { Dumbbell, Heart, Brain, Zap, Sparkles, Star } from 'lucide-react';
 import type { FSStatKey, EstadoLibro, TipoMaterial, Stat } from '../types';
 
 export const HOY = new Date().toISOString().slice(0, 10);
+export const PRIORIDAD_META: Record<string, { color: string; bg: string; label: string }> = {
+  urgente: { color: 'text-red-100',    bg: 'bg-red-600',    label: '🔴 Urgente' },
+  alta:    { color: 'text-orange-100', bg: 'bg-orange-500', label: '🟠 Alta'    },
+  media:   { color: 'text-yellow-100', bg: 'bg-yellow-500', label: '🟡 Media'   },
+  baja:    { color: 'text-slate-200',  bg: 'bg-slate-500',  label: '⚪ Baja'    },
+};
+
 export const CATEGORIAS_GASTO   = ['🍔 Comida', '🚗 Transporte', '🏠 Vivienda', '💊 Salud', '📚 Educación', '🎮 Ocio', '🛒 Compras', '📦 Otro'];
 export const CATEGORIAS_INGRESO = ['💼 Trabajo', '💻 Freelance', '📈 Inversión', '🎁 Regalo', '📦 Otro'];
 export const MONEDA_META: Record<string, { symbol: string; label: string; flag: string }> = {

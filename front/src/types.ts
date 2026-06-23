@@ -3,14 +3,16 @@ import type { ReactNode } from 'react';
 // ─── Firestore types ──────────────────────────────────────────────────────────
 
 export type FSStatKey = 'fuerza' | 'salud' | 'inteligencia' | 'agilidad' | 'carisma' | 'fe';
+export interface LevelUpEvent { stat: FSStatKey; oldLevel: number; newLevel: number; xp: number; }
 export type FSStatsDoc = Record<FSStatKey, { xp: number }>;
 export type HabitRecurrence = 'daily' | 'weekdays' | 'once_week' | 'weekly';
 export type FSHabito  = { id: string; nombre: string; stat: FSStatKey; fechaCompletado: string | null; xpValue?: number; recurrence?: HabitRecurrence; diasSemana?: number[]; completedDates?: string[] };
 export type FSEvento  = { id: string; titulo: string; hora?: string; fecha: string };
-export type FSMision  = { id: string; titulo: string; completada: boolean; parentId: string | null; orden: number };
+export type MisionPrioridad = 'baja' | 'media' | 'alta' | 'urgente';
+export type FSMision  = { id: string; titulo: string; completada: boolean; parentId: string | null; orden: number; prioridad?: MisionPrioridad; tags?: string[] };
 export type FSTarea   = { id: string; titulo: string; hora?: string; recurrence: 'once' | 'daily' | 'weekly'; weekday?: number; date?: string; color: string; completedDates: string[] };
 export type GCalEvent = { id: string; summary?: string; start: { dateTime?: string; date?: string }; end: { dateTime?: string; date?: string } };
-export type FSEjercicio = { id: string; nombre: string; series?: number; reps?: string; notas?: string; mediaUrl?: string; lastCompletedDate: string | null };
+export type FSEjercicio = { id: string; nombre: string; series?: number; reps?: string; notas?: string; mediaUrl?: string; lastCompletedDate: string | null; restTimerSecs?: number };
 export type FSRutina    = { id: string; nombre: string; diasSemana: number[]; ejercicios: FSEjercicio[]; orden: number };
 export type EstadoLibro = 'leyendo' | 'leido' | 'pendiente';
 export type FSCapitulo  = { id: string; numero: number; titulo?: string; leido: boolean; notas?: string };

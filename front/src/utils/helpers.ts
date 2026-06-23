@@ -1,4 +1,4 @@
-import type { FSStatsDoc, FSMision, FSHabito, Stat, MissionNode } from '../types';
+import type { FSStatsDoc, FSMision, FSHabito, Stat, MissionNode, FSStatKey } from '../types';
 import type { HabitRecurrence } from '../types';
 import { FS_KEYS, STAT_META } from './constants';
 import { HOY } from './constants';
@@ -200,6 +200,27 @@ export function assignClass(stats: FSStatsDoc | null): string {
     case 'fe':           return 'Paladín';
     default:             return 'Aventurero';
   }
+}
+
+// ── Multiplicador de XP según racha ─────────────────────────────────────────
+export function streakMultiplier(streak: number): number {
+  if (streak >= 30) return 2.0;
+  if (streak >= 14) return 1.5;
+  if (streak >= 7)  return 1.25;
+  return 1.0;
+}
+
+// ── XP ganado por stat (fuentes de XP) ──────────────────────────────────────
+export function calcXpBySource(habitos: FSHabito[], statKey: FSStatKey): { nombre: string; xpTotal: number; veces: number }[] {
+  return habitos
+    .filter(h => h.stat === statKey)
+    .map(h => ({
+      nombre: h.nombre,
+      xpTotal: (h.completedDates?.length ?? 0) * (h.xpValue ?? 20),
+      veces: h.completedDates?.length ?? 0,
+    }))
+    .filter(h => h.veces > 0)
+    .sort((a, b) => b.xpTotal - a.xpTotal);
 }
 
 // ── XP ganado por día (últimos N días, de completedDates de hábitos) ─────────
