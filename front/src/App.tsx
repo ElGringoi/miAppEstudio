@@ -1,16 +1,18 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef, type ReactNode } from 'react';
 import {
   LayoutDashboard, Calendar as CalendarIcon, Zap, Settings,
   CheckCircle2, Plus, Target, Sword, Flame, Dumbbell,
   ChevronRight, Bell, Search, Trophy, Menu, Pencil,
   Repeat, CalendarDays, LogOut, Trash2, X, Utensils,
-  Wallet, TrendingUp, TrendingDown,
+  Wallet, TrendingUp, TrendingDown, Download,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
 import {
   Radar, RadarChart, PolarGrid, PolarAngleAxis,
   PolarRadiusAxis, ResponsiveContainer,
+  LineChart, Line, XAxis, YAxis,
+  BarChart, Bar, Tooltip, Cell,
 } from 'recharts';
 import {
   format, addDays, startOfWeek, eachDayOfInterval,
@@ -23,26 +25,25 @@ import {
 import type { User } from 'firebase/auth';
 import {
   collection, doc, increment, onSnapshot,
-  setDoc, updateDoc, addDoc, deleteDoc, writeBatch,
+  updateDoc, addDoc, deleteDoc, writeBatch,
 } from 'firebase/firestore';
 import { auth, db } from './lib/firebase';
 import type {
   FSStatKey, FSStatsDoc, FSHabito, FSEvento, FSMision, FSTarea,
   GCalEvent, FSEjercicio, FSRutina, EstadoLibro, FSCapitulo, FSLibro,
   TipoMaterial, FSMaterial, FSTareaFac, FSExamen, FSMateria,
-  FSEntradaDiario, FSObjetivoCHA, FSTransaccion, Habit, Task, HabitRecurrence,
+  FSEntradaDiario, FSObjetivoCHA, FSTransaccion, Habit, Task, HabitRecurrence, TabId, Moneda, LevelUpEvent, MisionPrioridad,
 } from './types';
-import { HOY, FS_KEYS, STAT_META, DIAS_CORTO, DIAS_LETRA, ESTADO_LIBRO_META, MATERIAL_ICON } from './utils/constants';
-import { xpLevel, statsFromDoc, buildTree, youtubeEmbedUrl, isHabitActiveToday, isHabitDoneToday, isDateInCurrentWeek, habitRecurrenceLabel } from './utils/helpers';
+import { HabitHeatmap } from './components/HabitHeatmap';
+import confetti from 'canvas-confetti';
+import { HOY, FS_KEYS, STAT_META, DIAS_CORTO, DIAS_LETRA, ESTADO_LIBRO_META, MATERIAL_ICON, CATEGORIAS_GASTO, CATEGORIAS_INGRESO, CLASS_META, RANK_META, MONEDA_META, PRIORIDAD_META } from './utils/constants';
+import { xpLevel, statsFromDoc, buildTree, youtubeEmbedUrl, isHabitActiveToday, isHabitDoneToday, isDateInCurrentWeek, habitRecurrenceLabel, calcStreak, calcMainLevel, rankFromLevel, assignClass, calcXpPerDay, streakMultiplier, calcXpBySource } from './utils/helpers';
 import { ProgressBar } from './components/ProgressBar';
 import { StatCard } from './components/StatCard';
 import { CapituloRow } from './components/CapituloRow';
 import { EjercicioRow } from './components/EjercicioRow';
 import { MissionNodeComp } from './components/MissionNodeComp';
 import { LoginScreen } from './components/LoginScreen';
-
-const CATEGORIAS_GASTO   = ['🍔 Comida', '🚗 Transporte', '🏠 Vivienda', '💊 Salud', '📚 Educación', '🎮 Ocio', '🛒 Compras', '📦 Otro'];
-const CATEGORIAS_INGRESO = ['💼 Trabajo', '💻 Freelance', '📈 Inversión', '🎁 Regalo', '📦 Otro'];
 
 // ─── App ──────────────────────────────────────────────────────────────────────
 
@@ -60,7 +61,7 @@ export default function App() {
   const [fsTareas,   setFsTareas]   = useState<FSTarea[]>([]);
 
   // UI state
-  const [tab,         setTab]         = useState('dashboard');
+  const [tab,         setTab]         = useState<TabId>('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [selDate,     setSelDate]     = useState(new Date());
 
@@ -92,17 +93,42 @@ export default function App() {
   // Transacciones
   const [fsTransacciones,  setFsTransacciones]  = useState<FSTransaccion[]>([]);
   const [showTxModal,      setShowTxModal]      = useState(false);
-  const [txForm,           setTxForm]           = useState({ descripcion: '', monto: '', tipo: 'gasto' as 'ingreso' | 'gasto', categoria: '', fecha: HOY });
+  const [editingTxId,      setEditingTxId]      = useState<string | null>(null);
+  const [txMesFilter,      setTxMesFilter]      = useState(HOY.slice(0, 7));
+  const [txForm,           setTxForm]           = useState({ descripcion: '', monto: '', tipo: 'gasto' as 'ingreso' | 'gasto', categoria: '', fecha: HOY, moneda: 'ARS' as Moneda });
 
   // Carisma — Diario + Objetivos (pendiente de implementar UI)
   const [_fsDiario,         setFsDiario]          = useState<FSEntradaDiario[]>([]);
   const [_fsObjetivosCHA,   setFsObjetivosCHA]    = useState<FSObjetivoCHA[]>([]);
+
+  // ── Nuevas mejoras ────────────────────────────────────────────────────────
+  const [levelUpEvent,     setLevelUpEvent]     = useState<LevelUpEvent | null>(null);
+  const prevMainLevel = useRef<number | null>(null);
+
+  // Dashboard
+  const [todayFocus, setTodayFocus] = useState<string>(() => localStorage.getItem(`focus_${HOY}`) ?? '');
+
+  // Habits
+  const [filterHabitStat,  setFilterHabitStat]  = useState<FSStatKey | 'all'>('all');
+  const [analyticsRange,   setAnalyticsRange]   = useState<7 | 30 | 90>(7);
+
+  // Missions
+  const [missionSearch,     setMissionSearch]     = useState('');
+  // Settings
+  const [discordWebhookUrl, setDiscordWebhookUrl] = useState<string>('');
   const [_expandedEntrada,  _setExpandedEntrada]  = useState<string | null>(null);
   const [_nuevaObjetivoTxt, _setNuevaObjetivoTxt] = useState('');
 
   // Modal state
-  const [modal, setModal] = useState<'habit' | 'task' | 'evento' | 'rutina' | 'ejercicio' | 'libro' | 'materia' | 'material' | 'tareaFac' | 'examen' | 'entrada_diario' | null>(null);
+  const [modal, setModal] = useState<'habit' | 'task' | 'evento' | 'rutina' | 'ejercicio' | 'libro' | 'materia' | 'material' | 'tareaFac' | 'examen' | 'entrada_diario' | 'mision' | null>(null);
   const [editingHabitId, setEditingHabitId] = useState<string | null>(null);
+  const [editingMisionId, setEditingMisionId] = useState<string | null>(null);
+  const [misionForm, setMisionForm] = useState({
+    titulo: '', descripcion: '', parentId: '' as string,
+    prioridad: '' as MisionPrioridad | '',
+    prerequisitos: [] as string[],
+    costoMonto: '', costoMoneda: 'ARS' as Moneda,
+  });
   const [habitForm,      setHabitForm]      = useState({ nombre: '', stat: 'fuerza' as FSStatKey, recurrence: 'daily' as HabitRecurrence, diasSemana: [] as number[] });
   const [taskForm,     setTaskForm]     = useState({ titulo: '', hora: '', recurrence: 'once' as FSTarea['recurrence'], weekday: 1, date: HOY, color: '#3b82f6' });
   const [eventoForm,   setEventoForm]   = useState({ titulo: '', hora: '', fecha: HOY });
@@ -126,6 +152,24 @@ export default function App() {
 
   // Auth listener
   useEffect(() => onAuthStateChanged(auth, u => { setUser(u); setAuthLoading(false); }), []);
+
+  // Persistir dark mode en localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('questflow_dark');
+    if (saved === 'true' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+      document.documentElement.classList.add('dark');
+    }
+  }, []);
+
+  // Detector de level-up del personaje principal
+  useEffect(() => {
+    const current = calcMainLevel(fsStats).level;
+    if (prevMainLevel.current !== null && current > prevMainLevel.current) {
+      confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 } });
+      showToast(`¡Subiste al Nivel ${current}!`, true);
+    }
+    prevMainLevel.current = current;
+  }, [fsStats]);
 
   // Load GCal token from localStorage
   useEffect(() => {
@@ -163,7 +207,22 @@ export default function App() {
     const uid = user.uid;
     let loaded = 0;
     const markLoaded = () => { if (++loaded === 11) setDataReady(true); };
-    const u1  = onSnapshot(doc(db, 'usuarios', uid, 'stats', 'main'),       s => { setFsStats(s.exists() ? s.data() as FSStatsDoc : null); markLoaded(); });
+    let prevStatsDoc: FSStatsDoc | null = null;
+    const unsubStats = onSnapshot(doc(db, 'usuarios', uid, 'stats', 'main'), snap => {
+      const newStats = snap.data() as FSStatsDoc ?? null;
+      if (prevStatsDoc && newStats) {
+        const leveledUp = FS_KEYS.some(k =>
+          xpLevel(newStats[k]?.xp ?? 0).level > xpLevel(prevStatsDoc![k]?.xp ?? 0).level
+        );
+        if (leveledUp) {
+          confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 }, colors: ['#3b82f6', '#8b5cf6', '#f59e0b', '#10b981'] });
+          showToast('¡Subiste de nivel! 🎉', true);
+        }
+      }
+      prevStatsDoc = newStats;
+      setFsStats(newStats);
+      markLoaded();
+    });
     const u2  = onSnapshot(collection(db, 'usuarios', uid, 'habitos'),       s => { setFsHabitos(s.docs.map(d => ({ id: d.id, ...d.data() } as FSHabito))); markLoaded(); });
     const u3  = onSnapshot(collection(db, 'usuarios', uid, 'eventos'),       s => { setFsEventos(s.docs.map(d => ({ id: d.id, ...d.data() } as FSEvento))); markLoaded(); });
     const u4  = onSnapshot(collection(db, 'usuarios', uid, 'misiones'),      s => { setFsMisiones(s.docs.map(d => ({ id: d.id, ...d.data() } as FSMision))); markLoaded(); });
@@ -174,7 +233,7 @@ export default function App() {
     const u9  = onSnapshot(collection(db, 'usuarios', uid, 'diario'),        s => { setFsDiario(s.docs.map(d => ({ id: d.id, ...d.data() } as FSEntradaDiario))); markLoaded(); });
     const u10 = onSnapshot(collection(db, 'usuarios', uid, 'objetivos_cha'), s => { setFsObjetivosCHA(s.docs.map(d => ({ id: d.id, ...d.data() } as FSObjetivoCHA))); markLoaded(); });
     const u11 = onSnapshot(collection(db, 'usuarios', uid, 'transacciones'), s => { setFsTransacciones(s.docs.map(d => ({ id: d.id, ...d.data() } as FSTransaccion))); markLoaded(); });
-    return () => { u1(); u2(); u3(); u4(); u5(); u6(); u7(); u8(); u9(); u10(); u11(); };
+    return () => { unsubStats(); u2(); u3(); u4(); u5(); u6(); u7(); u8(); u9(); u10(); u11(); };
   }, [user?.uid]);
 
   // ── Derived ───────────────────────────────────────────────────────────────
@@ -202,14 +261,81 @@ export default function App() {
   const todayEventos = useMemo(() => fsEventos.filter(e => e.fecha === HOY), [fsEventos]);
 
   const txStats = useMemo(() => {
-    const mesActual = HOY.slice(0, 7);
-    const txMes = fsTransacciones.filter(t => t.fecha.startsWith(mesActual));
+    const txMes = fsTransacciones.filter(t => t.fecha.startsWith(txMesFilter));
     const ingresosMes = txMes.filter(t => t.tipo === 'ingreso').reduce((s, t) => s + t.monto, 0);
     const gastosMes   = txMes.filter(t => t.tipo === 'gasto').reduce((s, t) => s + t.monto, 0);
-    const saldoTotal  = fsTransacciones.reduce((s, t) => s + (t.tipo === 'ingreso' ? t.monto : -t.monto), 0);
-    const ordenadas   = [...fsTransacciones].sort((a, b) => b.fecha.localeCompare(a.fecha));
-    return { ingresosMes, gastosMes, saldoTotal, ordenadas };
-  }, [fsTransacciones]);
+
+    // Saldo por moneda
+    const porMoneda: Record<string, { ingresos: number; gastos: number; saldo: number }> = {};
+    for (const t of fsTransacciones) {
+      const m = t.moneda ?? 'ARS';
+      if (!porMoneda[m]) porMoneda[m] = { ingresos: 0, gastos: 0, saldo: 0 };
+      porMoneda[m].saldo += t.tipo === 'ingreso' ? t.monto : -t.monto;
+      if (t.tipo === 'ingreso') porMoneda[m].ingresos += t.monto;
+      else porMoneda[m].gastos += t.monto;
+    }
+
+    // Gráfico por categoría (del mes filtrado)
+    const catMap: Record<string, number> = {};
+    for (const t of txMes.filter(t => t.tipo === 'gasto')) {
+      const cat = t.categoria || '📦 Otro';
+      catMap[cat] = (catMap[cat] ?? 0) + t.monto;
+    }
+    const porCategoria = Object.entries(catMap)
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, value]) => ({ name: name.split(' ').slice(1).join(' ') || name, value }));
+
+    const ordenadas = [...fsTransacciones].sort((a, b) => b.fecha.localeCompare(a.fecha));
+    return { ingresosMes, gastosMes, porMoneda, porCategoria, ordenadas };
+  }, [fsTransacciones, txMesFilter]);
+
+  // Nivel principal, rango y clase
+  const mainLevelData = useMemo(() => calcMainLevel(fsStats), [fsStats]);
+  const heroRank      = useMemo(() => rankFromLevel(mainLevelData.level), [mainLevelData.level]);
+  const heroClass     = useMemo(() => assignClass(fsStats), [fsStats]);
+
+  // XP por día y logros
+  const xpPerDay = calcXpPerDay(fsHabitos, 14);
+
+  // Heatmap data (últimos 365 días)
+  const heatmapData = useMemo(() => {
+    const counts: Record<string, number> = {};
+    fsHabitos.forEach(h => { h.completedDates?.forEach(d => { counts[d] = (counts[d] ?? 0) + 1; }); });
+    return Object.entries(counts).map(([date, count]) => ({ date, count }));
+  }, [fsHabitos]);
+
+  // Misiones filtradas para búsqueda
+  const filteredMisiones = useMemo(() => {
+    if (!missionSearch.trim()) return fsMisiones;
+    const q = missionSearch.toLowerCase();
+    const matchIds = new Set(fsMisiones.filter(m => m.titulo.toLowerCase().includes(q)).map(m => m.id));
+    fsMisiones.forEach(m => { if (matchIds.has(m.id) && m.parentId) matchIds.add(m.parentId); });
+    return fsMisiones.filter(m => matchIds.has(m.id));
+  }, [fsMisiones, missionSearch]);
+
+  // Account stats para settings
+  const accountStats = useMemo(() => {
+    const totalXP = FS_KEYS.reduce((s, k) => s + (fsStats?.[k]?.xp ?? 0), 0);
+    const mesStr  = HOY.slice(0, 7);
+    const habitosMes = fsHabitos.reduce((s, h) => s + (h.completedDates?.filter(d => d.startsWith(mesStr)).length ?? 0), 0);
+    const misionesCompletadas = fsMisiones.filter(m => m.completada).length;
+    const librosTerminados = fsLibros.filter(l => l.estado === 'leido').length;
+    return { totalXP, habitosMes, misionesCompletadas, librosTerminados };
+  }, [fsStats, fsHabitos, fsMisiones, fsLibros]);
+  const logrosUnlocked = useMemo(() => {
+    const ids: string[] = [];
+    if (fsHabitos.some(h => (h.completedDates?.length ?? 0) > 0)) ids.push('primera_quest');
+    if (fsHabitos.some(h => calcStreak(h.completedDates ?? [], h.recurrence ?? 'daily') >= 7)) ids.push('racha_7');
+    if (fsHabitos.some(h => calcStreak(h.completedDates ?? [], h.recurrence ?? 'daily') >= 30)) ids.push('racha_30');
+    if (Object.values(fsStats ?? {}).some((s: { xp: number }) => xpLevel(s.xp).level >= 5)) ids.push('nivel_5');
+    if (Object.values(fsStats ?? {}).some((s: { xp: number }) => xpLevel(s.xp).level >= 10)) ids.push('nivel_10');
+    if (fsLibros.some(l => l.estado === 'leido')) ids.push('primer_libro');
+    if (fsMaterias.some(m => m.examenes.some(e => e.nota !== undefined))) ids.push('primer_examen');
+    const habitsToday = fsHabitos.filter(h => isHabitActiveToday(h));
+    const doneToday   = fsHabitos.filter(h => isHabitDoneToday(h)).length;
+    if (habitsToday.length > 0 && doneToday === habitsToday.length) ids.push('todos_hoy');
+    return ids;
+  }, [fsHabitos, fsStats, fsLibros, fsMaterias]);
 
   const filterTasks = (d: Date): Task[] => {
     const dStr = d.toISOString().slice(0, 10);
@@ -244,15 +370,34 @@ export default function App() {
     if (!h || !isHabitActiveToday(h)) return;
     const yaHecho = isHabitDoneToday(h);
     const prev = h.completedDates ?? (h.fechaCompletado ? [h.fechaCompletado] : []);
-    const next = yaHecho
+    const toggled = yaHecho
       ? (h.recurrence === 'once_week' ? prev.filter(d => !isDateInCurrentWeek(d)) : prev.filter(d => d !== HOY))
       : [...prev, HOY];
-    const xp = h.xpValue ?? 20;
+    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 90);
+    const next = toggled.filter(d => d >= cutoff.toISOString().slice(0, 10));
+    const baseXp = h.xpValue ?? 20;
+    const streak = calcStreak(prev, h.recurrence ?? 'daily');
+    const mult   = yaHecho ? 1 : streakMultiplier(streak);
+    const xpFinal = Math.round(baseXp * mult);
     try {
+      const xpBefore = fsStats?.[h.stat]?.xp ?? 0;
+      const oldLevel = xpLevel(xpBefore).level;
+      const newLevel = xpLevel(xpBefore + (yaHecho ? -xpFinal : xpFinal)).level;
+
       const batch = writeBatch(db);
       batch.update(doc(db, 'usuarios', user.uid, 'habitos', id), { completedDates: next, fechaCompletado: null });
-      batch.set(doc(db, 'usuarios', user.uid, 'stats', 'main'), { [h.stat]: { xp: increment(yaHecho ? -xp : xp) } }, { merge: true });
+      batch.set(doc(db, 'usuarios', user.uid, 'stats', 'main'), { [h.stat]: { xp: increment(yaHecho ? -xpFinal : xpFinal) } }, { merge: true });
       await batch.commit();
+
+      if (!yaHecho) {
+        if (newLevel > oldLevel) {
+          setLevelUpEvent({ stat: h.stat, oldLevel, newLevel, xp: xpFinal });
+          confetti({ particleCount: 80, spread: 60, origin: { y: 0.6 } });
+        } else {
+          const multLabel = mult > 1 ? ` (×${mult})` : '';
+          showToast(`+${xpFinal} XP ${STAT_META[h.stat].shortName}${multLabel}`, true);
+        }
+      }
     } catch {
       showToast('Error al guardar el hábito');
     }
@@ -274,6 +419,57 @@ export default function App() {
     }
   }
 
+  function openAddMision(parentId = '') {
+    setEditingMisionId(null);
+    setMisionForm({ titulo: '', descripcion: '', parentId, prioridad: '', prerequisitos: [], costoMonto: '', costoMoneda: 'ARS' });
+    setModal('mision');
+  }
+
+  function openEditMision(id: string) {
+    const m = fsMisiones.find(x => x.id === id);
+    if (!m) return;
+    setEditingMisionId(id);
+    setMisionForm({
+      titulo: m.titulo,
+      descripcion: m.descripcion ?? '',
+      parentId: m.parentId ?? '',
+      prioridad: m.prioridad ?? '',
+      prerequisitos: m.prerequisitos ?? [],
+      costoMonto: m.costoMonto != null ? String(m.costoMonto) : '',
+      costoMoneda: m.costoMoneda ?? 'ARS',
+    });
+    setModal('mision');
+  }
+
+  async function saveMision() {
+    if (!user?.uid || !misionForm.titulo.trim()) return;
+    const realParent = misionForm.parentId === 'root' || !misionForm.parentId ? null : misionForm.parentId;
+    const data: Partial<FSMision> = {
+      titulo: misionForm.titulo.trim(),
+      descripcion: misionForm.descripcion.trim() || undefined,
+      parentId: realParent,
+      prioridad: misionForm.prioridad || undefined,
+      prerequisitos: misionForm.prerequisitos.length ? misionForm.prerequisitos : undefined,
+      costoMonto: misionForm.costoMonto ? parseFloat(misionForm.costoMonto) : undefined,
+      costoMoneda: misionForm.costoMonto ? misionForm.costoMoneda : undefined,
+    };
+    try {
+      if (editingMisionId) {
+        await updateDoc(doc(db, 'usuarios', user.uid, 'misiones', editingMisionId), data);
+        showToast('Misión actualizada', true);
+      } else {
+        await addDoc(collection(db, 'usuarios', user.uid, 'misiones'), {
+          ...data, completada: false,
+          orden: fsMisiones.filter(m => m.parentId === realParent).length,
+        });
+        showToast('Misión agregada', true);
+      }
+      setModal(null);
+    } catch {
+      showToast('Error al guardar la misión');
+    }
+  }
+
   async function addMission(parentId: string, title: string) {
     if (!user?.uid) return;
     const realParent = parentId === 'root' ? null : parentId;
@@ -291,10 +487,46 @@ export default function App() {
     if (!user?.uid) return;
     const m = fsMisiones.find(x => x.id === id);
     if (!m) return;
+    if (!m.completada && (m.prerequisitos ?? []).length > 0) {
+      const completedIds = new Set(fsMisiones.filter(x => x.completada).map(x => x.id));
+      const bloqueada = m.prerequisitos!.some(pid => !completedIds.has(pid));
+      if (bloqueada) { showToast('Completá las misiones prerequisito primero'); return; }
+    }
+    const nuevaCompletada = !m.completada;
     try {
-      await updateDoc(doc(db, 'usuarios', user.uid, 'misiones', id), { completada: !m.completada });
+      await updateDoc(doc(db, 'usuarios', user.uid, 'misiones', id), { completada: nuevaCompletada });
+      if (nuevaCompletada && m.costoMonto && m.costoMonto > 0 && user.uid) {
+        const sym = MONEDA_META[m.costoMoneda ?? 'ARS']?.symbol ?? '$';
+        const ok = window.confirm(`¿Registrar gasto de ${sym}${m.costoMonto.toLocaleString('es-AR')} en Treasury por "${m.titulo}"?`);
+        if (ok) {
+          await addDoc(collection(db, 'usuarios', user.uid, 'transacciones'), {
+            descripcion: m.titulo,
+            monto: m.costoMonto,
+            tipo: 'gasto',
+            categoria: '🎯 Misión',
+            fecha: HOY,
+            moneda: m.costoMoneda ?? 'ARS',
+          });
+          showToast(`Gasto registrado en Treasury`, true);
+        }
+      } else if (nuevaCompletada) {
+        showToast('¡Misión completada!', true);
+        confetti({ particleCount: 60, spread: 50, origin: { y: 0.6 } });
+      }
     } catch {
       showToast('Error al actualizar la misión');
+    }
+  }
+
+  async function deleteMision(id: string) {
+    if (!user?.uid) return;
+    const hijos = fsMisiones.filter(m => m.parentId === id);
+    if (hijos.length > 0 && !window.confirm(`Esta misión tiene ${hijos.length} sub-misión(es). ¿Eliminar de todas formas?`)) return;
+    try {
+      await deleteDoc(doc(db, 'usuarios', user.uid, 'misiones', id));
+      showToast('Misión eliminada');
+    } catch {
+      showToast('Error al eliminar');
     }
   }
 
@@ -330,25 +562,33 @@ export default function App() {
 
   async function deleteHabit(id: string) {
     if (!user?.uid) return;
-    await deleteDoc(doc(db, 'usuarios', user.uid, 'habitos', id));
+    try {
+      await deleteDoc(doc(db, 'usuarios', user.uid, 'habitos', id));
+    } catch {
+      showToast('Error al eliminar el hábito');
+    }
   }
 
   async function updateHabitXp(id: string, xpValue: number) {
     if (!user?.uid || xpValue < 1) return;
-    await updateDoc(doc(db, 'usuarios', user.uid, 'habitos', id), { xpValue });
+    try {
+      await updateDoc(doc(db, 'usuarios', user.uid, 'habitos', id), { xpValue });
+    } catch {
+      showToast('Error al guardar el XP');
+    }
   }
 
   async function addTask() {
     if (!user?.uid || !taskForm.titulo.trim()) return;
-    const data: Record<string, unknown> = {
+    const data: Omit<FSTarea, 'id'> = {
       titulo: taskForm.titulo.trim(),
       recurrence: taskForm.recurrence,
       color: taskForm.color,
       completedDates: [],
+      ...(taskForm.hora ? { hora: taskForm.hora } : {}),
+      ...(taskForm.recurrence === 'weekly' ? { weekday: taskForm.weekday } : {}),
+      ...(taskForm.recurrence === 'once' ? { date: taskForm.date } : {}),
     };
-    if (taskForm.hora) data.hora = taskForm.hora;
-    if (taskForm.recurrence === 'weekly') data.weekday = taskForm.weekday;
-    if (taskForm.recurrence === 'once') data.date = taskForm.date;
     try {
       await addDoc(collection(db, 'usuarios', user.uid, 'tareas'), data);
       setTaskForm({ titulo: '', hora: '', recurrence: 'once', weekday: 1, date: HOY, color: '#3b82f6' });
@@ -360,13 +600,20 @@ export default function App() {
 
   async function deleteTask(id: string) {
     if (!user?.uid) return;
-    await deleteDoc(doc(db, 'usuarios', user.uid, 'tareas', id));
+    try {
+      await deleteDoc(doc(db, 'usuarios', user.uid, 'tareas', id));
+    } catch {
+      showToast('Error al eliminar la tarea');
+    }
   }
 
   async function addEvento() {
     if (!user?.uid || !eventoForm.titulo.trim()) return;
-    const data: Record<string, unknown> = { titulo: eventoForm.titulo.trim(), fecha: eventoForm.fecha };
-    if (eventoForm.hora) data.hora = eventoForm.hora;
+    const data: Omit<FSEvento, 'id'> = {
+      titulo: eventoForm.titulo.trim(),
+      fecha: eventoForm.fecha,
+      ...(eventoForm.hora ? { hora: eventoForm.hora } : {}),
+    };
     try {
       await addDoc(collection(db, 'usuarios', user.uid, 'eventos'), data);
       setEventoForm({ titulo: '', hora: '', fecha: HOY });
@@ -378,7 +625,11 @@ export default function App() {
 
   async function deleteEvento(id: string) {
     if (!user?.uid) return;
-    await deleteDoc(doc(db, 'usuarios', user.uid, 'eventos', id));
+    try {
+      await deleteDoc(doc(db, 'usuarios', user.uid, 'eventos', id));
+    } catch {
+      showToast('Error al eliminar el evento');
+    }
   }
 
   async function addRutina() {
@@ -438,19 +689,27 @@ export default function App() {
         mediaUrl: ejercicioForm.mediaUrl,
       };
     });
-    await updateDoc(doc(db, 'usuarios', user.uid, 'rutinas', targetRutinaId), { ejercicios });
-    setEjercicioForm({ nombre: '', series: 3, reps: '8-12', notas: '', mediaUrl: '' });
-    setTargetEjercicioId(null);
-    setModal(null);
+    try {
+      await updateDoc(doc(db, 'usuarios', user.uid, 'rutinas', targetRutinaId), { ejercicios });
+      setEjercicioForm({ nombre: '', series: 3, reps: '8-12', notas: '', mediaUrl: '' });
+      setTargetEjercicioId(null);
+      setModal(null);
+    } catch (e: unknown) {
+      setModalError((e as Error).message ?? 'Error al guardar');
+    }
   }
 
   async function deleteEjercicio(rutinaId: string, ejId: string) {
     if (!user?.uid) return;
     const rutina = fsRutinas.find(r => r.id === rutinaId);
     if (!rutina) return;
-    await updateDoc(doc(db, 'usuarios', user.uid, 'rutinas', rutinaId), {
-      ejercicios: rutina.ejercicios.filter(e => e.id !== ejId),
-    });
+    try {
+      await updateDoc(doc(db, 'usuarios', user.uid, 'rutinas', rutinaId), {
+        ejercicios: rutina.ejercicios.filter(e => e.id !== ejId),
+      });
+    } catch {
+      showToast('Error al eliminar el ejercicio');
+    }
   }
 
   async function toggleEjercicio(rutinaId: string, ejId: string) {
@@ -463,9 +722,15 @@ export default function App() {
     const ejercicios = rutina.ejercicios.map(e =>
       e.id !== ejId ? e : { ...e, lastCompletedDate: completing ? HOY : null }
     );
-    await updateDoc(doc(db, 'usuarios', user.uid, 'rutinas', rutinaId), { ejercicios });
-    await setDoc(doc(db, 'usuarios', user.uid, 'stats', 'main'),
-      { fuerza: { xp: increment(completing ? 5 : -5) } }, { merge: true });
+    try {
+      const batch = writeBatch(db);
+      batch.update(doc(db, 'usuarios', user.uid, 'rutinas', rutinaId), { ejercicios });
+      batch.set(doc(db, 'usuarios', user.uid, 'stats', 'main'),
+        { fuerza: { xp: increment(completing ? 5 : -5) } }, { merge: true });
+      await batch.commit();
+    } catch {
+      showToast('Error al guardar el ejercicio');
+    }
   }
 
   async function seedRutinaHipertrofia() {
@@ -541,13 +806,21 @@ export default function App() {
 
   async function deleteLibro(id: string) {
     if (!user?.uid) return;
-    await deleteDoc(doc(db, 'usuarios', user.uid, 'libros', id));
-    if (expandedLibro === id) setExpandedLibro(null);
+    try {
+      await deleteDoc(doc(db, 'usuarios', user.uid, 'libros', id));
+      if (expandedLibro === id) setExpandedLibro(null);
+    } catch {
+      showToast('Error al eliminar el libro');
+    }
   }
 
   async function updateLibroEstado(libroId: string, estado: EstadoLibro) {
     if (!user?.uid) return;
-    await updateDoc(doc(db, 'usuarios', user.uid, 'libros', libroId), { estado });
+    try {
+      await updateDoc(doc(db, 'usuarios', user.uid, 'libros', libroId), { estado });
+    } catch {
+      showToast('Error al actualizar el estado');
+    }
   }
 
   async function toggleCapitulo(libroId: string, capId: string) {
@@ -558,9 +831,15 @@ export default function App() {
     if (!cap) return;
     const completing = !cap.leido;
     const capitulos = libro.capitulos.map(c => c.id !== capId ? c : { ...c, leido: completing });
-    await updateDoc(doc(db, 'usuarios', user.uid, 'libros', libroId), { capitulos });
-    await setDoc(doc(db, 'usuarios', user.uid, 'stats', 'main'),
-      { inteligencia: { xp: increment(completing ? libro.xpPorCapitulo : -libro.xpPorCapitulo) } }, { merge: true });
+    try {
+      const batch = writeBatch(db);
+      batch.update(doc(db, 'usuarios', user.uid, 'libros', libroId), { capitulos });
+      batch.set(doc(db, 'usuarios', user.uid, 'stats', 'main'),
+        { inteligencia: { xp: increment(completing ? libro.xpPorCapitulo : -libro.xpPorCapitulo) } }, { merge: true });
+      await batch.commit();
+    } catch {
+      showToast('Error al guardar el capítulo');
+    }
   }
 
   async function saveCapituloNotas(libroId: string, capId: string, notas: string) {
@@ -568,7 +847,11 @@ export default function App() {
     const libro = fsLibros.find(l => l.id === libroId);
     if (!libro) return;
     const capitulos = libro.capitulos.map(c => c.id !== capId ? c : { ...c, notas });
-    await updateDoc(doc(db, 'usuarios', user.uid, 'libros', libroId), { capitulos });
+    try {
+      await updateDoc(doc(db, 'usuarios', user.uid, 'libros', libroId), { capitulos });
+    } catch {
+      showToast('Error al guardar las notas');
+    }
   }
 
   // ── Facultad CRUD ─────────────────────────────────────────────────────────────
@@ -589,8 +872,12 @@ export default function App() {
 
   async function deleteMateria(id: string) {
     if (!user?.uid) return;
-    await deleteDoc(doc(db, 'usuarios', user.uid, 'materias', id));
-    if (selectedMateria === id) setSelectedMateria(null);
+    try {
+      await deleteDoc(doc(db, 'usuarios', user.uid, 'materias', id));
+      if (selectedMateria === id) setSelectedMateria(null);
+    } catch {
+      showToast('Error al eliminar la materia');
+    }
   }
 
   async function addMaterial() {
@@ -615,7 +902,11 @@ export default function App() {
     if (!user?.uid) return;
     const m = fsMaterias.find(x => x.id === materiaId);
     if (!m) return;
-    await updateDoc(doc(db, 'usuarios', user.uid, 'materias', materiaId), { materiales: m.materiales.filter(x => x.id !== matId) });
+    try {
+      await updateDoc(doc(db, 'usuarios', user.uid, 'materias', materiaId), { materiales: m.materiales.filter(x => x.id !== matId) });
+    } catch {
+      showToast('Error al eliminar el material');
+    }
   }
 
   async function addTareaFac() {
@@ -643,16 +934,26 @@ export default function App() {
     if (!t) return;
     const completing = !t.completada;
     const tareas = m.tareas.map(x => x.id !== tareaId ? x : { ...x, completada: completing });
-    await updateDoc(doc(db, 'usuarios', user.uid, 'materias', materiaId), { tareas });
-    await setDoc(doc(db, 'usuarios', user.uid, 'stats', 'main'),
-      { inteligencia: { xp: increment(completing ? 15 : -15) } }, { merge: true });
+    try {
+      const batch = writeBatch(db);
+      batch.update(doc(db, 'usuarios', user.uid, 'materias', materiaId), { tareas });
+      batch.set(doc(db, 'usuarios', user.uid, 'stats', 'main'),
+        { inteligencia: { xp: increment(completing ? 15 : -15) } }, { merge: true });
+      await batch.commit();
+    } catch {
+      showToast('Error al guardar la tarea');
+    }
   }
 
   async function deleteTareaFac(materiaId: string, tareaId: string) {
     if (!user?.uid) return;
     const m = fsMaterias.find(x => x.id === materiaId);
     if (!m) return;
-    await updateDoc(doc(db, 'usuarios', user.uid, 'materias', materiaId), { tareas: m.tareas.filter(x => x.id !== tareaId) });
+    try {
+      await updateDoc(doc(db, 'usuarios', user.uid, 'materias', materiaId), { tareas: m.tareas.filter(x => x.id !== tareaId) });
+    } catch {
+      showToast('Error al eliminar la tarea');
+    }
   }
 
   async function addExamen() {
@@ -667,12 +968,14 @@ export default function App() {
       ...(nota !== undefined ? { nota } : {}),
     };
     try {
-      await updateDoc(doc(db, 'usuarios', user.uid, 'materias', targetMateriaId), { examenes: [...materia.examenes, newEx] });
+      const batch = writeBatch(db);
+      batch.update(doc(db, 'usuarios', user.uid, 'materias', targetMateriaId), { examenes: [...materia.examenes, newEx] });
       if (nota !== undefined) {
         const xp = Math.round((nota / notaMax) * 30);
-        await setDoc(doc(db, 'usuarios', user.uid, 'stats', 'main'),
+        batch.set(doc(db, 'usuarios', user.uid, 'stats', 'main'),
           { inteligencia: { xp: increment(xp) } }, { merge: true });
       }
+      await batch.commit();
       setExamenForm({ titulo: '', fecha: '', nota: '', notaMax: '10' });
       setModal(null);
     } catch (e: unknown) {
@@ -684,7 +987,11 @@ export default function App() {
     if (!user?.uid) return;
     const m = fsMaterias.find(x => x.id === materiaId);
     if (!m) return;
-    await updateDoc(doc(db, 'usuarios', user.uid, 'materias', materiaId), { examenes: m.examenes.filter(x => x.id !== examenId) });
+    try {
+      await updateDoc(doc(db, 'usuarios', user.uid, 'materias', materiaId), { examenes: m.examenes.filter(x => x.id !== examenId) });
+    } catch {
+      showToast('Error al eliminar el examen');
+    }
   }
 
   async function connectGCal() {
@@ -703,6 +1010,14 @@ export default function App() {
       console.error('Error connecting Google Calendar:', err);
     }
   }
+
+  // Exportar datos como JSON
+  function exportarDatos() {
+    const blob = new Blob([JSON.stringify({ habitos: fsHabitos, misiones: fsMisiones, eventos: fsEventos, stats: fsStats, transacciones: fsTransacciones }, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'miAppEstudio-backup.json'; a.click();
+  }
+
+  // Discord webhook
 
   function disconnectGCal() {
     setGcalToken(null);
@@ -723,19 +1038,37 @@ export default function App() {
     return ev.start.dateTime ? format(new Date(ev.start.dateTime), 'HH:mm') : 'Todo el día';
   }
 
-  async function addTransaccion() {
+  function openEditTx(t: FSTransaccion) {
+    setEditingTxId(t.id);
+    setTxForm({ descripcion: t.descripcion, monto: t.monto.toString(), tipo: t.tipo, categoria: t.categoria, fecha: t.fecha, moneda: t.moneda ?? 'ARS' });
+    setShowTxModal(true);
+  }
+
+  function closeTxModal() {
+    setShowTxModal(false);
+    setEditingTxId(null);
+    setTxForm({ descripcion: '', monto: '', tipo: 'gasto', categoria: '', fecha: HOY, moneda: 'ARS' });
+  }
+
+  async function saveTransaccion() {
     if (!user?.uid || !txForm.descripcion.trim() || !txForm.monto) return;
+    const data = {
+      descripcion: txForm.descripcion.trim(),
+      monto: parseFloat(txForm.monto),
+      tipo: txForm.tipo,
+      categoria: txForm.categoria || (txForm.tipo === 'ingreso' ? '💼 Trabajo' : '📦 Otro'),
+      fecha: txForm.fecha,
+      moneda: txForm.moneda,
+    };
     try {
-      await addDoc(collection(db, 'usuarios', user.uid, 'transacciones'), {
-        descripcion: txForm.descripcion.trim(),
-        monto: parseFloat(txForm.monto),
-        tipo: txForm.tipo,
-        categoria: txForm.categoria || (txForm.tipo === 'ingreso' ? '💼 Trabajo' : '📦 Otro'),
-        fecha: txForm.fecha,
-      });
-      setShowTxModal(false);
-      setTxForm({ descripcion: '', monto: '', tipo: 'gasto', categoria: '', fecha: HOY });
-      showToast('Transacción guardada', true);
+      if (editingTxId) {
+        await updateDoc(doc(db, 'usuarios', user.uid, 'transacciones', editingTxId), data);
+        showToast('Transacción actualizada', true);
+      } else {
+        await addDoc(collection(db, 'usuarios', user.uid, 'transacciones'), data);
+        showToast('Transacción guardada', true);
+      }
+      closeTxModal();
     } catch {
       showToast('Error al guardar la transacción');
     }
@@ -773,7 +1106,7 @@ export default function App() {
 
   // ── Nav ───────────────────────────────────────────────────────────────────
 
-  const NAV = [
+  const NAV: { id: TabId; icon: ReactNode; label: string }[] = [
     { id: 'dashboard',  icon: <LayoutDashboard className="w-5 h-5" />, label: 'Dashboard'  },
     { id: 'calendar',   icon: <CalendarIcon     className="w-5 h-5" />, label: 'Calendar'   },
     { id: 'gym',        icon: <Dumbbell         className="w-5 h-5" />, label: 'Gym'        },
@@ -798,7 +1131,14 @@ export default function App() {
   };
 
   return (
-    <div className="flex min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
+    <div className="flex min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 relative overflow-hidden">
+
+      {/* ── Ambient orbs (solo dark mode) ── */}
+      <div className="pointer-events-none fixed inset-0 z-0 hidden dark:block">
+        <div className="absolute -top-40 -left-40 w-80 h-80 rounded-full bg-violet-600/10 blur-3xl" />
+        <div className="absolute top-1/3 -right-32 w-72 h-72 rounded-full bg-blue-600/8 blur-3xl" />
+        <div className="absolute bottom-0 left-1/3 w-96 h-64 rounded-full bg-pink-600/6 blur-3xl" />
+      </div>
 
       {/* ── Toast ── */}
       <AnimatePresence>
@@ -815,18 +1155,21 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* ── Modal: Nueva transacción ── */}
+      {/* ── Modal: Nueva / Editar transacción ── */}
       <AnimatePresence>
         {showTxModal && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
-            onClick={() => setShowTxModal(false)}>
+            onClick={closeTxModal}>
             <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
               onClick={e => e.stopPropagation()}
               className="bg-white dark:bg-slate-900 rounded-3xl p-8 w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800 space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="font-black text-lg flex items-center gap-2"><Wallet className="w-5 h-5 text-emerald-600" /> Nueva transacción</h3>
-                <button onClick={() => setShowTxModal(false)} className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"><X className="w-4 h-4" /></button>
+                <h3 className="font-black text-lg flex items-center gap-2">
+                  <Wallet className="w-5 h-5 text-emerald-600" />
+                  {editingTxId ? 'Editar transacción' : 'Nueva transacción'}
+                </h3>
+                <button onClick={closeTxModal} className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"><X className="w-4 h-4" /></button>
               </div>
               <div className="flex bg-slate-100 dark:bg-slate-800 rounded-xl p-1 gap-1">
                 {(['gasto', 'ingreso'] as const).map(t => (
@@ -839,8 +1182,16 @@ export default function App() {
               </div>
               <input placeholder="Descripción" value={txForm.descripcion} onChange={e => setTxForm(f => ({ ...f, descripcion: e.target.value }))}
                 className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm font-bold focus:outline-none focus:border-emerald-500 transition-colors" />
-              <input type="number" placeholder="Monto" value={txForm.monto} onChange={e => setTxForm(f => ({ ...f, monto: e.target.value }))}
-                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm font-bold focus:outline-none focus:border-emerald-500 transition-colors" />
+              <div className="flex gap-3">
+                <input type="number" placeholder="Monto" value={txForm.monto} onChange={e => setTxForm(f => ({ ...f, monto: e.target.value }))}
+                  className="flex-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm font-bold focus:outline-none focus:border-emerald-500 transition-colors" />
+                <select value={txForm.moneda} onChange={e => setTxForm(f => ({ ...f, moneda: e.target.value as Moneda }))}
+                  className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-3 text-sm font-bold focus:outline-none focus:border-emerald-500 transition-colors">
+                  {Object.entries(MONEDA_META).map(([code, m]) => (
+                    <option key={code} value={code}>{m.flag} {code}</option>
+                  ))}
+                </select>
+              </div>
               <select value={txForm.categoria} onChange={e => setTxForm(f => ({ ...f, categoria: e.target.value }))}
                 className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm font-bold focus:outline-none focus:border-emerald-500 transition-colors">
                 <option value="">Categoría (opcional)</option>
@@ -848,10 +1199,31 @@ export default function App() {
               </select>
               <input type="date" value={txForm.fecha} onChange={e => setTxForm(f => ({ ...f, fecha: e.target.value }))}
                 className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm font-bold focus:outline-none focus:border-emerald-500 transition-colors" />
-              <button onClick={addTransaccion} disabled={!txForm.descripcion.trim() || !txForm.monto}
+              <button onClick={saveTransaccion} disabled={!txForm.descripcion.trim() || !txForm.monto}
                 className="w-full py-3 bg-emerald-600 text-white rounded-xl text-sm font-black hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg shadow-emerald-500/20">
-                Guardar
+                {editingTxId ? 'Actualizar' : 'Guardar'}
               </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Stat-up overlay ── */}
+      <AnimatePresence>
+        {levelUpEvent && (
+          <motion.div
+            className="fixed inset-0 z-[60] flex items-center justify-center pointer-events-none"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          >
+            <motion.div
+              initial={{ scale: 0.7, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 1.1, opacity: 0 }} transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+              onAnimationComplete={() => { setTimeout(() => setLevelUpEvent(null), 2200); }}
+              className="px-10 py-8 rounded-3xl backdrop-blur-xl bg-black/80 border border-white/20 text-center shadow-2xl"
+            >
+              <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">{STAT_META[levelUpEvent.stat].name}</p>
+              <p className="text-6xl font-black text-white mb-1">NIVEL {levelUpEvent.newLevel}</p>
+              <p className="text-emerald-400 font-bold">+{levelUpEvent.xp} XP</p>
             </motion.div>
           </motion.div>
         )}
@@ -988,9 +1360,25 @@ export default function App() {
                   <div className="flex-1 min-w-[180px]">
                     <div className="flex items-center gap-3 mb-1">
                       <h3 className="text-xl font-black text-white tracking-tight">{user.displayName}</h3>
-                      <span className="text-[10px] font-black bg-blue-500/20 border border-blue-400/30 text-blue-300 px-3 py-1 rounded-full uppercase tracking-widest">Hero</span>
+                      <span className={cn('text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest border', CLASS_META[heroClass]?.color ?? 'text-blue-300', 'bg-white/10 border-white/20')}>
+                        {CLASS_META[heroClass]?.icon} {heroClass}
+                      </span>
+                      <span className={cn('text-[10px] font-black px-2 py-1 rounded-full uppercase tracking-widest bg-white/10 border border-white/20', RANK_META[heroRank]?.color ?? 'text-slate-300')}>
+                        {RANK_META[heroRank]?.label ?? heroRank}
+                      </span>
                     </div>
-                    <p className="text-slate-400 text-xs mb-3">{xpInLevel} / {heroXpForNext} XP — nivel {heroLevel}</p>
+                    <p className="text-slate-400 text-xs mb-1">{xpInLevel} / {heroXpForNext} XP — nivel {heroLevel}</p>
+                    <p className={cn('text-xs font-bold mb-1', RANK_META[heroRank]?.color ?? 'text-slate-400')}>
+                      Nivel Principal {mainLevelData.level} · {RANK_META[heroRank]?.label}
+                    </p>
+                    {(() => {
+                      const nextLvl = RANK_META[heroRank]?.next;
+                      if (nextLvl && nextLvl !== Infinity) {
+                        const diff = nextLvl - mainLevelData.level;
+                        return <p className="text-[10px] text-slate-500 mb-3">⚡ {diff} nivel{diff !== 1 ? 'es' : ''} para {Object.entries(RANK_META).find(([,v]) => v.next === nextLvl)?.[0] ?? ''}-Rank</p>;
+                      }
+                      return <p className="text-[10px] text-amber-400 mb-3">👑 Rango máximo — Monarch</p>;
+                    })()}
                     <div className="flex items-center gap-3">
                       <div className="flex-1 h-2 bg-slate-800 rounded-full overflow-hidden border border-slate-700/50">
                         <motion.div initial={{ width: 0 }} animate={{ width: `${(xpInLevel / heroXpForNext) * 100}%` }} transition={{ duration: 1, ease: 'easeOut' }} className="h-full bg-gradient-to-r from-blue-600 to-blue-400 rounded-full" />
@@ -1013,6 +1401,18 @@ export default function App() {
                 </div>
               </div>
 
+              {/* Widget: Foco del día */}
+              <div className="bg-gradient-to-r from-violet-600/10 to-blue-600/10 border border-violet-500/20 rounded-2xl p-4 flex items-center gap-4">
+                <Target className="w-5 h-5 text-violet-400 shrink-0" />
+                <input
+                  type="text"
+                  value={todayFocus}
+                  onChange={e => { setTodayFocus(e.target.value); localStorage.setItem(`focus_${HOY}`, e.target.value); }}
+                  placeholder="¿En qué te vas a enfocar hoy?"
+                  className="flex-1 bg-transparent text-sm font-bold placeholder-slate-500 outline-none text-slate-100"
+                />
+              </div>
+
               {/* Stats + Radar */}
               <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2">
@@ -1024,19 +1424,25 @@ export default function App() {
                     {stats.map(s => <StatCard key={s.name} stat={s} />)}
                   </div>
                 </div>
-                <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800 flex flex-col items-center justify-center">
+                <motion.div initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.5 }}
+                  className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800 flex flex-col items-center justify-center">
                   <h4 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">Performance Radar</h4>
                   <div className="w-full h-60">
                     <ResponsiveContainer width="100%" height="100%">
                       <RadarChart cx="50%" cy="50%" outerRadius="80%" data={radarData}>
-                        <PolarGrid stroke="#e2e8f0" />
+                        <defs>
+                          <filter id="stat-glow"><feGaussianBlur stdDeviation="3" result="coloredBlur" /><feMerge><feMergeNode in="coloredBlur" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
+                        </defs>
+                        <PolarGrid stroke="#334155" />
                         <PolarAngleAxis dataKey="subject" tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 700 }} />
                         <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
-                        <Radar name="Stats" dataKey="A" stroke="#2563eb" fill="#3b82f6" fillOpacity={0.6} />
+                        <Radar name="Stats" dataKey="A" stroke="#7c3aed" fill="#7c3aed" fillOpacity={0.4}
+                          isAnimationActive animationDuration={800} animationEasing="ease-out"
+                          style={{ filter: 'url(#stat-glow)' }} />
                       </RadarChart>
                     </ResponsiveContainer>
                   </div>
-                </div>
+                </motion.div>
               </section>
 
               {/* Agenda + Side panel */}
@@ -1149,6 +1555,47 @@ export default function App() {
                             <p className="text-[10px] text-blue-200 mt-1">{missions.progress}%</p>
                           </div>
                     }
+                  </section>
+
+                  {/* XP History — últimos 14 días */}
+                  <section className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800">
+                    <h4 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">XP Semanal</h4>
+                    <div className="h-28">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={xpPerDay}>
+                          <XAxis dataKey="date" tick={{ fontSize: 8, fill: '#94a3b8' }} tickFormatter={d => d.slice(5)} />
+                          <YAxis hide />
+                          <Line type="monotone" dataKey="xp" stroke="#3b82f6" strokeWidth={2} dot={false} />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </section>
+
+                  {/* Logros */}
+                  <section className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800">
+                    <h4 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">Logros</h4>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { id: 'primera_quest', icon: '⚔️', label: 'Primera Quest' },
+                        { id: 'racha_7',       icon: '🔥', label: 'Racha 7 días'  },
+                        { id: 'racha_30',      icon: '🔥', label: 'Racha 30 días' },
+                        { id: 'nivel_5',       icon: '⭐', label: 'Nivel 5'       },
+                        { id: 'nivel_10',      icon: '🌟', label: 'Nivel 10'      },
+                        { id: 'primer_libro',  icon: '📚', label: 'Primer libro'  },
+                        { id: 'primer_examen', icon: '🎓', label: 'Primer examen' },
+                        { id: 'todos_hoy',     icon: '✅', label: 'Todas hoy'     },
+                      ].map(l => {
+                        const done = logrosUnlocked.includes(l.id);
+                        return (
+                          <div key={l.id} title={l.label}
+                            className={cn('flex flex-col items-center gap-1 p-2 rounded-xl border text-center transition-all',
+                              done ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700/50' : 'border-slate-100 dark:border-slate-800 opacity-40 grayscale')}>
+                            <span className="text-xl">{l.icon}</span>
+                            <span className="text-[9px] font-bold text-slate-500 leading-tight">{l.label}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </section>
                 </div>
               </div>
@@ -1499,6 +1946,22 @@ export default function App() {
                     </div>
                   );
                 })()}
+
+                {/* ── XP Breakdown por hábito ── */}
+                {calcXpBySource(fsHabitos, attrStat).length > 0 && (
+                  <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Top fuentes de XP</p>
+                    <div className="space-y-2">
+                      {calcXpBySource(fsHabitos, attrStat).slice(0, 5).map(src => (
+                        <div key={src.nombre} className="flex items-center gap-3">
+                          <p className="text-xs font-bold flex-1 truncate">{src.nombre}</p>
+                          <span className="text-[10px] text-slate-400">×{src.veces}</span>
+                          <span className="text-xs font-black text-blue-500">{src.xpTotal} XP</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* ── Fuerza: acceso al Gym ── */}
                 {attrStat === 'fuerza' && (
@@ -1851,17 +2314,33 @@ export default function App() {
 
           {/* ══ QUESTS ══ */}
           {tab === 'habits' && (
-            <motion.div key="habits" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-8">
-              <div className="flex items-center justify-between">
+            <motion.div key="habits" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-6">
+              <div className="flex items-center justify-between flex-wrap gap-3">
                 <h3 className="text-2xl font-black tracking-tight uppercase flex items-center gap-3"><Zap className="w-7 h-7 text-blue-600" /> DAILY QUESTS</h3>
-                <div className="flex items-center gap-3">
-                  <span className="text-sm font-black text-slate-500">{done}/{habits.length} completadas</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-black text-slate-500">{done}/{habits.length}</span>
                   <button onClick={() => setModal('habit')}
                     className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold hover:opacity-90 transition-all shadow-md shadow-blue-500/20">
                     <Plus className="w-4 h-4" /> Nueva Quest
                   </button>
                 </div>
               </div>
+
+              {/* Filtro por stat */}
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                <button onClick={() => setFilterHabitStat('all')}
+                  className={cn('px-3 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition-all', filterHabitStat === 'all' ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500')}>
+                  Todas
+                </button>
+                {FS_KEYS.map(k => (
+                  <button key={k} onClick={() => setFilterHabitStat(k)}
+                    className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition-all',
+                      filterHabitStat === k ? `${STAT_META[k].color} text-white` : 'bg-slate-100 dark:bg-slate-800 text-slate-500')}>
+                    {STAT_META[k].icon} {STAT_META[k].shortName}
+                  </button>
+                ))}
+              </div>
+
               {habits.length === 0
                 ? <div className="py-16 text-center border-2 border-dashed border-slate-100 dark:border-slate-800 rounded-3xl">
                     <Zap className="w-12 h-12 text-slate-200 mx-auto mb-4" />
@@ -1870,46 +2349,91 @@ export default function App() {
                   </div>
                 : <>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {habits.map(h => (
-                        <motion.div key={h.id} layout
-                          className={cn('group relative flex items-center gap-4 p-5 rounded-2xl border-2 transition-all',
-                            !h.activeToday
-                              ? 'border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 opacity-50 cursor-not-allowed'
-                              : h.completed
-                                ? 'border-blue-200 dark:border-blue-900/40 bg-blue-50/50 dark:bg-blue-900/10 cursor-pointer'
-                                : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-blue-200 cursor-pointer')}
-                          onClick={() => h.activeToday && toggleHabit(h.id)}>
-                          <div className={cn('w-12 h-12 rounded-2xl flex items-center justify-center shrink-0', h.completed ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' : 'bg-slate-100 dark:bg-slate-800 text-slate-400')}>
-                            <div className="scale-150">{h.icon}</div>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className={cn('font-black text-sm', h.completed && 'line-through text-slate-400')}>{h.name}</p>
-                            <div className="flex items-center gap-2 mt-1 flex-wrap">
-                              <span className="text-[10px] font-bold text-blue-500 uppercase tracking-widest">{h.attribute}</span>
-                              <span className="text-[10px] text-slate-400">·</span>
-                              <span className="text-[10px] text-slate-400 font-medium">{habitRecurrenceLabel(h.recurrence, h.diasSemana, DIAS_CORTO)}</span>
+                      {habits.filter(h => filterHabitStat === 'all' || h.stat === filterHabitStat).map(h => {
+                        const fh = fsHabitos.find(x => x.id === h.id);
+                        const streak = fh ? calcStreak(fh.completedDates ?? [], fh.recurrence ?? 'daily') : 0;
+                        const mult = streakMultiplier(streak);
+                        return (
+                          <motion.div key={h.id} layout whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}
+                            className={cn('group relative flex items-center gap-4 p-5 rounded-2xl border-2 transition-all',
+                              !h.activeToday
+                                ? 'border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 opacity-50 cursor-not-allowed'
+                                : h.completed
+                                  ? 'border-blue-200 dark:border-blue-900/40 bg-blue-50/50 dark:bg-blue-900/10 cursor-pointer'
+                                  : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-blue-200 cursor-pointer')}
+                            onClick={() => h.activeToday && toggleHabit(h.id)}>
+                            <div className={cn('w-12 h-12 rounded-2xl flex items-center justify-center shrink-0', h.completed ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' : 'bg-slate-100 dark:bg-slate-800 text-slate-400')}>
+                              <div className="scale-150">{h.icon}</div>
                             </div>
-                          </div>
-                          <div className="flex items-center gap-1 shrink-0">
-                            <button onClick={e => { e.stopPropagation(); openEditHabit(h.id); }}
-                              className="opacity-0 group-hover:opacity-100 p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 transition-all">
-                              <Pencil className="w-4 h-4" />
-                            </button>
-                            <button onClick={e => { e.stopPropagation(); deleteHabit(h.id); }}
-                              className="opacity-0 group-hover:opacity-100 p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-400 transition-all">
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                            <div className={cn('w-8 h-8 rounded-xl border-2 flex items-center justify-center', h.completed ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-200 dark:border-slate-700')}>
-                              {h.completed && <CheckCircle2 className="w-5 h-5" />}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className={cn('font-black text-sm', h.completed && 'line-through text-slate-400')}>{h.name}</p>
+                                {streak > 0 && (
+                                  <span className={cn('flex items-center gap-0.5 text-[10px] font-black px-1.5 py-0.5 rounded-full',
+                                    streak >= 30 ? 'bg-red-600 text-white' : streak >= 7 ? 'bg-orange-500 text-white' : 'bg-orange-400 text-white')}>
+                                    <Flame className="w-3 h-3" /> {streak}
+                                  </span>
+                                )}
+                                {mult > 1 && !h.completed && (
+                                  <span className="text-[10px] font-black text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded-full">×{mult}</span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                <span className="text-[10px] font-bold text-blue-500 uppercase tracking-widest">{h.attribute}</span>
+                                <span className="text-[10px] text-slate-400">·</span>
+                                <span className="text-[10px] text-slate-400 font-medium">{habitRecurrenceLabel(h.recurrence, h.diasSemana, DIAS_CORTO)}</span>
+                              </div>
                             </div>
-                          </div>
-                        </motion.div>
-                      ))}
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button onClick={e => { e.stopPropagation(); openEditHabit(h.id); }}
+                                className="opacity-0 group-hover:opacity-100 p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 transition-all">
+                                <Pencil className="w-4 h-4" />
+                              </button>
+                              <button onClick={e => { e.stopPropagation(); deleteHabit(h.id); }}
+                                className="opacity-0 group-hover:opacity-100 p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-400 transition-all">
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                              <div className={cn('w-8 h-8 rounded-xl border-2 flex items-center justify-center', h.completed ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-200 dark:border-slate-700')}>
+                                {h.completed && <CheckCircle2 className="w-5 h-5" />}
+                              </div>
+                            </div>
+                          </motion.div>
+                        );
+                      })}
                     </div>
-                    <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 md:p-8 border border-slate-200 dark:border-slate-800">
-                      <h4 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">Progreso de hoy</h4>
-                      <ProgressBar value={done} max={Math.max(habitsToday.length, 1)} color="bg-blue-600" className="h-3" />
-                      <p className="text-sm font-bold text-slate-500 mt-3">{done} de {habitsToday.length} completadas hoy · +{done * 20} XP</p>
+
+                    {/* Progreso + Analytics */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800">
+                        <h4 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">Progreso de hoy</h4>
+                        <ProgressBar value={done} max={Math.max(habitsToday.length, 1)} color="bg-blue-600" className="h-3" />
+                        <p className="text-sm font-bold text-slate-500 mt-3">{done} de {habitsToday.length} completadas hoy</p>
+                      </div>
+                      <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800">
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="text-xs font-black uppercase tracking-widest text-slate-400">XP ganado</h4>
+                          <div className="flex gap-1">
+                            {([7, 30, 90] as const).map(d => (
+                              <button key={d} onClick={() => setAnalyticsRange(d)}
+                                className={cn('px-2 py-1 rounded-lg text-[10px] font-black transition-all', analyticsRange === d ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800')}>
+                                {d}d
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <ResponsiveContainer width="100%" height={80}>
+                          <BarChart data={calcXpPerDay(fsHabitos, analyticsRange)} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+                            <Bar dataKey="xp" fill="#3b82f6" radius={[2, 2, 0, 0]} />
+                            <Tooltip formatter={(v) => typeof v === 'number' ? [`${v} XP`, ''] : [v, '']} contentStyle={{ fontSize: 11, borderRadius: 8 }} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+
+                    {/* Heatmap */}
+                    <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800">
+                      <h4 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">Historial de completado</h4>
+                      <HabitHeatmap data={heatmapData} />
                     </div>
                   </>
               }
@@ -1918,58 +2442,155 @@ export default function App() {
 
           {/* ══ MISSIONS ══ */}
           {tab === 'missions' && (
-            <motion.div key="missions" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-8">
-              <div className="flex items-center justify-between">
+            <motion.div key="missions" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-6">
+              {/* Header */}
+              <div className="flex items-center justify-between flex-wrap gap-3">
                 <h3 className="text-2xl font-black tracking-tight uppercase flex items-center gap-3"><Target className="w-7 h-7 text-blue-600" /> MISSION TREE</h3>
-                <p className="text-sm text-slate-400">Hacé click en un nodo para togglear · + para agregar sub-misión</p>
-              </div>
-              <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 border border-slate-200 dark:border-slate-800 overflow-x-auto">
-                <div className="flex justify-center min-w-max pb-8">
-                  <MissionNodeComp node={missions} onAdd={addMission} onToggle={toggleMission} />
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-slate-500">{fsMisiones.filter(m => m.completada).length}/{fsMisiones.length} completadas</span>
+                  <button onClick={() => openAddMision('')}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold hover:opacity-90 transition-all shadow-md shadow-blue-500/20">
+                    <Plus className="w-4 h-4" /> Nueva misión
+                  </button>
                 </div>
               </div>
+
+              {/* Búsqueda */}
+              <div className="flex gap-3 flex-wrap">
+                <div className="relative flex-1 min-w-48">
+                  <input
+                    type="text" value={missionSearch} onChange={e => setMissionSearch(e.target.value)}
+                    placeholder="Buscar misión..."
+                    className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-sm pl-9 focus:outline-none focus:border-blue-500 transition-colors"
+                  />
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
+                </div>
+                {missionSearch && (
+                  <button onClick={() => setMissionSearch('')} className="px-3 py-2 rounded-xl text-xs font-bold text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all">✕ Limpiar</button>
+                )}
+              </div>
+
+              {/* Resumen por prioridad */}
+              {fsMisiones.some(m => m.prioridad) && (
+                <div className="flex gap-2 flex-wrap">
+                  {(['urgente', 'alta', 'media', 'baja'] as const).map(p => {
+                    const count = fsMisiones.filter(m => m.prioridad === p && !m.completada).length;
+                    if (!count) return null;
+                    const meta = PRIORIDAD_META[p];
+                    return (
+                      <span key={p} className={cn('text-[10px] font-black px-2.5 py-1 rounded-full', meta.bg, meta.color)}>
+                        {meta.label} ×{count}
+                      </span>
+                    );
+                  })}
+                  {fsMisiones.some(m => (m.costoMonto ?? 0) > 0 && !m.completada) && (
+                    <span className="flex items-center gap-1 text-[10px] font-black px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700">
+                      <Wallet className="w-3 h-3" />
+                      {fsMisiones.filter(m => (m.costoMonto ?? 0) > 0 && !m.completada).length} con costo
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {/* Árbol */}
+              {fsMisiones.length === 0 ? (
+                <div className="py-20 text-center border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-3xl">
+                  <Target className="w-14 h-14 text-slate-200 dark:text-slate-800 mx-auto mb-4" />
+                  <p className="font-bold text-slate-400 mb-2">Sin misiones todavía.</p>
+                  <button onClick={() => openAddMision('')} className="text-sm text-blue-500 font-bold hover:underline">+ Crear primera misión</button>
+                </div>
+              ) : (
+                <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 border border-slate-200 dark:border-slate-800 overflow-x-auto">
+                  <div className="flex justify-center min-w-max pb-8">
+                    <MissionNodeComp
+                      node={buildTree(filteredMisiones)}
+                      onAdd={addMission}
+                      onToggle={toggleMission}
+                      onEdit={openEditMision}
+                      onDelete={deleteMision}
+                    />
+                  </div>
+                </div>
+              )}
             </motion.div>
           )}
 
           {/* ══ TREASURY ══ */}
           {tab === 'billetera' && (
-            <motion.div key="billetera" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-8">
+            <motion.div key="billetera" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-6">
               <div className="flex items-center justify-between">
                 <h3 className="text-2xl font-black tracking-tight uppercase flex items-center gap-3"><Wallet className="w-7 h-7 text-emerald-600" /> TREASURY</h3>
-                <button onClick={() => setShowTxModal(true)}
+                <button onClick={() => { setEditingTxId(null); setTxForm({ descripcion: '', monto: '', tipo: 'gasto', categoria: '', fecha: HOY, moneda: 'ARS' }); setShowTxModal(true); }}
                   className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-black hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/20">
                   <Plus className="w-4 h-4" /> Nueva transacción
                 </button>
               </div>
 
-              {/* Tarjetas resumen */}
-              <div className="grid grid-cols-3 gap-4">
-                <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Saldo Total</p>
-                  <p className={cn('text-2xl font-black', txStats.saldoTotal >= 0 ? 'text-emerald-600' : 'text-red-500')}>
-                    ${txStats.saldoTotal.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-                  </p>
+              {/* Saldos por moneda */}
+              {Object.keys(txStats.porMoneda).length > 0 && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {Object.entries(txStats.porMoneda).map(([code, vals]) => {
+                    const m = MONEDA_META[code] ?? { symbol: code, flag: '💱' };
+                    return (
+                      <div key={code} className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">{m.flag} Saldo {code}</p>
+                        <p className={cn('text-xl font-black', vals.saldo >= 0 ? 'text-emerald-600' : 'text-red-500')}>
+                          {m.symbol} {vals.saldo.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                        </p>
+                      </div>
+                    );
+                  })}
                 </div>
-                <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm">
-                  <div className="flex items-center gap-1.5 mb-2">
-                    <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Ingresos del mes</p>
+              )}
+
+              {/* Filtro de mes + resumen */}
+              <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-black uppercase tracking-widest text-slate-400">Resumen del mes</h4>
+                  <input type="month" value={txMesFilter} onChange={e => setTxMesFilter(e.target.value)}
+                    className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs font-bold focus:outline-none focus:border-emerald-500 transition-colors" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex items-center gap-3 p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl">
+                    <TrendingUp className="w-5 h-5 text-emerald-500 shrink-0" />
+                    <div>
+                      <p className="text-[10px] font-black text-emerald-600 uppercase">Ingresos</p>
+                      <p className="font-black text-emerald-700 dark:text-emerald-400 text-sm">+${txStats.ingresosMes.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</p>
+                    </div>
                   </div>
-                  <p className="text-2xl font-black text-emerald-600">+${txStats.ingresosMes.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</p>
-                </div>
-                <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm">
-                  <div className="flex items-center gap-1.5 mb-2">
-                    <TrendingDown className="w-3.5 h-3.5 text-red-500" />
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Gastos del mes</p>
+                  <div className="flex items-center gap-3 p-3 bg-red-50 dark:bg-red-900/20 rounded-xl">
+                    <TrendingDown className="w-5 h-5 text-red-500 shrink-0" />
+                    <div>
+                      <p className="text-[10px] font-black text-red-600 uppercase">Gastos</p>
+                      <p className="font-black text-red-600 dark:text-red-400 text-sm">-${txStats.gastosMes.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</p>
+                    </div>
                   </div>
-                  <p className="text-2xl font-black text-red-500">-${txStats.gastosMes.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</p>
                 </div>
+
+                {/* Gráfico por categoría */}
+                {txStats.porCategoria.length > 0 && (
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Gastos por categoría</p>
+                    <ResponsiveContainer width="100%" height={120}>
+                      <BarChart data={txStats.porCategoria} layout="vertical" margin={{ left: 0, right: 12, top: 0, bottom: 0 }}>
+                        <XAxis type="number" hide />
+                        <YAxis type="category" dataKey="name" width={70} tick={{ fontSize: 10, fontWeight: 700, fill: '#94a3b8' }} />
+                        <Tooltip formatter={(v) => typeof v === 'number' ? `$${v.toLocaleString('es-AR', { minimumFractionDigits: 2 })}` : v} contentStyle={{ fontSize: 11, borderRadius: 8 }} />
+                        <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+                          {txStats.porCategoria.map((_, i) => (
+                            <Cell key={i} fill={['#10b981','#f59e0b','#3b82f6','#ef4444','#8b5cf6','#ec4899','#14b8a6','#f97316'][i % 8]} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
               </div>
 
               {/* Lista de transacciones */}
               <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 overflow-hidden">
                 <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800">
-                  <h4 className="text-xs font-black uppercase tracking-widest text-slate-400">Transacciones</h4>
+                  <h4 className="text-xs font-black uppercase tracking-widest text-slate-400">Todas las transacciones</h4>
                 </div>
                 {txStats.ordenadas.length === 0
                   ? <div className="py-16 text-center">
@@ -1978,24 +2599,33 @@ export default function App() {
                       <p className="text-sm text-slate-400 mt-1">Registrá tu primer movimiento.</p>
                     </div>
                   : <div className="divide-y divide-slate-50 dark:divide-slate-800/50">
-                      {txStats.ordenadas.map(t => (
-                        <div key={t.id} className="flex items-center gap-4 px-6 py-4 hover:bg-slate-50 dark:hover:bg-slate-800/30 group transition-colors">
-                          <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0', t.tipo === 'ingreso' ? 'bg-emerald-500' : 'bg-red-500')}>
-                            {t.tipo === 'ingreso' ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
+                      {txStats.ordenadas.map(t => {
+                        const mon = MONEDA_META[t.moneda ?? 'ARS'] ?? MONEDA_META['ARS'];
+                        return (
+                          <div key={t.id} className="flex items-center gap-4 px-6 py-4 hover:bg-slate-50 dark:hover:bg-slate-800/30 group transition-colors">
+                            <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0', t.tipo === 'ingreso' ? 'bg-emerald-500' : 'bg-red-500')}>
+                              {t.tipo === 'ingreso' ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-bold text-sm truncate">{t.descripcion}</p>
+                              <p className="text-[10px] text-slate-400 font-medium mt-0.5">{t.categoria} · {t.fecha} · <span className="font-black">{mon.flag} {t.moneda ?? 'ARS'}</span></p>
+                            </div>
+                            <p className={cn('font-black text-sm shrink-0', t.tipo === 'ingreso' ? 'text-emerald-600' : 'text-red-500')}>
+                              {t.tipo === 'ingreso' ? '+' : '-'}{mon.symbol} {t.monto.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                            </p>
+                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                              <button onClick={() => openEditTx(t)}
+                                className="p-1.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 text-slate-300 hover:text-blue-500 transition-all">
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                              <button onClick={() => deleteTransaccion(t.id)}
+                                className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-slate-300 hover:text-red-500 transition-all">
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-bold text-sm truncate">{t.descripcion}</p>
-                            <p className="text-[10px] text-slate-400 font-medium mt-0.5">{t.categoria} · {t.fecha}</p>
-                          </div>
-                          <p className={cn('font-black text-sm shrink-0', t.tipo === 'ingreso' ? 'text-emerald-600' : 'text-red-500')}>
-                            {t.tipo === 'ingreso' ? '+' : '-'}${t.monto.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-                          </p>
-                          <button onClick={() => deleteTransaccion(t.id)}
-                            className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-slate-300 hover:text-red-500 transition-all">
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                 }
               </div>
@@ -2006,6 +2636,23 @@ export default function App() {
           {tab === 'settings' && (
             <motion.div key="settings" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-8">
               <h3 className="text-2xl font-black tracking-tight uppercase flex items-center gap-3"><Settings className="w-7 h-7 text-blue-600" /> SETTINGS</h3>
+
+              {/* Stats de cuenta */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {[
+                  { label: 'XP Total', value: accountStats.totalXP.toLocaleString(), icon: '⭐' },
+                  { label: 'Hábitos este mes', value: accountStats.habitosMes, icon: '✅' },
+                  { label: 'Misiones completadas', value: accountStats.misionesCompletadas, icon: '🎯' },
+                  { label: 'Libros terminados', value: accountStats.librosTerminados, icon: '📚' },
+                ].map(s => (
+                  <div key={s.label} className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 text-center">
+                    <p className="text-2xl mb-1">{s.icon}</p>
+                    <p className="text-xl font-black">{s.value}</p>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{s.label}</p>
+                  </div>
+                ))}
+              </div>
+
               <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 border border-slate-200 dark:border-slate-800 space-y-6 max-w-lg">
                 <div>
                   <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Hero Name</label>
@@ -2019,6 +2666,17 @@ export default function App() {
                 <div>
                   <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Hero Level</label>
                   <input type="text" value={`Level ${heroLevel} · ${totalXp} XP total`} disabled className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm font-bold focus:outline-none opacity-60 cursor-not-allowed" />
+                </div>
+
+                {/* Discord Webhook */}
+                <div className="pt-4 border-t border-slate-100 dark:border-slate-800">
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Discord Webhook (notificaciones)</label>
+                  <input
+                    type="url" value={discordWebhookUrl} onChange={e => setDiscordWebhookUrl(e.target.value)}
+                    placeholder="https://discord.com/api/webhooks/..."
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 transition-colors"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1">Recibirás notificaciones en Discord al subir de nivel.</p>
                 </div>
 
                 {/* Google Calendar */}
@@ -2057,6 +2715,16 @@ export default function App() {
                   )}
                 </div>
 
+                {/* Exportar datos */}
+                <div className="pt-4 border-t border-slate-100 dark:border-slate-800">
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Datos</label>
+                  <button onClick={exportarDatos}
+                    className="flex items-center gap-2 px-5 py-3 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold hover:bg-blue-50 dark:hover:bg-blue-900/10 hover:border-blue-400 transition-all">
+                    <Download className="w-4 h-4" /> Exportar backup JSON
+                  </button>
+                  <p className="text-[10px] text-slate-400 mt-1.5">Descarga todos tus datos como archivo JSON.</p>
+                </div>
+
                 <div className="pt-4 border-t border-slate-100 dark:border-slate-800">
                   <button onClick={() => signOut(auth)}
                     className="flex items-center gap-2 px-6 py-3 border border-red-200 dark:border-red-900/40 text-red-600 rounded-xl text-xs font-black hover:bg-red-50 dark:hover:bg-red-900/10 transition-all">
@@ -2076,7 +2744,7 @@ export default function App() {
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
-            onClick={() => { setModal(null); setEditingHabitId(null); setTargetEjercicioId(null); setTargetMateriaId(null); setModalError(null); }}>
+            onClick={() => { setModal(null); setEditingHabitId(null); setEditingMisionId(null); setTargetEjercicioId(null); setTargetMateriaId(null); setModalError(null); }}>
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 16 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 16 }}
               className="bg-white dark:bg-slate-900 rounded-3xl p-8 border border-slate-200 dark:border-slate-800 w-full max-w-md shadow-2xl"
@@ -2084,12 +2752,112 @@ export default function App() {
 
               <div className="flex items-center justify-between mb-6">
                 <h3 className="font-black text-lg">
-                  {modal === 'habit' ? (editingHabitId ? 'Editar Quest' : '+ Nueva Quest') : modal === 'task' ? '+ Nueva Tarea' : modal === 'evento' ? '+ Nuevo Evento' : modal === 'rutina' ? '+ Nueva Rutina' : modal === 'libro' ? '+ Nuevo Libro' : modal === 'materia' ? '+ Nueva Materia' : modal === 'material' ? '+ Nuevo Material' : modal === 'tareaFac' ? '+ Nueva Tarea' : modal === 'examen' ? '+ Nuevo Examen' : targetEjercicioId ? 'Editar Ejercicio' : '+ Nuevo Ejercicio'}
+                  {modal === 'mision' ? (editingMisionId ? 'Editar Misión' : '+ Nueva Misión') : modal === 'habit' ? (editingHabitId ? 'Editar Quest' : '+ Nueva Quest') : modal === 'task' ? '+ Nueva Tarea' : modal === 'evento' ? '+ Nuevo Evento' : modal === 'rutina' ? '+ Nueva Rutina' : modal === 'libro' ? '+ Nuevo Libro' : modal === 'materia' ? '+ Nueva Materia' : modal === 'material' ? '+ Nuevo Material' : modal === 'tareaFac' ? '+ Nueva Tarea' : modal === 'examen' ? '+ Nuevo Examen' : targetEjercicioId ? 'Editar Ejercicio' : '+ Nuevo Ejercicio'}
                 </h3>
-                <button onClick={() => { setModal(null); setEditingHabitId(null); setTargetEjercicioId(null); setTargetMateriaId(null); setModalError(null); }} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors">
+                <button onClick={() => { setModal(null); setEditingHabitId(null); setEditingMisionId(null); setTargetEjercicioId(null); setTargetMateriaId(null); setModalError(null); }} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors">
                   <X className="w-4 h-4" />
                 </button>
               </div>
+
+              {/* ── Misión form ── */}
+              {modal === 'mision' && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Nombre *</label>
+                    <input autoFocus type="text" value={misionForm.titulo}
+                      onChange={e => setMisionForm(p => ({ ...p, titulo: e.target.value }))}
+                      placeholder="Nombre de la misión"
+                      className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 transition-colors" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Descripción</label>
+                    <textarea value={misionForm.descripcion}
+                      onChange={e => setMisionForm(p => ({ ...p, descripcion: e.target.value }))}
+                      placeholder="Descripción o notas..."
+                      rows={2}
+                      className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 transition-colors resize-none" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Misión padre</label>
+                      <select value={misionForm.parentId}
+                        onChange={e => setMisionForm(p => ({ ...p, parentId: e.target.value }))}
+                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-3 text-sm focus:outline-none focus:border-blue-500 transition-colors">
+                        <option value="">— Raíz (árbol nuevo)</option>
+                        {fsMisiones.filter(m => m.id !== editingMisionId).map(m => (
+                          <option key={m.id} value={m.id}>{m.titulo}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Prioridad</label>
+                      <select value={misionForm.prioridad}
+                        onChange={e => setMisionForm(p => ({ ...p, prioridad: e.target.value as MisionPrioridad | '' }))}
+                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-3 text-sm focus:outline-none focus:border-blue-500 transition-colors">
+                        <option value="">Sin prioridad</option>
+                        <option value="baja">⚪ Baja</option>
+                        <option value="media">🟡 Media</option>
+                        <option value="alta">🟠 Alta</option>
+                        <option value="urgente">🔴 Urgente</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Prerequisitos */}
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">
+                      Prerequisitos (misiones a completar antes)
+                    </label>
+                    <div className="space-y-1 max-h-32 overflow-y-auto">
+                      {fsMisiones.filter(m => m.id !== editingMisionId).map(m => (
+                        <label key={m.id} className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={misionForm.prerequisitos.includes(m.id)}
+                            onChange={e => setMisionForm(p => ({
+                              ...p,
+                              prerequisitos: e.target.checked
+                                ? [...p.prerequisitos, m.id]
+                                : p.prerequisitos.filter(id => id !== m.id),
+                            }))}
+                            className="rounded"
+                          />
+                          <span className="text-xs font-medium truncate">{m.titulo}</span>
+                          {m.completada && <span className="text-[9px] text-emerald-500 font-bold ml-auto shrink-0">✓</span>}
+                        </label>
+                      ))}
+                      {fsMisiones.length === 0 && <p className="text-xs text-slate-400 px-3">Sin misiones disponibles</p>}
+                    </div>
+                  </div>
+
+                  {/* Costo vinculado a Treasury */}
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">
+                      Costo (vincula con Treasury)
+                    </label>
+                    <div className="flex gap-2">
+                      <select value={misionForm.costoMoneda}
+                        onChange={e => setMisionForm(p => ({ ...p, costoMoneda: e.target.value as Moneda }))}
+                        className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-3 text-sm focus:outline-none focus:border-blue-500 transition-colors">
+                        {Object.entries(MONEDA_META).map(([code, m]) => (
+                          <option key={code} value={code}>{m.flag} {code}</option>
+                        ))}
+                      </select>
+                      <input type="number" min={0} value={misionForm.costoMonto}
+                        onChange={e => setMisionForm(p => ({ ...p, costoMonto: e.target.value }))}
+                        placeholder="0"
+                        className="flex-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 transition-colors" />
+                    </div>
+                    <p className="text-[10px] text-slate-400 mt-1">Al completar la misión podrás registrar el gasto automáticamente.</p>
+                  </div>
+
+                  {modalError && <p className="text-xs text-red-500 font-bold">{modalError}</p>}
+                  <button onClick={saveMision}
+                    className="w-full py-3 bg-blue-600 text-white rounded-xl text-sm font-black hover:opacity-90 transition-all shadow-lg shadow-blue-500/20">
+                    {editingMisionId ? 'Guardar cambios' : 'Crear misión'}
+                  </button>
+                </div>
+              )}
 
               {/* ── Habit form ── */}
               {modal === 'habit' && (

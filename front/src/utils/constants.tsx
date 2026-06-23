@@ -3,6 +3,23 @@ import { Dumbbell, Heart, Brain, Zap, Sparkles, Star } from 'lucide-react';
 import type { FSStatKey, EstadoLibro, TipoMaterial, Stat } from '../types';
 
 export const HOY = new Date().toISOString().slice(0, 10);
+export const PRIORIDAD_META: Record<string, { color: string; bg: string; label: string }> = {
+  urgente: { color: 'text-red-100',    bg: 'bg-red-600',    label: '🔴 Urgente' },
+  alta:    { color: 'text-orange-100', bg: 'bg-orange-500', label: '🟠 Alta'    },
+  media:   { color: 'text-yellow-100', bg: 'bg-yellow-500', label: '🟡 Media'   },
+  baja:    { color: 'text-slate-200',  bg: 'bg-slate-500',  label: '⚪ Baja'    },
+};
+
+export const CATEGORIAS_GASTO   = ['🍔 Comida', '🚗 Transporte', '🏠 Vivienda', '💊 Salud', '📚 Educación', '🎮 Ocio', '🛒 Compras', '📦 Otro'];
+export const CATEGORIAS_INGRESO = ['💼 Trabajo', '💻 Freelance', '📈 Inversión', '🎁 Regalo', '📦 Otro'];
+export const MONEDA_META: Record<string, { symbol: string; label: string; flag: string }> = {
+  ARS: { symbol: '$',    label: 'Peso Arg.',  flag: '🇦🇷' },
+  USD: { symbol: 'U$S',  label: 'Dólar',      flag: '🇺🇸' },
+  EUR: { symbol: '€',    label: 'Euro',        flag: '🇪🇺' },
+  BRL: { symbol: 'R$',   label: 'Real',        flag: '🇧🇷' },
+  CLP: { symbol: 'CLP$', label: 'Peso Chi.',   flag: '🇨🇱' },
+  UYU: { symbol: '$U',   label: 'Peso Uru.',   flag: '🇺🇾' },
+};
 export const FS_KEYS: FSStatKey[] = ['fuerza', 'salud', 'inteligencia', 'agilidad', 'carisma', 'fe'];
 export const DIAS_CORTO = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 export const DIAS_LETRA = ['D', 'L', 'M', 'X', 'J', 'V', 'S'];
@@ -26,4 +43,27 @@ export const MATERIAL_ICON: Record<TipoMaterial, React.ReactNode> = {
   nota:   <span className="text-xs">📝</span>,
   video:  <span className="text-xs">🎥</span>,
   enlace: <span className="text-xs">🔗</span>,
+};
+
+export const CLASS_META: Record<string, { icon: string; color: string; desc: string }> = {
+  'Sin clase':         { icon: '❓', color: 'text-slate-400',   desc: 'Tu camino aún no está definido.' },
+  'Aventurero':        { icon: '🗡️', color: 'text-slate-500',   desc: 'Equilibrado y versátil.' },
+  'Guerrero':          { icon: '⚔️', color: 'text-red-500',     desc: 'Maestro de la fuerza física.' },
+  'Mago':              { icon: '🔮', color: 'text-blue-500',    desc: 'Domina el conocimiento y la magia.' },
+  'Espadachín Mágico': { icon: '✨', color: 'text-purple-500',  desc: 'Combina fuerza y magia en perfecta armonía.' },
+  'Asesino':           { icon: '🗡️', color: 'text-emerald-500', desc: 'Veloz y letal.' },
+  'Tanque':            { icon: '🛡️', color: 'text-rose-500',    desc: 'Resistente e irrompible.' },
+  'Bardo':             { icon: '🎭', color: 'text-yellow-500',  desc: 'Líder e inspirador de aliados.' },
+  'Paladín':           { icon: '⚡', color: 'text-violet-500',  desc: 'Guiado por la fe y el propósito.' },
+};
+
+export const RANK_META: Record<string, { color: string; label: string; next: number }> = {
+  'E':       { color: 'text-slate-400',   label: 'E-Rank',  next: 10 },
+  'D':       { color: 'text-green-500',   label: 'D-Rank',  next: 20 },
+  'C':       { color: 'text-blue-500',    label: 'C-Rank',  next: 30 },
+  'B':       { color: 'text-purple-500',  label: 'B-Rank',  next: 40 },
+  'A':       { color: 'text-orange-500',  label: 'A-Rank',  next: 50 },
+  'S':       { color: 'text-yellow-500',  label: 'S-Rank',  next: 60 },
+  'SS':      { color: 'text-red-500',     label: 'SS-Rank', next: 70 },
+  'Monarch': { color: 'text-violet-400',  label: 'Monarch', next: Infinity },
 };
