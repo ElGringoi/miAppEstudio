@@ -29,3 +29,26 @@ export const MATERIAL_ICON: Record<TipoMaterial, React.ReactNode> = {
   video:  <span className="text-xs">🎥</span>,
   enlace: <span className="text-xs">🔗</span>,
 };
+
+export const CLASS_META: Record<string, { icon: string; color: string; desc: string }> = {
+  'Sin clase':         { icon: '❓', color: 'text-slate-400',   desc: 'Tu camino aún no está definido.' },
+  'Aventurero':        { icon: '🗡️', color: 'text-slate-500',   desc: 'Equilibrado y versátil.' },
+  'Guerrero':          { icon: '⚔️', color: 'text-red-500',     desc: 'Maestro de la fuerza física.' },
+  'Mago':              { icon: '🔮', color: 'text-blue-500',    desc: 'Domina el conocimiento y la magia.' },
+  'Espadachín Mágico': { icon: '✨', color: 'text-purple-500',  desc: 'Combina fuerza y magia en perfecta armonía.' },
+  'Asesino':           { icon: '🗡️', color: 'text-emerald-500', desc: 'Veloz y letal.' },
+  'Tanque':            { icon: '🛡️', color: 'text-rose-500',    desc: 'Resistente e irrompible.' },
+  'Bardo':             { icon: '🎭', color: 'text-yellow-500',  desc: 'Líder e inspirador de aliados.' },
+  'Paladín':           { icon: '⚡', color: 'text-violet-500',  desc: 'Guiado por la fe y el propósito.' },
+};
+
+export const RANK_META: Record<string, { color: string; label: string; next: number }> = {
+  'E':       { color: 'text-slate-400',   label: 'E-Rank',  next: 10 },
+  'D':       { color: 'text-green-500',   label: 'D-Rank',  next: 20 },
+  'C':       { color: 'text-blue-500',    label: 'C-Rank',  next: 30 },
+  'B':       { color: 'text-purple-500',  label: 'B-Rank',  next: 40 },
+  'A':       { color: 'text-orange-500',  label: 'A-Rank',  next: 50 },
+  'S':       { color: 'text-yellow-500',  label: 'S-Rank',  next: 60 },
+  'SS':      { color: 'text-red-500',     label: 'SS-Rank', next: 70 },
+  'Monarch': { color: 'text-violet-400',  label: 'Monarch', next: Infinity },
+};

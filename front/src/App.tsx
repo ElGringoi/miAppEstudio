@@ -11,6 +11,7 @@ import { cn } from './lib/utils';
 import {
   Radar, RadarChart, PolarGrid, PolarAngleAxis,
   PolarRadiusAxis, ResponsiveContainer,
+  LineChart, Line, XAxis, YAxis,
 } from 'recharts';
 import {
   format, addDays, startOfWeek, eachDayOfInterval,
@@ -32,8 +33,9 @@ import type {
   TipoMaterial, FSMaterial, FSTareaFac, FSExamen, FSMateria,
   FSEntradaDiario, FSObjetivoCHA, FSTransaccion, Habit, Task, HabitRecurrence, TabId,
 } from './types';
-import { HOY, FS_KEYS, STAT_META, DIAS_CORTO, DIAS_LETRA, ESTADO_LIBRO_META, MATERIAL_ICON, CATEGORIAS_GASTO, CATEGORIAS_INGRESO } from './utils/constants';
-import { xpLevel, statsFromDoc, buildTree, youtubeEmbedUrl, isHabitActiveToday, isHabitDoneToday, isDateInCurrentWeek, habitRecurrenceLabel } from './utils/helpers';
+import confetti from 'canvas-confetti';
+import { HOY, FS_KEYS, STAT_META, DIAS_CORTO, DIAS_LETRA, ESTADO_LIBRO_META, MATERIAL_ICON, CATEGORIAS_GASTO, CATEGORIAS_INGRESO, CLASS_META, RANK_META } from './utils/constants';
+import { xpLevel, statsFromDoc, buildTree, youtubeEmbedUrl, isHabitActiveToday, isHabitDoneToday, isDateInCurrentWeek, habitRecurrenceLabel, calcStreak, calcMainLevel, rankFromLevel, assignClass, calcXpPerDay } from './utils/helpers';
 import { ProgressBar } from './components/ProgressBar';
 import { StatCard } from './components/StatCard';
 import { CapituloRow } from './components/CapituloRow';
@@ -124,6 +126,14 @@ export default function App() {
   // Auth listener
   useEffect(() => onAuthStateChanged(auth, u => { setUser(u); setAuthLoading(false); }), []);
 
+  // Persistir dark mode en localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('questflow_dark');
+    if (saved === 'true' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+      document.documentElement.classList.add('dark');
+    }
+  }, []);
+
   // Load GCal token from localStorage
   useEffect(() => {
     const token = localStorage.getItem('gcal_token');
@@ -160,7 +170,22 @@ export default function App() {
     const uid = user.uid;
     let loaded = 0;
     const markLoaded = () => { if (++loaded === 11) setDataReady(true); };
-    const u1  = onSnapshot(doc(db, 'usuarios', uid, 'stats', 'main'),       s => { setFsStats(s.exists() ? s.data() as FSStatsDoc : null); markLoaded(); });
+    let prevStatsDoc: FSStatsDoc | null = null;
+    const unsubStats = onSnapshot(doc(db, 'usuarios', uid, 'stats', 'main'), snap => {
+      const newStats = snap.data() as FSStatsDoc ?? null;
+      if (prevStatsDoc && newStats) {
+        const leveledUp = FS_KEYS.some(k =>
+          xpLevel(newStats[k]?.xp ?? 0).level > xpLevel(prevStatsDoc![k]?.xp ?? 0).level
+        );
+        if (leveledUp) {
+          confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 }, colors: ['#3b82f6', '#8b5cf6', '#f59e0b', '#10b981'] });
+          showToast('¡Subiste de nivel! 🎉', true);
+        }
+      }
+      prevStatsDoc = newStats;
+      setFsStats(newStats);
+      markLoaded();
+    });
     const u2  = onSnapshot(collection(db, 'usuarios', uid, 'habitos'),       s => { setFsHabitos(s.docs.map(d => ({ id: d.id, ...d.data() } as FSHabito))); markLoaded(); });
     const u3  = onSnapshot(collection(db, 'usuarios', uid, 'eventos'),       s => { setFsEventos(s.docs.map(d => ({ id: d.id, ...d.data() } as FSEvento))); markLoaded(); });
     const u4  = onSnapshot(collection(db, 'usuarios', uid, 'misiones'),      s => { setFsMisiones(s.docs.map(d => ({ id: d.id, ...d.data() } as FSMision))); markLoaded(); });
@@ -171,7 +196,7 @@ export default function App() {
     const u9  = onSnapshot(collection(db, 'usuarios', uid, 'diario'),        s => { setFsDiario(s.docs.map(d => ({ id: d.id, ...d.data() } as FSEntradaDiario))); markLoaded(); });
     const u10 = onSnapshot(collection(db, 'usuarios', uid, 'objetivos_cha'), s => { setFsObjetivosCHA(s.docs.map(d => ({ id: d.id, ...d.data() } as FSObjetivoCHA))); markLoaded(); });
     const u11 = onSnapshot(collection(db, 'usuarios', uid, 'transacciones'), s => { setFsTransacciones(s.docs.map(d => ({ id: d.id, ...d.data() } as FSTransaccion))); markLoaded(); });
-    return () => { u1(); u2(); u3(); u4(); u5(); u6(); u7(); u8(); u9(); u10(); u11(); };
+    return () => { unsubStats(); u2(); u3(); u4(); u5(); u6(); u7(); u8(); u9(); u10(); u11(); };
   }, [user?.uid]);
 
   // ── Derived ───────────────────────────────────────────────────────────────
@@ -207,6 +232,28 @@ export default function App() {
     const ordenadas   = [...fsTransacciones].sort((a, b) => b.fecha.localeCompare(a.fecha));
     return { ingresosMes, gastosMes, saldoTotal, ordenadas };
   }, [fsTransacciones]);
+
+  // Nivel principal, rango y clase
+  const mainLevelData = useMemo(() => calcMainLevel(fsStats), [fsStats]);
+  const heroRank      = useMemo(() => rankFromLevel(mainLevelData.level), [mainLevelData.level]);
+  const heroClass     = useMemo(() => assignClass(fsStats), [fsStats]);
+
+  // XP por día y logros
+  const xpPerDay = calcXpPerDay(fsHabitos, 14);
+  const logrosUnlocked = useMemo(() => {
+    const ids: string[] = [];
+    if (fsHabitos.some(h => (h.completedDates?.length ?? 0) > 0)) ids.push('primera_quest');
+    if (fsHabitos.some(h => calcStreak(h.completedDates ?? [], h.recurrence ?? 'daily') >= 7)) ids.push('racha_7');
+    if (fsHabitos.some(h => calcStreak(h.completedDates ?? [], h.recurrence ?? 'daily') >= 30)) ids.push('racha_30');
+    if (Object.values(fsStats ?? {}).some((s: { xp: number }) => xpLevel(s.xp).level >= 5)) ids.push('nivel_5');
+    if (Object.values(fsStats ?? {}).some((s: { xp: number }) => xpLevel(s.xp).level >= 10)) ids.push('nivel_10');
+    if (fsLibros.some(l => l.estado === 'leido')) ids.push('primer_libro');
+    if (fsMaterias.some(m => m.examenes.some(e => e.nota !== undefined))) ids.push('primer_examen');
+    const habitsToday = fsHabitos.filter(h => isHabitActiveToday(h));
+    const doneToday   = fsHabitos.filter(h => isHabitDoneToday(h)).length;
+    if (habitsToday.length > 0 && doneToday === habitsToday.length) ids.push('todos_hoy');
+    return ids;
+  }, [fsHabitos, fsStats, fsLibros, fsMaterias]);
 
   const filterTasks = (d: Date): Task[] => {
     const dStr = d.toISOString().slice(0, 10);
@@ -1062,9 +1109,17 @@ export default function App() {
                   <div className="flex-1 min-w-[180px]">
                     <div className="flex items-center gap-3 mb-1">
                       <h3 className="text-xl font-black text-white tracking-tight">{user.displayName}</h3>
-                      <span className="text-[10px] font-black bg-blue-500/20 border border-blue-400/30 text-blue-300 px-3 py-1 rounded-full uppercase tracking-widest">Hero</span>
+                      <span className={cn('text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest border', CLASS_META[heroClass]?.color ?? 'text-blue-300', 'bg-white/10 border-white/20')}>
+                        {CLASS_META[heroClass]?.icon} {heroClass}
+                      </span>
+                      <span className={cn('text-[10px] font-black px-2 py-1 rounded-full uppercase tracking-widest bg-white/10 border border-white/20', RANK_META[heroRank]?.color ?? 'text-slate-300')}>
+                        {RANK_META[heroRank]?.label ?? heroRank}
+                      </span>
                     </div>
-                    <p className="text-slate-400 text-xs mb-3">{xpInLevel} / {heroXpForNext} XP — nivel {heroLevel}</p>
+                    <p className="text-slate-400 text-xs mb-1">{xpInLevel} / {heroXpForNext} XP — nivel {heroLevel}</p>
+                    <p className={cn('text-xs font-bold mb-3', RANK_META[heroRank]?.color ?? 'text-slate-400')}>
+                      Nivel Principal {mainLevelData.level} · {RANK_META[heroRank]?.label}
+                    </p>
                     <div className="flex items-center gap-3">
                       <div className="flex-1 h-2 bg-slate-800 rounded-full overflow-hidden border border-slate-700/50">
                         <motion.div initial={{ width: 0 }} animate={{ width: `${(xpInLevel / heroXpForNext) * 100}%` }} transition={{ duration: 1, ease: 'easeOut' }} className="h-full bg-gradient-to-r from-blue-600 to-blue-400 rounded-full" />
@@ -1223,6 +1278,47 @@ export default function App() {
                             <p className="text-[10px] text-blue-200 mt-1">{missions.progress}%</p>
                           </div>
                     }
+                  </section>
+
+                  {/* XP History — últimos 14 días */}
+                  <section className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800">
+                    <h4 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">XP Semanal</h4>
+                    <div className="h-28">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={xpPerDay}>
+                          <XAxis dataKey="date" tick={{ fontSize: 8, fill: '#94a3b8' }} tickFormatter={d => d.slice(5)} />
+                          <YAxis hide />
+                          <Line type="monotone" dataKey="xp" stroke="#3b82f6" strokeWidth={2} dot={false} />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </section>
+
+                  {/* Logros */}
+                  <section className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800">
+                    <h4 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">Logros</h4>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { id: 'primera_quest', icon: '⚔️', label: 'Primera Quest' },
+                        { id: 'racha_7',       icon: '🔥', label: 'Racha 7 días'  },
+                        { id: 'racha_30',      icon: '🔥', label: 'Racha 30 días' },
+                        { id: 'nivel_5',       icon: '⭐', label: 'Nivel 5'       },
+                        { id: 'nivel_10',      icon: '🌟', label: 'Nivel 10'      },
+                        { id: 'primer_libro',  icon: '📚', label: 'Primer libro'  },
+                        { id: 'primer_examen', icon: '🎓', label: 'Primer examen' },
+                        { id: 'todos_hoy',     icon: '✅', label: 'Todas hoy'     },
+                      ].map(l => {
+                        const done = logrosUnlocked.includes(l.id);
+                        return (
+                          <div key={l.id} title={l.label}
+                            className={cn('flex flex-col items-center gap-1 p-2 rounded-xl border text-center transition-all',
+                              done ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700/50' : 'border-slate-100 dark:border-slate-800 opacity-40 grayscale')}>
+                            <span className="text-xl">{l.icon}</span>
+                            <span className="text-[9px] font-bold text-slate-500 leading-tight">{l.label}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </section>
                 </div>
               </div>
@@ -1957,7 +2053,18 @@ export default function App() {
                             <div className="scale-150">{h.icon}</div>
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className={cn('font-black text-sm', h.completed && 'line-through text-slate-400')}>{h.name}</p>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className={cn('font-black text-sm', h.completed && 'line-through text-slate-400')}>{h.name}</p>
+                              {(() => {
+                                const fh = fsHabitos.find(x => x.id === h.id);
+                                const streak = fh ? calcStreak(fh.completedDates ?? [], fh.recurrence ?? 'daily') : 0;
+                                return streak > 0 ? (
+                                  <span className="flex items-center gap-0.5 text-[10px] font-black text-orange-400">
+                                    <Flame className="w-3 h-3" /> {streak}
+                                  </span>
+                                ) : null;
+                              })()}
+                            </div>
                             <div className="flex items-center gap-2 mt-1 flex-wrap">
                               <span className="text-[10px] font-bold text-blue-500 uppercase tracking-widest">{h.attribute}</span>
                               <span className="text-[10px] text-slate-400">·</span>
