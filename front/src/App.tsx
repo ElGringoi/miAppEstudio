@@ -34,7 +34,7 @@ import type {
   TipoMaterial, FSMaterial, FSTareaFac, FSExamen, FSMateria,
   FSEntradaDiario, FSObjetivoCHA, FSTransaccion, Habit, Task, HabitRecurrence, TabId, Moneda, LevelUpEvent, MisionPrioridad,
 } from './types';
-import CalendarHeatmap from 'react-calendar-heatmap';
+import { HabitHeatmap } from './components/HabitHeatmap';
 import confetti from 'canvas-confetti';
 import { HOY, FS_KEYS, STAT_META, DIAS_CORTO, DIAS_LETRA, ESTADO_LIBRO_META, MATERIAL_ICON, CATEGORIAS_GASTO, CATEGORIAS_INGRESO, CLASS_META, RANK_META, MONEDA_META, PRIORIDAD_META } from './utils/constants';
 import { xpLevel, statsFromDoc, buildTree, youtubeEmbedUrl, isHabitActiveToday, isHabitDoneToday, isDateInCurrentWeek, habitRecurrenceLabel, calcStreak, calcMainLevel, rankFromLevel, assignClass, calcXpPerDay, streakMultiplier, calcXpBySource } from './utils/helpers';
@@ -2433,18 +2433,7 @@ export default function App() {
                     {/* Heatmap */}
                     <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800">
                       <h4 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">Historial de completado</h4>
-                      <CalendarHeatmap
-                        startDate={new Date(new Date().getTime() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)}
-                        endDate={HOY}
-                        values={heatmapData}
-                        classForValue={v => {
-                          if (!v || v.count === 0) return 'color-empty';
-                          if (v.count >= 5) return 'color-scale-4';
-                          return `color-scale-${Math.min(v.count, 3)}`;
-                        }}
-                        tooltipDataAttrs={(v) => ({ 'data-tip': v?.date ? `${v.date}: ${(v as { date: string; count: number }).count} hábito(s)` : 'Sin datos' } as Record<string, string>)}
-                        showWeekdayLabels
-                      />
+                      <HabitHeatmap data={heatmapData} />
                     </div>
                   </>
               }

@@ -1,5 +1,4 @@
 @import "tailwindcss";
-@import "react-calendar-heatmap/dist/styles.css";
 
 @variant dark (&:where(.dark, .dark *));
 
@@ -12,13 +11,6 @@
   box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.36);
 }
 
-/* ── Heatmap dark RPG theme ───────────────────────────────────────────────── */
-.react-calendar-heatmap .color-empty   { fill: #1e293b; }
-.react-calendar-heatmap .color-scale-1 { fill: #3730a3; }
-.react-calendar-heatmap .color-scale-2 { fill: #4f46e5; }
-.react-calendar-heatmap .color-scale-3 { fill: #6366f1; }
-.react-calendar-heatmap .color-scale-4 { fill: #a5b4fc; }
-.react-calendar-heatmap rect:hover     { stroke: #c7d2fe; stroke-width: 1px; }
 
 /* ── Stat-up overlay animation ────────────────────────────────────────────── */
 @keyframes stat-pulse {
