@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, type ReactNode } from 'react';
 import {
   LayoutDashboard, Calendar as CalendarIcon, Zap, Settings,
   CheckCircle2, Plus, Target, Sword, Flame, Dumbbell,
@@ -23,16 +23,16 @@ import {
 import type { User } from 'firebase/auth';
 import {
   collection, doc, increment, onSnapshot,
-  setDoc, updateDoc, addDoc, deleteDoc, writeBatch,
+  updateDoc, addDoc, deleteDoc, writeBatch,
 } from 'firebase/firestore';
 import { auth, db } from './lib/firebase';
 import type {
   FSStatKey, FSStatsDoc, FSHabito, FSEvento, FSMision, FSTarea,
   GCalEvent, FSEjercicio, FSRutina, EstadoLibro, FSCapitulo, FSLibro,
   TipoMaterial, FSMaterial, FSTareaFac, FSExamen, FSMateria,
-  FSEntradaDiario, FSObjetivoCHA, FSTransaccion, Habit, Task, HabitRecurrence,
+  FSEntradaDiario, FSObjetivoCHA, FSTransaccion, Habit, Task, HabitRecurrence, TabId,
 } from './types';
-import { HOY, FS_KEYS, STAT_META, DIAS_CORTO, DIAS_LETRA, ESTADO_LIBRO_META, MATERIAL_ICON } from './utils/constants';
+import { HOY, FS_KEYS, STAT_META, DIAS_CORTO, DIAS_LETRA, ESTADO_LIBRO_META, MATERIAL_ICON, CATEGORIAS_GASTO, CATEGORIAS_INGRESO } from './utils/constants';
 import { xpLevel, statsFromDoc, buildTree, youtubeEmbedUrl, isHabitActiveToday, isHabitDoneToday, isDateInCurrentWeek, habitRecurrenceLabel } from './utils/helpers';
 import { ProgressBar } from './components/ProgressBar';
 import { StatCard } from './components/StatCard';
@@ -40,9 +40,6 @@ import { CapituloRow } from './components/CapituloRow';
 import { EjercicioRow } from './components/EjercicioRow';
 import { MissionNodeComp } from './components/MissionNodeComp';
 import { LoginScreen } from './components/LoginScreen';
-
-const CATEGORIAS_GASTO   = ['🍔 Comida', '🚗 Transporte', '🏠 Vivienda', '💊 Salud', '📚 Educación', '🎮 Ocio', '🛒 Compras', '📦 Otro'];
-const CATEGORIAS_INGRESO = ['💼 Trabajo', '💻 Freelance', '📈 Inversión', '🎁 Regalo', '📦 Otro'];
 
 // ─── App ──────────────────────────────────────────────────────────────────────
 
@@ -60,7 +57,7 @@ export default function App() {
   const [fsTareas,   setFsTareas]   = useState<FSTarea[]>([]);
 
   // UI state
-  const [tab,         setTab]         = useState('dashboard');
+  const [tab,         setTab]         = useState<TabId>('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [selDate,     setSelDate]     = useState(new Date());
 
@@ -244,9 +241,11 @@ export default function App() {
     if (!h || !isHabitActiveToday(h)) return;
     const yaHecho = isHabitDoneToday(h);
     const prev = h.completedDates ?? (h.fechaCompletado ? [h.fechaCompletado] : []);
-    const next = yaHecho
+    const toggled = yaHecho
       ? (h.recurrence === 'once_week' ? prev.filter(d => !isDateInCurrentWeek(d)) : prev.filter(d => d !== HOY))
       : [...prev, HOY];
+    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 90);
+    const next = toggled.filter(d => d >= cutoff.toISOString().slice(0, 10));
     const xp = h.xpValue ?? 20;
     try {
       const batch = writeBatch(db);
@@ -330,25 +329,33 @@ export default function App() {
 
   async function deleteHabit(id: string) {
     if (!user?.uid) return;
-    await deleteDoc(doc(db, 'usuarios', user.uid, 'habitos', id));
+    try {
+      await deleteDoc(doc(db, 'usuarios', user.uid, 'habitos', id));
+    } catch {
+      showToast('Error al eliminar el hábito');
+    }
   }
 
   async function updateHabitXp(id: string, xpValue: number) {
     if (!user?.uid || xpValue < 1) return;
-    await updateDoc(doc(db, 'usuarios', user.uid, 'habitos', id), { xpValue });
+    try {
+      await updateDoc(doc(db, 'usuarios', user.uid, 'habitos', id), { xpValue });
+    } catch {
+      showToast('Error al guardar el XP');
+    }
   }
 
   async function addTask() {
     if (!user?.uid || !taskForm.titulo.trim()) return;
-    const data: Record<string, unknown> = {
+    const data: Omit<FSTarea, 'id'> = {
       titulo: taskForm.titulo.trim(),
       recurrence: taskForm.recurrence,
       color: taskForm.color,
       completedDates: [],
+      ...(taskForm.hora ? { hora: taskForm.hora } : {}),
+      ...(taskForm.recurrence === 'weekly' ? { weekday: taskForm.weekday } : {}),
+      ...(taskForm.recurrence === 'once' ? { date: taskForm.date } : {}),
     };
-    if (taskForm.hora) data.hora = taskForm.hora;
-    if (taskForm.recurrence === 'weekly') data.weekday = taskForm.weekday;
-    if (taskForm.recurrence === 'once') data.date = taskForm.date;
     try {
       await addDoc(collection(db, 'usuarios', user.uid, 'tareas'), data);
       setTaskForm({ titulo: '', hora: '', recurrence: 'once', weekday: 1, date: HOY, color: '#3b82f6' });
@@ -360,13 +367,20 @@ export default function App() {
 
   async function deleteTask(id: string) {
     if (!user?.uid) return;
-    await deleteDoc(doc(db, 'usuarios', user.uid, 'tareas', id));
+    try {
+      await deleteDoc(doc(db, 'usuarios', user.uid, 'tareas', id));
+    } catch {
+      showToast('Error al eliminar la tarea');
+    }
   }
 
   async function addEvento() {
     if (!user?.uid || !eventoForm.titulo.trim()) return;
-    const data: Record<string, unknown> = { titulo: eventoForm.titulo.trim(), fecha: eventoForm.fecha };
-    if (eventoForm.hora) data.hora = eventoForm.hora;
+    const data: Omit<FSEvento, 'id'> = {
+      titulo: eventoForm.titulo.trim(),
+      fecha: eventoForm.fecha,
+      ...(eventoForm.hora ? { hora: eventoForm.hora } : {}),
+    };
     try {
       await addDoc(collection(db, 'usuarios', user.uid, 'eventos'), data);
       setEventoForm({ titulo: '', hora: '', fecha: HOY });
@@ -378,7 +392,11 @@ export default function App() {
 
   async function deleteEvento(id: string) {
     if (!user?.uid) return;
-    await deleteDoc(doc(db, 'usuarios', user.uid, 'eventos', id));
+    try {
+      await deleteDoc(doc(db, 'usuarios', user.uid, 'eventos', id));
+    } catch {
+      showToast('Error al eliminar el evento');
+    }
   }
 
   async function addRutina() {
@@ -438,19 +456,27 @@ export default function App() {
         mediaUrl: ejercicioForm.mediaUrl,
       };
     });
-    await updateDoc(doc(db, 'usuarios', user.uid, 'rutinas', targetRutinaId), { ejercicios });
-    setEjercicioForm({ nombre: '', series: 3, reps: '8-12', notas: '', mediaUrl: '' });
-    setTargetEjercicioId(null);
-    setModal(null);
+    try {
+      await updateDoc(doc(db, 'usuarios', user.uid, 'rutinas', targetRutinaId), { ejercicios });
+      setEjercicioForm({ nombre: '', series: 3, reps: '8-12', notas: '', mediaUrl: '' });
+      setTargetEjercicioId(null);
+      setModal(null);
+    } catch (e: unknown) {
+      setModalError((e as Error).message ?? 'Error al guardar');
+    }
   }
 
   async function deleteEjercicio(rutinaId: string, ejId: string) {
     if (!user?.uid) return;
     const rutina = fsRutinas.find(r => r.id === rutinaId);
     if (!rutina) return;
-    await updateDoc(doc(db, 'usuarios', user.uid, 'rutinas', rutinaId), {
-      ejercicios: rutina.ejercicios.filter(e => e.id !== ejId),
-    });
+    try {
+      await updateDoc(doc(db, 'usuarios', user.uid, 'rutinas', rutinaId), {
+        ejercicios: rutina.ejercicios.filter(e => e.id !== ejId),
+      });
+    } catch {
+      showToast('Error al eliminar el ejercicio');
+    }
   }
 
   async function toggleEjercicio(rutinaId: string, ejId: string) {
@@ -463,9 +489,15 @@ export default function App() {
     const ejercicios = rutina.ejercicios.map(e =>
       e.id !== ejId ? e : { ...e, lastCompletedDate: completing ? HOY : null }
     );
-    await updateDoc(doc(db, 'usuarios', user.uid, 'rutinas', rutinaId), { ejercicios });
-    await setDoc(doc(db, 'usuarios', user.uid, 'stats', 'main'),
-      { fuerza: { xp: increment(completing ? 5 : -5) } }, { merge: true });
+    try {
+      const batch = writeBatch(db);
+      batch.update(doc(db, 'usuarios', user.uid, 'rutinas', rutinaId), { ejercicios });
+      batch.set(doc(db, 'usuarios', user.uid, 'stats', 'main'),
+        { fuerza: { xp: increment(completing ? 5 : -5) } }, { merge: true });
+      await batch.commit();
+    } catch {
+      showToast('Error al guardar el ejercicio');
+    }
   }
 
   async function seedRutinaHipertrofia() {
@@ -541,13 +573,21 @@ export default function App() {
 
   async function deleteLibro(id: string) {
     if (!user?.uid) return;
-    await deleteDoc(doc(db, 'usuarios', user.uid, 'libros', id));
-    if (expandedLibro === id) setExpandedLibro(null);
+    try {
+      await deleteDoc(doc(db, 'usuarios', user.uid, 'libros', id));
+      if (expandedLibro === id) setExpandedLibro(null);
+    } catch {
+      showToast('Error al eliminar el libro');
+    }
   }
 
   async function updateLibroEstado(libroId: string, estado: EstadoLibro) {
     if (!user?.uid) return;
-    await updateDoc(doc(db, 'usuarios', user.uid, 'libros', libroId), { estado });
+    try {
+      await updateDoc(doc(db, 'usuarios', user.uid, 'libros', libroId), { estado });
+    } catch {
+      showToast('Error al actualizar el estado');
+    }
   }
 
   async function toggleCapitulo(libroId: string, capId: string) {
@@ -558,9 +598,15 @@ export default function App() {
     if (!cap) return;
     const completing = !cap.leido;
     const capitulos = libro.capitulos.map(c => c.id !== capId ? c : { ...c, leido: completing });
-    await updateDoc(doc(db, 'usuarios', user.uid, 'libros', libroId), { capitulos });
-    await setDoc(doc(db, 'usuarios', user.uid, 'stats', 'main'),
-      { inteligencia: { xp: increment(completing ? libro.xpPorCapitulo : -libro.xpPorCapitulo) } }, { merge: true });
+    try {
+      const batch = writeBatch(db);
+      batch.update(doc(db, 'usuarios', user.uid, 'libros', libroId), { capitulos });
+      batch.set(doc(db, 'usuarios', user.uid, 'stats', 'main'),
+        { inteligencia: { xp: increment(completing ? libro.xpPorCapitulo : -libro.xpPorCapitulo) } }, { merge: true });
+      await batch.commit();
+    } catch {
+      showToast('Error al guardar el capítulo');
+    }
   }
 
   async function saveCapituloNotas(libroId: string, capId: string, notas: string) {
@@ -568,7 +614,11 @@ export default function App() {
     const libro = fsLibros.find(l => l.id === libroId);
     if (!libro) return;
     const capitulos = libro.capitulos.map(c => c.id !== capId ? c : { ...c, notas });
-    await updateDoc(doc(db, 'usuarios', user.uid, 'libros', libroId), { capitulos });
+    try {
+      await updateDoc(doc(db, 'usuarios', user.uid, 'libros', libroId), { capitulos });
+    } catch {
+      showToast('Error al guardar las notas');
+    }
   }
 
   // ── Facultad CRUD ─────────────────────────────────────────────────────────────
@@ -589,8 +639,12 @@ export default function App() {
 
   async function deleteMateria(id: string) {
     if (!user?.uid) return;
-    await deleteDoc(doc(db, 'usuarios', user.uid, 'materias', id));
-    if (selectedMateria === id) setSelectedMateria(null);
+    try {
+      await deleteDoc(doc(db, 'usuarios', user.uid, 'materias', id));
+      if (selectedMateria === id) setSelectedMateria(null);
+    } catch {
+      showToast('Error al eliminar la materia');
+    }
   }
 
   async function addMaterial() {
@@ -615,7 +669,11 @@ export default function App() {
     if (!user?.uid) return;
     const m = fsMaterias.find(x => x.id === materiaId);
     if (!m) return;
-    await updateDoc(doc(db, 'usuarios', user.uid, 'materias', materiaId), { materiales: m.materiales.filter(x => x.id !== matId) });
+    try {
+      await updateDoc(doc(db, 'usuarios', user.uid, 'materias', materiaId), { materiales: m.materiales.filter(x => x.id !== matId) });
+    } catch {
+      showToast('Error al eliminar el material');
+    }
   }
 
   async function addTareaFac() {
@@ -643,16 +701,26 @@ export default function App() {
     if (!t) return;
     const completing = !t.completada;
     const tareas = m.tareas.map(x => x.id !== tareaId ? x : { ...x, completada: completing });
-    await updateDoc(doc(db, 'usuarios', user.uid, 'materias', materiaId), { tareas });
-    await setDoc(doc(db, 'usuarios', user.uid, 'stats', 'main'),
-      { inteligencia: { xp: increment(completing ? 15 : -15) } }, { merge: true });
+    try {
+      const batch = writeBatch(db);
+      batch.update(doc(db, 'usuarios', user.uid, 'materias', materiaId), { tareas });
+      batch.set(doc(db, 'usuarios', user.uid, 'stats', 'main'),
+        { inteligencia: { xp: increment(completing ? 15 : -15) } }, { merge: true });
+      await batch.commit();
+    } catch {
+      showToast('Error al guardar la tarea');
+    }
   }
 
   async function deleteTareaFac(materiaId: string, tareaId: string) {
     if (!user?.uid) return;
     const m = fsMaterias.find(x => x.id === materiaId);
     if (!m) return;
-    await updateDoc(doc(db, 'usuarios', user.uid, 'materias', materiaId), { tareas: m.tareas.filter(x => x.id !== tareaId) });
+    try {
+      await updateDoc(doc(db, 'usuarios', user.uid, 'materias', materiaId), { tareas: m.tareas.filter(x => x.id !== tareaId) });
+    } catch {
+      showToast('Error al eliminar la tarea');
+    }
   }
 
   async function addExamen() {
@@ -667,12 +735,14 @@ export default function App() {
       ...(nota !== undefined ? { nota } : {}),
     };
     try {
-      await updateDoc(doc(db, 'usuarios', user.uid, 'materias', targetMateriaId), { examenes: [...materia.examenes, newEx] });
+      const batch = writeBatch(db);
+      batch.update(doc(db, 'usuarios', user.uid, 'materias', targetMateriaId), { examenes: [...materia.examenes, newEx] });
       if (nota !== undefined) {
         const xp = Math.round((nota / notaMax) * 30);
-        await setDoc(doc(db, 'usuarios', user.uid, 'stats', 'main'),
+        batch.set(doc(db, 'usuarios', user.uid, 'stats', 'main'),
           { inteligencia: { xp: increment(xp) } }, { merge: true });
       }
+      await batch.commit();
       setExamenForm({ titulo: '', fecha: '', nota: '', notaMax: '10' });
       setModal(null);
     } catch (e: unknown) {
@@ -684,7 +754,11 @@ export default function App() {
     if (!user?.uid) return;
     const m = fsMaterias.find(x => x.id === materiaId);
     if (!m) return;
-    await updateDoc(doc(db, 'usuarios', user.uid, 'materias', materiaId), { examenes: m.examenes.filter(x => x.id !== examenId) });
+    try {
+      await updateDoc(doc(db, 'usuarios', user.uid, 'materias', materiaId), { examenes: m.examenes.filter(x => x.id !== examenId) });
+    } catch {
+      showToast('Error al eliminar el examen');
+    }
   }
 
   async function connectGCal() {
@@ -773,7 +847,7 @@ export default function App() {
 
   // ── Nav ───────────────────────────────────────────────────────────────────
 
-  const NAV = [
+  const NAV: { id: TabId; icon: ReactNode; label: string }[] = [
     { id: 'dashboard',  icon: <LayoutDashboard className="w-5 h-5" />, label: 'Dashboard'  },
     { id: 'calendar',   icon: <CalendarIcon     className="w-5 h-5" />, label: 'Calendar'   },
     { id: 'gym',        icon: <Dumbbell         className="w-5 h-5" />, label: 'Gym'        },

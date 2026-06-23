@@ -3,6 +3,8 @@ import { Dumbbell, Heart, Brain, Zap, Sparkles, Star } from 'lucide-react';
 import type { FSStatKey, EstadoLibro, TipoMaterial, Stat } from '../types';
 
 export const HOY = new Date().toISOString().slice(0, 10);
+export const CATEGORIAS_GASTO   = ['🍔 Comida', '🚗 Transporte', '🏠 Vivienda', '💊 Salud', '📚 Educación', '🎮 Ocio', '🛒 Compras', '📦 Otro'];
+export const CATEGORIAS_INGRESO = ['💼 Trabajo', '💻 Freelance', '📈 Inversión', '🎁 Regalo', '📦 Otro'];
 export const FS_KEYS: FSStatKey[] = ['fuerza', 'salud', 'inteligencia', 'agilidad', 'carisma', 'fe'];
 export const DIAS_CORTO = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 export const DIAS_LETRA = ['D', 'L', 'M', 'X', 'J', 'V', 'S'];
