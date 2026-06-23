@@ -28,10 +28,24 @@ export function buildTree(misiones: FSMision[]): MissionNode {
   const empty: MissionNode = { id: 'root', title: 'My Missions', type: 'epic', progress: 0, children: [] };
   if (!misiones.length) return empty;
 
+  const completedIds = new Set(misiones.filter(m => m.completada).map(m => m.id));
+
   function node(m: FSMision, depth: number): MissionNode {
     const kids = misiones.filter(c => c.parentId === m.id).sort((a, b) => a.orden - b.orden).map(c => node(c, depth + 1));
     const prog = kids.length ? Math.round(kids.filter(k => k.progress === 100).length / kids.length * 100) : m.completada ? 100 : 0;
-    return { id: m.id, title: m.titulo, type: depth === 0 ? 'epic' : depth === 1 ? 'milestone' : 'task', progress: prog, children: kids.length ? kids : undefined };
+    const bloqueada = (m.prerequisitos ?? []).some(pid => !completedIds.has(pid));
+    return {
+      id: m.id, title: m.titulo,
+      type: depth === 0 ? 'epic' : depth === 1 ? 'milestone' : 'task',
+      progress: prog,
+      children: kids.length ? kids : undefined,
+      prioridad: m.prioridad,
+      descripcion: m.descripcion,
+      prerequisitos: m.prerequisitos,
+      costoMonto: m.costoMonto,
+      costoMoneda: m.costoMoneda,
+      bloqueada,
+    };
   }
 
   const roots = misiones.filter(m => !m.parentId).sort((a, b) => a.orden - b.orden);

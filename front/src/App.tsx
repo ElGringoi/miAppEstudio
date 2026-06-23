@@ -32,7 +32,7 @@ import type {
   FSStatKey, FSStatsDoc, FSHabito, FSEvento, FSMision, FSTarea,
   GCalEvent, FSEjercicio, FSRutina, EstadoLibro, FSCapitulo, FSLibro,
   TipoMaterial, FSMaterial, FSTareaFac, FSExamen, FSMateria,
-  FSEntradaDiario, FSObjetivoCHA, FSTransaccion, Habit, Task, HabitRecurrence, TabId, Moneda, LevelUpEvent,
+  FSEntradaDiario, FSObjetivoCHA, FSTransaccion, Habit, Task, HabitRecurrence, TabId, Moneda, LevelUpEvent, MisionPrioridad,
 } from './types';
 import CalendarHeatmap from 'react-calendar-heatmap';
 import confetti from 'canvas-confetti';
@@ -120,8 +120,15 @@ export default function App() {
   const [_nuevaObjetivoTxt, _setNuevaObjetivoTxt] = useState('');
 
   // Modal state
-  const [modal, setModal] = useState<'habit' | 'task' | 'evento' | 'rutina' | 'ejercicio' | 'libro' | 'materia' | 'material' | 'tareaFac' | 'examen' | 'entrada_diario' | null>(null);
+  const [modal, setModal] = useState<'habit' | 'task' | 'evento' | 'rutina' | 'ejercicio' | 'libro' | 'materia' | 'material' | 'tareaFac' | 'examen' | 'entrada_diario' | 'mision' | null>(null);
   const [editingHabitId, setEditingHabitId] = useState<string | null>(null);
+  const [editingMisionId, setEditingMisionId] = useState<string | null>(null);
+  const [misionForm, setMisionForm] = useState({
+    titulo: '', descripcion: '', parentId: '' as string,
+    prioridad: '' as MisionPrioridad | '',
+    prerequisitos: [] as string[],
+    costoMonto: '', costoMoneda: 'ARS' as Moneda,
+  });
   const [habitForm,      setHabitForm]      = useState({ nombre: '', stat: 'fuerza' as FSStatKey, recurrence: 'daily' as HabitRecurrence, diasSemana: [] as number[] });
   const [taskForm,     setTaskForm]     = useState({ titulo: '', hora: '', recurrence: 'once' as FSTarea['recurrence'], weekday: 1, date: HOY, color: '#3b82f6' });
   const [eventoForm,   setEventoForm]   = useState({ titulo: '', hora: '', fecha: HOY });
@@ -412,6 +419,57 @@ export default function App() {
     }
   }
 
+  function openAddMision(parentId = '') {
+    setEditingMisionId(null);
+    setMisionForm({ titulo: '', descripcion: '', parentId, prioridad: '', prerequisitos: [], costoMonto: '', costoMoneda: 'ARS' });
+    setModal('mision');
+  }
+
+  function openEditMision(id: string) {
+    const m = fsMisiones.find(x => x.id === id);
+    if (!m) return;
+    setEditingMisionId(id);
+    setMisionForm({
+      titulo: m.titulo,
+      descripcion: m.descripcion ?? '',
+      parentId: m.parentId ?? '',
+      prioridad: m.prioridad ?? '',
+      prerequisitos: m.prerequisitos ?? [],
+      costoMonto: m.costoMonto != null ? String(m.costoMonto) : '',
+      costoMoneda: m.costoMoneda ?? 'ARS',
+    });
+    setModal('mision');
+  }
+
+  async function saveMision() {
+    if (!user?.uid || !misionForm.titulo.trim()) return;
+    const realParent = misionForm.parentId === 'root' || !misionForm.parentId ? null : misionForm.parentId;
+    const data: Partial<FSMision> = {
+      titulo: misionForm.titulo.trim(),
+      descripcion: misionForm.descripcion.trim() || undefined,
+      parentId: realParent,
+      prioridad: misionForm.prioridad || undefined,
+      prerequisitos: misionForm.prerequisitos.length ? misionForm.prerequisitos : undefined,
+      costoMonto: misionForm.costoMonto ? parseFloat(misionForm.costoMonto) : undefined,
+      costoMoneda: misionForm.costoMonto ? misionForm.costoMoneda : undefined,
+    };
+    try {
+      if (editingMisionId) {
+        await updateDoc(doc(db, 'usuarios', user.uid, 'misiones', editingMisionId), data);
+        showToast('Misión actualizada', true);
+      } else {
+        await addDoc(collection(db, 'usuarios', user.uid, 'misiones'), {
+          ...data, completada: false,
+          orden: fsMisiones.filter(m => m.parentId === realParent).length,
+        });
+        showToast('Misión agregada', true);
+      }
+      setModal(null);
+    } catch {
+      showToast('Error al guardar la misión');
+    }
+  }
+
   async function addMission(parentId: string, title: string) {
     if (!user?.uid) return;
     const realParent = parentId === 'root' ? null : parentId;
@@ -429,10 +487,46 @@ export default function App() {
     if (!user?.uid) return;
     const m = fsMisiones.find(x => x.id === id);
     if (!m) return;
+    if (!m.completada && (m.prerequisitos ?? []).length > 0) {
+      const completedIds = new Set(fsMisiones.filter(x => x.completada).map(x => x.id));
+      const bloqueada = m.prerequisitos!.some(pid => !completedIds.has(pid));
+      if (bloqueada) { showToast('Completá las misiones prerequisito primero'); return; }
+    }
+    const nuevaCompletada = !m.completada;
     try {
-      await updateDoc(doc(db, 'usuarios', user.uid, 'misiones', id), { completada: !m.completada });
+      await updateDoc(doc(db, 'usuarios', user.uid, 'misiones', id), { completada: nuevaCompletada });
+      if (nuevaCompletada && m.costoMonto && m.costoMonto > 0 && user.uid) {
+        const sym = MONEDA_META[m.costoMoneda ?? 'ARS']?.symbol ?? '$';
+        const ok = window.confirm(`¿Registrar gasto de ${sym}${m.costoMonto.toLocaleString('es-AR')} en Treasury por "${m.titulo}"?`);
+        if (ok) {
+          await addDoc(collection(db, 'usuarios', user.uid, 'transacciones'), {
+            descripcion: m.titulo,
+            monto: m.costoMonto,
+            tipo: 'gasto',
+            categoria: '🎯 Misión',
+            fecha: HOY,
+            moneda: m.costoMoneda ?? 'ARS',
+          });
+          showToast(`Gasto registrado en Treasury`, true);
+        }
+      } else if (nuevaCompletada) {
+        showToast('¡Misión completada!', true);
+        confetti({ particleCount: 60, spread: 50, origin: { y: 0.6 } });
+      }
     } catch {
       showToast('Error al actualizar la misión');
+    }
+  }
+
+  async function deleteMision(id: string) {
+    if (!user?.uid) return;
+    const hijos = fsMisiones.filter(m => m.parentId === id);
+    if (hijos.length > 0 && !window.confirm(`Esta misión tiene ${hijos.length} sub-misión(es). ¿Eliminar de todas formas?`)) return;
+    try {
+      await deleteDoc(doc(db, 'usuarios', user.uid, 'misiones', id));
+      showToast('Misión eliminada');
+    } catch {
+      showToast('Error al eliminar');
     }
   }
 
@@ -2360,14 +2454,19 @@ export default function App() {
           {/* ══ MISSIONS ══ */}
           {tab === 'missions' && (
             <motion.div key="missions" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-6">
+              {/* Header */}
               <div className="flex items-center justify-between flex-wrap gap-3">
                 <h3 className="text-2xl font-black tracking-tight uppercase flex items-center gap-3"><Target className="w-7 h-7 text-blue-600" /> MISSION TREE</h3>
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-slate-500">{fsMisiones.filter(m => m.completada).length}/{fsMisiones.length} completadas</span>
+                  <button onClick={() => openAddMision('')}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold hover:opacity-90 transition-all shadow-md shadow-blue-500/20">
+                    <Plus className="w-4 h-4" /> Nueva misión
+                  </button>
                 </div>
               </div>
 
-              {/* Barra de búsqueda + stats */}
+              {/* Búsqueda */}
               <div className="flex gap-3 flex-wrap">
                 <div className="relative flex-1 min-w-48">
                   <input
@@ -2382,7 +2481,7 @@ export default function App() {
                 )}
               </div>
 
-              {/* Resumen rápido por prioridad */}
+              {/* Resumen por prioridad */}
               {fsMisiones.some(m => m.prioridad) && (
                 <div className="flex gap-2 flex-wrap">
                   {(['urgente', 'alta', 'media', 'baja'] as const).map(p => {
@@ -2395,14 +2494,35 @@ export default function App() {
                       </span>
                     );
                   })}
+                  {fsMisiones.some(m => (m.costoMonto ?? 0) > 0 && !m.completada) && (
+                    <span className="flex items-center gap-1 text-[10px] font-black px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700">
+                      <Wallet className="w-3 h-3" />
+                      {fsMisiones.filter(m => (m.costoMonto ?? 0) > 0 && !m.completada).length} con costo
+                    </span>
+                  )}
                 </div>
               )}
 
-              <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 border border-slate-200 dark:border-slate-800 overflow-x-auto">
-                <div className="flex justify-center min-w-max pb-8">
-                  <MissionNodeComp node={buildTree(filteredMisiones)} onAdd={addMission} onToggle={toggleMission} />
+              {/* Árbol */}
+              {fsMisiones.length === 0 ? (
+                <div className="py-20 text-center border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-3xl">
+                  <Target className="w-14 h-14 text-slate-200 dark:text-slate-800 mx-auto mb-4" />
+                  <p className="font-bold text-slate-400 mb-2">Sin misiones todavía.</p>
+                  <button onClick={() => openAddMision('')} className="text-sm text-blue-500 font-bold hover:underline">+ Crear primera misión</button>
                 </div>
-              </div>
+              ) : (
+                <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 border border-slate-200 dark:border-slate-800 overflow-x-auto">
+                  <div className="flex justify-center min-w-max pb-8">
+                    <MissionNodeComp
+                      node={buildTree(filteredMisiones)}
+                      onAdd={addMission}
+                      onToggle={toggleMission}
+                      onEdit={openEditMision}
+                      onDelete={deleteMision}
+                    />
+                  </div>
+                </div>
+              )}
             </motion.div>
           )}
 
@@ -2635,7 +2755,7 @@ export default function App() {
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
-            onClick={() => { setModal(null); setEditingHabitId(null); setTargetEjercicioId(null); setTargetMateriaId(null); setModalError(null); }}>
+            onClick={() => { setModal(null); setEditingHabitId(null); setEditingMisionId(null); setTargetEjercicioId(null); setTargetMateriaId(null); setModalError(null); }}>
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 16 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 16 }}
               className="bg-white dark:bg-slate-900 rounded-3xl p-8 border border-slate-200 dark:border-slate-800 w-full max-w-md shadow-2xl"
@@ -2643,12 +2763,112 @@ export default function App() {
 
               <div className="flex items-center justify-between mb-6">
                 <h3 className="font-black text-lg">
-                  {modal === 'habit' ? (editingHabitId ? 'Editar Quest' : '+ Nueva Quest') : modal === 'task' ? '+ Nueva Tarea' : modal === 'evento' ? '+ Nuevo Evento' : modal === 'rutina' ? '+ Nueva Rutina' : modal === 'libro' ? '+ Nuevo Libro' : modal === 'materia' ? '+ Nueva Materia' : modal === 'material' ? '+ Nuevo Material' : modal === 'tareaFac' ? '+ Nueva Tarea' : modal === 'examen' ? '+ Nuevo Examen' : targetEjercicioId ? 'Editar Ejercicio' : '+ Nuevo Ejercicio'}
+                  {modal === 'mision' ? (editingMisionId ? 'Editar Misión' : '+ Nueva Misión') : modal === 'habit' ? (editingHabitId ? 'Editar Quest' : '+ Nueva Quest') : modal === 'task' ? '+ Nueva Tarea' : modal === 'evento' ? '+ Nuevo Evento' : modal === 'rutina' ? '+ Nueva Rutina' : modal === 'libro' ? '+ Nuevo Libro' : modal === 'materia' ? '+ Nueva Materia' : modal === 'material' ? '+ Nuevo Material' : modal === 'tareaFac' ? '+ Nueva Tarea' : modal === 'examen' ? '+ Nuevo Examen' : targetEjercicioId ? 'Editar Ejercicio' : '+ Nuevo Ejercicio'}
                 </h3>
-                <button onClick={() => { setModal(null); setEditingHabitId(null); setTargetEjercicioId(null); setTargetMateriaId(null); setModalError(null); }} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors">
+                <button onClick={() => { setModal(null); setEditingHabitId(null); setEditingMisionId(null); setTargetEjercicioId(null); setTargetMateriaId(null); setModalError(null); }} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors">
                   <X className="w-4 h-4" />
                 </button>
               </div>
+
+              {/* ── Misión form ── */}
+              {modal === 'mision' && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Nombre *</label>
+                    <input autoFocus type="text" value={misionForm.titulo}
+                      onChange={e => setMisionForm(p => ({ ...p, titulo: e.target.value }))}
+                      placeholder="Nombre de la misión"
+                      className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 transition-colors" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Descripción</label>
+                    <textarea value={misionForm.descripcion}
+                      onChange={e => setMisionForm(p => ({ ...p, descripcion: e.target.value }))}
+                      placeholder="Descripción o notas..."
+                      rows={2}
+                      className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 transition-colors resize-none" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Misión padre</label>
+                      <select value={misionForm.parentId}
+                        onChange={e => setMisionForm(p => ({ ...p, parentId: e.target.value }))}
+                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-3 text-sm focus:outline-none focus:border-blue-500 transition-colors">
+                        <option value="">— Raíz (árbol nuevo)</option>
+                        {fsMisiones.filter(m => m.id !== editingMisionId).map(m => (
+                          <option key={m.id} value={m.id}>{m.titulo}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Prioridad</label>
+                      <select value={misionForm.prioridad}
+                        onChange={e => setMisionForm(p => ({ ...p, prioridad: e.target.value as MisionPrioridad | '' }))}
+                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-3 text-sm focus:outline-none focus:border-blue-500 transition-colors">
+                        <option value="">Sin prioridad</option>
+                        <option value="baja">⚪ Baja</option>
+                        <option value="media">🟡 Media</option>
+                        <option value="alta">🟠 Alta</option>
+                        <option value="urgente">🔴 Urgente</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Prerequisitos */}
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">
+                      Prerequisitos (misiones a completar antes)
+                    </label>
+                    <div className="space-y-1 max-h-32 overflow-y-auto">
+                      {fsMisiones.filter(m => m.id !== editingMisionId).map(m => (
+                        <label key={m.id} className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={misionForm.prerequisitos.includes(m.id)}
+                            onChange={e => setMisionForm(p => ({
+                              ...p,
+                              prerequisitos: e.target.checked
+                                ? [...p.prerequisitos, m.id]
+                                : p.prerequisitos.filter(id => id !== m.id),
+                            }))}
+                            className="rounded"
+                          />
+                          <span className="text-xs font-medium truncate">{m.titulo}</span>
+                          {m.completada && <span className="text-[9px] text-emerald-500 font-bold ml-auto shrink-0">✓</span>}
+                        </label>
+                      ))}
+                      {fsMisiones.length === 0 && <p className="text-xs text-slate-400 px-3">Sin misiones disponibles</p>}
+                    </div>
+                  </div>
+
+                  {/* Costo vinculado a Treasury */}
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">
+                      Costo (vincula con Treasury)
+                    </label>
+                    <div className="flex gap-2">
+                      <select value={misionForm.costoMoneda}
+                        onChange={e => setMisionForm(p => ({ ...p, costoMoneda: e.target.value as Moneda }))}
+                        className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-3 text-sm focus:outline-none focus:border-blue-500 transition-colors">
+                        {Object.entries(MONEDA_META).map(([code, m]) => (
+                          <option key={code} value={code}>{m.flag} {code}</option>
+                        ))}
+                      </select>
+                      <input type="number" min={0} value={misionForm.costoMonto}
+                        onChange={e => setMisionForm(p => ({ ...p, costoMonto: e.target.value }))}
+                        placeholder="0"
+                        className="flex-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 transition-colors" />
+                    </div>
+                    <p className="text-[10px] text-slate-400 mt-1">Al completar la misión podrás registrar el gasto automáticamente.</p>
+                  </div>
+
+                  {modalError && <p className="text-xs text-red-500 font-bold">{modalError}</p>}
+                  <button onClick={saveMision}
+                    className="w-full py-3 bg-blue-600 text-white rounded-xl text-sm font-black hover:opacity-90 transition-all shadow-lg shadow-blue-500/20">
+                    {editingMisionId ? 'Guardar cambios' : 'Crear misión'}
+                  </button>
+                </div>
+              )}
 
               {/* ── Habit form ── */}
               {modal === 'habit' && (
