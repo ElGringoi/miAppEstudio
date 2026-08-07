@@ -376,7 +376,7 @@ export default function App() {
     if (Object.values(fsStats ?? {}).some((s: { xp: number }) => xpLevel(s.xp).level >= 5))  ids.push('nivel_5');
     if (Object.values(fsStats ?? {}).some((s: { xp: number }) => xpLevel(s.xp).level >= 10)) ids.push('nivel_10');
     if (fsLibros.some(l => l.estado === 'leido')) ids.push('primer_libro');
-    if (fsMaterias.some(m => m.examenes.some(e => e.nota !== undefined))) ids.push('primer_examen');
+    if (fsMaterias.some(m => m.examenes?.some(e => e.nota !== undefined))) ids.push('primer_examen');
     const habitsToday = fsHabitos.filter(h => isHabitActiveToday(h));
     const doneToday   = fsHabitos.filter(h => isHabitDoneToday(h)).length;
     if (habitsToday.length > 0 && doneToday === habitsToday.length) ids.push('todos_hoy');
