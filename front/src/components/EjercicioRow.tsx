@@ -39,11 +39,11 @@ export const EjercicioRow = ({ ejercicio, onToggle, onDelete, onEdit }: {
             </button>
           )}
           <button onClick={e => { e.stopPropagation(); onEdit(); }}
-            className="opacity-0 group-hover:opacity-100 p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 transition-all">
+            className="opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100 p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 transition-all">
             <Pencil className="w-4 h-4" />
           </button>
           <button onClick={e => { e.stopPropagation(); onDelete(); }}
-            className="opacity-0 group-hover:opacity-100 p-2 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 text-red-400 transition-all">
+            className="opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100 p-2 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 text-red-400 transition-all">
             <Trash2 className="w-4 h-4" />
           </button>
         </div>

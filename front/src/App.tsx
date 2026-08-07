@@ -155,6 +155,10 @@ export default function App() {
   const [_expandedEntrada,  _setExpandedEntrada]  = useState<string | null>(null);
   const [_nuevaObjetivoTxt, _setNuevaObjetivoTxt] = useState('');
 
+  // Confirm modal
+  const [confirmModal, setConfirmModal] = useState<{ msg: string; onOk: () => void } | null>(null);
+  function showConfirm(msg: string, onOk: () => void) { setConfirmModal({ msg, onOk }); }
+
   // Modal state
   const [modal, setModal] = useState<'habit' | 'task' | 'evento' | 'rutina' | 'ejercicio' | 'libro' | 'materia' | 'material' | 'tareaFac' | 'examen' | 'entrada_diario' | 'mision' | null>(null);
   const [editingHabitId, setEditingHabitId] = useState<string | null>(null);
@@ -207,10 +211,10 @@ export default function App() {
     prevMainLevel.current = current;
   }, [fsStats]);
 
-  // Load GCal token from localStorage
+  // Load GCal token from sessionStorage (no persiste entre sesiones por seguridad)
   useEffect(() => {
-    const token = localStorage.getItem('gcal_token');
-    const exp   = parseInt(localStorage.getItem('gcal_token_exp') || '0');
+    const token = sessionStorage.getItem('gcal_token');
+    const exp   = parseInt(sessionStorage.getItem('gcal_token_exp') || '0');
     if (token && exp > Date.now()) setGcalToken(token);
   }, []);
 
@@ -228,12 +232,13 @@ export default function App() {
     }).then(r => {
       if (r.status === 401) {
         setGcalToken(null);
-        localStorage.removeItem('gcal_token');
-        localStorage.removeItem('gcal_token_exp');
+        sessionStorage.removeItem('gcal_token');
+        sessionStorage.removeItem('gcal_token_exp');
         return null;
       }
       return r.json();
-    }).then(data => { if (data?.items) setGcalEvents(data.items); });
+    }).then(data => { if (data?.items) setGcalEvents(data.items); })
+      .catch(err => console.error('GCal fetch error:', err));
   }, [gcalToken]);
 
   // Firestore listeners
@@ -243,20 +248,8 @@ export default function App() {
     const uid = user.uid;
     let loaded = 0;
     const markLoaded = () => { if (++loaded === 11) setDataReady(true); };
-    let prevStatsDoc: FSStatsDoc | null = null;
     const unsubStats = onSnapshot(doc(db, 'usuarios', uid, 'stats', 'main'), snap => {
-      const newStats = snap.data() as FSStatsDoc ?? null;
-      if (prevStatsDoc && newStats) {
-        const leveledUp = FS_KEYS.some(k =>
-          xpLevel(newStats[k]?.xp ?? 0).level > xpLevel(prevStatsDoc![k]?.xp ?? 0).level
-        );
-        if (leveledUp) {
-          confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 }, colors: ['#3b82f6', '#8b5cf6', '#f59e0b', '#10b981'] });
-          showToast('¡Subiste de nivel! 🎉', true);
-        }
-      }
-      prevStatsDoc = newStats;
-      setFsStats(newStats);
+      setFsStats(snap.data() as FSStatsDoc ?? null);
       markLoaded();
     });
     const u2  = onSnapshot(collection(db, 'usuarios', uid, 'habitos'),       s => { setFsHabitos(s.docs.map(d => ({ id: d.id, ...d.data() } as FSHabito))); markLoaded(); });
@@ -331,7 +324,7 @@ export default function App() {
   const heroClass     = useMemo(() => assignClass(fsStats), [fsStats]);
 
   // XP por día y logros
-  const xpPerDay = calcXpPerDay(fsHabitos, 14);
+  const xpPerDay = useMemo(() => calcXpPerDay(fsHabitos, 14), [fsHabitos]);
 
   // Heatmap data (últimos 365 días)
   const heatmapData = useMemo(() => {
@@ -361,9 +354,11 @@ export default function App() {
   const logrosUnlocked = useMemo(() => {
     const ids: string[] = [];
     if (fsHabitos.some(h => (h.completedDates?.length ?? 0) > 0)) ids.push('primera_quest');
-    if (fsHabitos.some(h => calcStreak(h.completedDates ?? [], h.recurrence ?? 'daily') >= 7)) ids.push('racha_7');
-    if (fsHabitos.some(h => calcStreak(h.completedDates ?? [], h.recurrence ?? 'daily') >= 30)) ids.push('racha_30');
-    if (Object.values(fsStats ?? {}).some((s: { xp: number }) => xpLevel(s.xp).level >= 5)) ids.push('nivel_5');
+    // Calcular streaks una sola vez para evitar O(n × 365) por logro
+    const streaks = fsHabitos.map(h => calcStreak(h.completedDates ?? [], h.recurrence ?? 'daily'));
+    if (streaks.some(s => s >= 7))  ids.push('racha_7');
+    if (streaks.some(s => s >= 30)) ids.push('racha_30');
+    if (Object.values(fsStats ?? {}).some((s: { xp: number }) => xpLevel(s.xp).level >= 5))  ids.push('nivel_5');
     if (Object.values(fsStats ?? {}).some((s: { xp: number }) => xpLevel(s.xp).level >= 10)) ids.push('nivel_10');
     if (fsLibros.some(l => l.estado === 'leido')) ids.push('primer_libro');
     if (fsMaterias.some(m => m.examenes.some(e => e.nota !== undefined))) ids.push('primer_examen');
@@ -436,7 +431,7 @@ export default function App() {
           showToast(`+${xpFinal} XP ${STAT_META[h.stat].shortName}${multLabel}`, true);
         }
       }
-    } catch {
+    } catch (e) { console.error(e);
       showToast('Error al guardar el hábito');
     }
   }
@@ -452,7 +447,7 @@ export default function App() {
     const next = toggled.filter(x => x >= cutoff.toISOString().slice(0, 10));
     try {
       await updateDoc(doc(db, 'usuarios', user.uid, 'tareas', id), { completedDates: next });
-    } catch {
+    } catch (e) { console.error(e);
       showToast('Error al guardar la tarea');
     }
   }
@@ -503,7 +498,7 @@ export default function App() {
         showToast('Misión agregada', true);
       }
       setModal(null);
-    } catch {
+    } catch (e) { console.error(e);
       showToast('Error al guardar la misión');
     }
   }
@@ -516,7 +511,7 @@ export default function App() {
         titulo: title, completada: false, parentId: realParent,
         orden: fsMisiones.filter(m => m.parentId === realParent).length,
       });
-    } catch {
+    } catch (e) { console.error(e);
       showToast('Error al agregar la misión');
     }
   }
@@ -533,25 +528,24 @@ export default function App() {
     const nuevaCompletada = !m.completada;
     try {
       await updateDoc(doc(db, 'usuarios', user.uid, 'misiones', id), { completada: nuevaCompletada });
-      if (nuevaCompletada && m.costoMonto && m.costoMonto > 0 && user.uid) {
+      if (nuevaCompletada && m.costoMonto && m.costoMonto > 0) {
         const sym = MONEDA_META[m.costoMoneda ?? 'ARS']?.symbol ?? '$';
-        const ok = window.confirm(`¿Registrar gasto de ${sym}${m.costoMonto.toLocaleString('es-AR')} en Treasury por "${m.titulo}"?`);
-        if (ok) {
-          await addDoc(collection(db, 'usuarios', user.uid, 'transacciones'), {
-            descripcion: m.titulo,
-            monto: m.costoMonto,
-            tipo: 'gasto',
-            categoria: '🎯 Misión',
-            fecha: HOY,
-            moneda: m.costoMoneda ?? 'ARS',
-          });
-          showToast(`Gasto registrado en Treasury`, true);
-        }
+        showConfirm(
+          `¿Registrar gasto de ${sym}${m.costoMonto.toLocaleString('es-AR')} en Treasury por "${m.titulo}"?`,
+          async () => {
+            await addDoc(collection(db, 'usuarios', user.uid!, 'transacciones'), {
+              descripcion: m.titulo, monto: m.costoMonto, tipo: 'gasto',
+              categoria: '🎯 Misión', fecha: getToday(), moneda: m.costoMoneda ?? 'ARS',
+            });
+            showToast('Gasto registrado en Treasury', true);
+          }
+        );
       } else if (nuevaCompletada) {
         showToast('¡Misión completada!', true);
         confetti({ particleCount: 60, spread: 50, origin: { y: 0.6 } });
       }
-    } catch {
+    } catch (e) {
+      console.error(e);
       showToast('Error al actualizar la misión');
     }
   }
@@ -559,12 +553,19 @@ export default function App() {
   async function deleteMision(id: string) {
     if (!user?.uid) return;
     const hijos = fsMisiones.filter(m => m.parentId === id);
-    if (hijos.length > 0 && !window.confirm(`Esta misión tiene ${hijos.length} sub-misión(es). ¿Eliminar de todas formas?`)) return;
-    try {
-      await deleteDoc(doc(db, 'usuarios', user.uid, 'misiones', id));
-      showToast('Misión eliminada');
-    } catch {
-      showToast('Error al eliminar');
+    const doDelete = async () => {
+      try {
+        await deleteDoc(doc(db, 'usuarios', user.uid!, 'misiones', id));
+        showToast('Misión eliminada');
+      } catch (e) {
+        console.error(e);
+        showToast('Error al eliminar');
+      }
+    };
+    if (hijos.length > 0) {
+      showConfirm(`Esta misión tiene ${hijos.length} sub-misión(es). ¿Eliminar de todas formas?`, doDelete);
+    } else {
+      await doDelete();
     }
   }
 
@@ -602,7 +603,7 @@ export default function App() {
     if (!user?.uid) return;
     try {
       await deleteDoc(doc(db, 'usuarios', user.uid, 'habitos', id));
-    } catch {
+    } catch (e) { console.error(e);
       showToast('Error al eliminar el hábito');
     }
   }
@@ -611,7 +612,7 @@ export default function App() {
     if (!user?.uid || xpValue < 1) return;
     try {
       await updateDoc(doc(db, 'usuarios', user.uid, 'habitos', id), { xpValue });
-    } catch {
+    } catch (e) { console.error(e);
       showToast('Error al guardar el XP');
     }
   }
@@ -640,7 +641,7 @@ export default function App() {
     if (!user?.uid) return;
     try {
       await deleteDoc(doc(db, 'usuarios', user.uid, 'tareas', id));
-    } catch {
+    } catch (e) { console.error(e);
       showToast('Error al eliminar la tarea');
     }
   }
@@ -665,7 +666,7 @@ export default function App() {
     if (!user?.uid) return;
     try {
       await deleteDoc(doc(db, 'usuarios', user.uid, 'eventos', id));
-    } catch {
+    } catch (e) { console.error(e);
       showToast('Error al eliminar el evento');
     }
   }
@@ -694,7 +695,7 @@ export default function App() {
     const rutina = fsRutinas.find(r => r.id === targetRutinaId);
     if (!rutina) return;
     const newEj: FSEjercicio = {
-      id: Date.now().toString(), lastCompletedDate: null,
+      id: crypto.randomUUID(), lastCompletedDate: null,
       nombre: ejercicioForm.nombre.trim(),
       ...(ejercicioForm.series  ? { series: ejercicioForm.series }   : {}),
       ...(ejercicioForm.reps    ? { reps: ejercicioForm.reps }       : {}),
@@ -748,7 +749,7 @@ export default function App() {
       await updateDoc(doc(db, 'usuarios', user.uid, 'rutinas', rutinaId), {
         ejercicios: rutina.ejercicios.filter(e => e.id !== ejId),
       });
-    } catch {
+    } catch (e) { console.error(e);
       showToast('Error al eliminar el ejercicio');
     } finally {
       pendingOps.current.delete(opKey);
@@ -776,7 +777,7 @@ export default function App() {
         tx.update(rutinaRef, { ejercicios });
         tx.set(statsRef, { fuerza: { xp: increment(completing ? 5 : -5) } }, { merge: true });
       });
-    } catch {
+    } catch (e) { console.error(e);
       showToast('Error al guardar el ejercicio');
     } finally {
       pendingOps.current.delete(opKey);
@@ -840,7 +841,7 @@ export default function App() {
   async function addLibro() {
     if (!user?.uid || !libroForm.titulo.trim()) return;
     const capitulos: FSCapitulo[] = Array.from({ length: libroForm.totalCapitulos }, (_, i) => ({
-      id: `cap-${Date.now()}-${i}`, numero: i + 1, leido: false,
+      id: crypto.randomUUID(), numero: i + 1, leido: false,
     }));
     try {
       await addDoc(collection(db, 'usuarios', user.uid, 'libros'), {
@@ -859,7 +860,7 @@ export default function App() {
     try {
       await deleteDoc(doc(db, 'usuarios', user.uid, 'libros', id));
       if (expandedLibro === id) setExpandedLibro(null);
-    } catch {
+    } catch (e) { console.error(e);
       showToast('Error al eliminar el libro');
     }
   }
@@ -868,7 +869,7 @@ export default function App() {
     if (!user?.uid) return;
     try {
       await updateDoc(doc(db, 'usuarios', user.uid, 'libros', libroId), { estado });
-    } catch {
+    } catch (e) { console.error(e);
       showToast('Error al actualizar el estado');
     }
   }
@@ -892,7 +893,7 @@ export default function App() {
         tx.update(libroRef, { capitulos });
         tx.set(statsRef, { inteligencia: { xp: increment(completing ? data.xpPorCapitulo : -data.xpPorCapitulo) } }, { merge: true });
       });
-    } catch {
+    } catch (e) { console.error(e);
       showToast('Error al guardar el capítulo');
     } finally {
       pendingOps.current.delete(opKey);
@@ -906,7 +907,7 @@ export default function App() {
     const capitulos = libro.capitulos.map(c => c.id !== capId ? c : { ...c, notas });
     try {
       await updateDoc(doc(db, 'usuarios', user.uid, 'libros', libroId), { capitulos });
-    } catch {
+    } catch (e) { console.error(e);
       showToast('Error al guardar las notas');
     }
   }
@@ -932,7 +933,7 @@ export default function App() {
     try {
       await deleteDoc(doc(db, 'usuarios', user.uid, 'materias', id));
       if (selectedMateria === id) setSelectedMateria(null);
-    } catch {
+    } catch (e) { console.error(e);
       showToast('Error al eliminar la materia');
     }
   }
@@ -942,7 +943,7 @@ export default function App() {
     const materia = fsMaterias.find(m => m.id === targetMateriaId);
     if (!materia) return;
     const newMat: FSMaterial = {
-      id: Date.now().toString(), tipo: materialForm.tipo, titulo: materialForm.titulo.trim(),
+      id: crypto.randomUUID(), tipo: materialForm.tipo, titulo: materialForm.titulo.trim(),
       ...(materialForm.contenido.trim() ? { contenido: materialForm.contenido.trim() } : {}),
       ...(materialForm.url.trim() ? { url: materialForm.url.trim() } : {}),
     };
@@ -964,7 +965,7 @@ export default function App() {
     if (!m) { pendingOps.current.delete(opKey); return; }
     try {
       await updateDoc(doc(db, 'usuarios', user.uid, 'materias', materiaId), { materiales: m.materiales.filter(x => x.id !== matId) });
-    } catch {
+    } catch (e) { console.error(e);
       showToast('Error al eliminar el material');
     } finally {
       pendingOps.current.delete(opKey);
@@ -976,7 +977,7 @@ export default function App() {
     const materia = fsMaterias.find(m => m.id === targetMateriaId);
     if (!materia) return;
     const newT: FSTareaFac = {
-      id: Date.now().toString(), titulo: tareaFacForm.titulo.trim(), completada: false,
+      id: crypto.randomUUID(), titulo: tareaFacForm.titulo.trim(), completada: false,
       ...(tareaFacForm.fecha ? { fecha: tareaFacForm.fecha } : {}),
     };
     try {
@@ -1002,7 +1003,7 @@ export default function App() {
       batch.set(doc(db, 'usuarios', user.uid, 'stats', 'main'),
         { inteligencia: { xp: increment(completing ? 15 : -15) } }, { merge: true });
       await batch.commit();
-    } catch {
+    } catch (e) { console.error(e);
       showToast('Error al guardar la tarea');
     }
   }
@@ -1013,7 +1014,7 @@ export default function App() {
     if (!m) return;
     try {
       await updateDoc(doc(db, 'usuarios', user.uid, 'materias', materiaId), { tareas: m.tareas.filter(x => x.id !== tareaId) });
-    } catch {
+    } catch (e) { console.error(e);
       showToast('Error al eliminar la tarea');
     }
   }
@@ -1051,7 +1052,7 @@ export default function App() {
     if (!m) return;
     try {
       await updateDoc(doc(db, 'usuarios', user.uid, 'materias', materiaId), { examenes: m.examenes.filter(x => x.id !== examenId) });
-    } catch {
+    } catch (e) { console.error(e);
       showToast('Error al eliminar el examen');
     }
   }
@@ -1065,8 +1066,8 @@ export default function App() {
       const credential = GoogleAuthProvider.credentialFromResult(result);
       if (credential?.accessToken) {
         setGcalToken(credential.accessToken);
-        localStorage.setItem('gcal_token', credential.accessToken);
-        localStorage.setItem('gcal_token_exp', (Date.now() + 3500 * 1000).toString());
+        sessionStorage.setItem('gcal_token', credential.accessToken);
+        sessionStorage.setItem('gcal_token_exp', (Date.now() + 3500 * 1000).toString());
       }
     } catch (err) {
       console.error('Error connecting Google Calendar:', err);
@@ -1084,8 +1085,8 @@ export default function App() {
   function disconnectGCal() {
     setGcalToken(null);
     setGcalEvents([]);
-    localStorage.removeItem('gcal_token');
-    localStorage.removeItem('gcal_token_exp');
+    sessionStorage.removeItem('gcal_token');
+    sessionStorage.removeItem('gcal_token_exp');
   }
 
   function gcalForDate(d: Date): GCalEvent[] {
@@ -1131,7 +1132,7 @@ export default function App() {
         showToast('Transacción guardada', true);
       }
       closeTxModal();
-    } catch {
+    } catch (e) { console.error(e);
       showToast('Error al guardar la transacción');
     }
   }
@@ -1140,7 +1141,7 @@ export default function App() {
     if (!user?.uid) return;
     try {
       await deleteDoc(doc(db, 'usuarios', user.uid, 'transacciones', id));
-    } catch {
+    } catch (e) { console.error(e);
       showToast('Error al eliminar la transacción');
     }
   }
@@ -1190,6 +1191,22 @@ export default function App() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* ── Confirm modal ── */}
+      <Modal open={!!confirmModal} onClose={() => setConfirmModal(null)}>
+        <ModalHeader title="Confirmar acción" onClose={() => setConfirmModal(null)} />
+        <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">{confirmModal?.msg}</p>
+        <div className="flex gap-3">
+          <button onClick={() => setConfirmModal(null)}
+            className="flex-1 py-3 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">
+            Cancelar
+          </button>
+          <button onClick={() => { confirmModal?.onOk(); setConfirmModal(null); }}
+            className="flex-1 py-3 bg-red-500 text-white rounded-xl text-sm font-black hover:bg-red-600 transition-all shadow-lg shadow-red-500/20">
+            Confirmar
+          </button>
+        </div>
+      </Modal>
 
       {/* ── Modal: Nueva / Editar transacción ── */}
       <Modal open={showTxModal} onClose={closeTxModal} className="space-y-4">
