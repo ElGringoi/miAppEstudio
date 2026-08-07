@@ -396,6 +396,7 @@ export default function App() {
   const totalXp                                   = fsStats ? FS_KEYS.reduce((s, k) => s + (fsStats[k]?.xp ?? 0), 0) : 0;
   const { level: heroLevel, xpInLevel, xpForNext: heroXpForNext } = xpLevel(totalXp);
   const initials   = (user?.displayName ?? 'H').split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
+  const pageSub    = useMemo(() => getPageSub(user?.displayName?.split(' ')[0] ?? 'Hero'), [user?.displayName]);
 
   // ── Firestore writes ──────────────────────────────────────────────────────
 
@@ -1138,11 +1139,6 @@ export default function App() {
       </motion.div>
       <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Loading hero data…</p>
     </div>
-  );
-
-  const pageSub = useMemo(
-    () => getPageSub(user.displayName?.split(' ')[0] ?? 'Hero'),
-    [user.displayName]
   );
 
   return (
