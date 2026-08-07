@@ -25,7 +25,7 @@ import {
 import type { User } from 'firebase/auth';
 import {
   collection, doc, increment, onSnapshot,
-  updateDoc, addDoc, deleteDoc, writeBatch,
+  updateDoc, addDoc, deleteDoc, writeBatch, runTransaction,
 } from 'firebase/firestore';
 import { auth, db } from './lib/firebase';
 import type {
@@ -139,6 +139,7 @@ export default function App() {
   // ── Nuevas mejoras ────────────────────────────────────────────────────────
   const [levelUpEvent,     setLevelUpEvent]     = useState<LevelUpEvent | null>(null);
   const prevMainLevel = useRef<number | null>(null);
+  const pendingOps    = useRef<Set<string>>(new Set());
 
   // Dashboard
   const [todayFocus, setTodayFocus] = useState<string>(() => localStorage.getItem(`focus_${HOY}`) ?? '');
@@ -738,35 +739,47 @@ export default function App() {
 
   async function deleteEjercicio(rutinaId: string, ejId: string) {
     if (!user?.uid) return;
+    const opKey = `del-ej-${rutinaId}-${ejId}`;
+    if (pendingOps.current.has(opKey)) return;
+    pendingOps.current.add(opKey);
     const rutina = fsRutinas.find(r => r.id === rutinaId);
-    if (!rutina) return;
+    if (!rutina) { pendingOps.current.delete(opKey); return; }
     try {
       await updateDoc(doc(db, 'usuarios', user.uid, 'rutinas', rutinaId), {
         ejercicios: rutina.ejercicios.filter(e => e.id !== ejId),
       });
     } catch {
       showToast('Error al eliminar el ejercicio');
+    } finally {
+      pendingOps.current.delete(opKey);
     }
   }
 
   async function toggleEjercicio(rutinaId: string, ejId: string) {
     if (!user?.uid) return;
-    const rutina = fsRutinas.find(r => r.id === rutinaId);
-    if (!rutina) return;
-    const ej = rutina.ejercicios.find(e => e.id === ejId);
-    if (!ej) return;
-    const completing = ej.lastCompletedDate !== HOY;
-    const ejercicios = rutina.ejercicios.map(e =>
-      e.id !== ejId ? e : { ...e, lastCompletedDate: completing ? HOY : null }
-    );
+    const opKey = `ej-${rutinaId}-${ejId}`;
+    if (pendingOps.current.has(opKey)) return;
+    pendingOps.current.add(opKey);
     try {
-      const batch = writeBatch(db);
-      batch.update(doc(db, 'usuarios', user.uid, 'rutinas', rutinaId), { ejercicios });
-      batch.set(doc(db, 'usuarios', user.uid, 'stats', 'main'),
-        { fuerza: { xp: increment(completing ? 5 : -5) } }, { merge: true });
-      await batch.commit();
+      const rutinaRef = doc(db, 'usuarios', user.uid, 'rutinas', rutinaId);
+      const statsRef  = doc(db, 'usuarios', user.uid, 'stats', 'main');
+      await runTransaction(db, async tx => {
+        const snap = await tx.get(rutinaRef);
+        if (!snap.exists()) return;
+        const data = snap.data() as FSRutina;
+        const ej = data.ejercicios.find(e => e.id === ejId);
+        if (!ej) return;
+        const completing = ej.lastCompletedDate !== getToday();
+        const ejercicios = data.ejercicios.map(e =>
+          e.id !== ejId ? e : { ...e, lastCompletedDate: completing ? getToday() : null }
+        );
+        tx.update(rutinaRef, { ejercicios });
+        tx.set(statsRef, { fuerza: { xp: increment(completing ? 5 : -5) } }, { merge: true });
+      });
     } catch {
       showToast('Error al guardar el ejercicio');
+    } finally {
+      pendingOps.current.delete(opKey);
     }
   }
 
@@ -862,20 +875,27 @@ export default function App() {
 
   async function toggleCapitulo(libroId: string, capId: string) {
     if (!user?.uid) return;
-    const libro = fsLibros.find(l => l.id === libroId);
-    if (!libro) return;
-    const cap = libro.capitulos.find(c => c.id === capId);
-    if (!cap) return;
-    const completing = !cap.leido;
-    const capitulos = libro.capitulos.map(c => c.id !== capId ? c : { ...c, leido: completing });
+    const opKey = `cap-${libroId}-${capId}`;
+    if (pendingOps.current.has(opKey)) return;
+    pendingOps.current.add(opKey);
     try {
-      const batch = writeBatch(db);
-      batch.update(doc(db, 'usuarios', user.uid, 'libros', libroId), { capitulos });
-      batch.set(doc(db, 'usuarios', user.uid, 'stats', 'main'),
-        { inteligencia: { xp: increment(completing ? libro.xpPorCapitulo : -libro.xpPorCapitulo) } }, { merge: true });
-      await batch.commit();
+      const libroRef = doc(db, 'usuarios', user.uid, 'libros', libroId);
+      const statsRef  = doc(db, 'usuarios', user.uid, 'stats', 'main');
+      await runTransaction(db, async tx => {
+        const snap = await tx.get(libroRef);
+        if (!snap.exists()) return;
+        const data = snap.data() as FSLibro;
+        const cap = data.capitulos.find(c => c.id === capId);
+        if (!cap) return;
+        const completing = !cap.leido;
+        const capitulos = data.capitulos.map(c => c.id !== capId ? c : { ...c, leido: completing });
+        tx.update(libroRef, { capitulos });
+        tx.set(statsRef, { inteligencia: { xp: increment(completing ? data.xpPorCapitulo : -data.xpPorCapitulo) } }, { merge: true });
+      });
     } catch {
       showToast('Error al guardar el capítulo');
+    } finally {
+      pendingOps.current.delete(opKey);
     }
   }
 
@@ -937,12 +957,17 @@ export default function App() {
 
   async function deleteMaterial(materiaId: string, matId: string) {
     if (!user?.uid) return;
+    const opKey = `del-mat-${materiaId}-${matId}`;
+    if (pendingOps.current.has(opKey)) return;
+    pendingOps.current.add(opKey);
     const m = fsMaterias.find(x => x.id === materiaId);
-    if (!m) return;
+    if (!m) { pendingOps.current.delete(opKey); return; }
     try {
       await updateDoc(doc(db, 'usuarios', user.uid, 'materias', materiaId), { materiales: m.materiales.filter(x => x.id !== matId) });
     } catch {
       showToast('Error al eliminar el material');
+    } finally {
+      pendingOps.current.delete(opKey);
     }
   }
 
