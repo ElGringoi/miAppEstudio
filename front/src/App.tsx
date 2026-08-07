@@ -741,7 +741,7 @@ export default function App() {
     if (!user?.uid || !targetRutinaId || !targetEjercicioId || !ejercicioForm.nombre.trim()) return;
     const rutina = fsRutinas.find(r => r.id === targetRutinaId);
     if (!rutina) return;
-    const ejercicios = rutina.ejercicios.map(e => {
+    const ejercicios = (rutina.ejercicios ?? []).map(e => {
       if (e.id !== targetEjercicioId) return e;
       return {
         ...e,
@@ -771,7 +771,7 @@ export default function App() {
     if (!rutina) { pendingOps.current.delete(opKey); return; }
     try {
       await updateDoc(doc(db, 'usuarios', user.uid, 'rutinas', rutinaId), {
-        ejercicios: rutina.ejercicios.filter(e => e.id !== ejId),
+        ejercicios: (rutina.ejercicios ?? []).filter(e => e.id !== ejId),
       });
     } catch (e) { console.error(e);
       showToast('Error al eliminar el ejercicio');
@@ -792,10 +792,10 @@ export default function App() {
         const snap = await tx.get(rutinaRef);
         if (!snap.exists()) return;
         const data = snap.data() as FSRutina;
-        const ej = data.ejercicios.find(e => e.id === ejId);
+        const ej = (data.ejercicios ?? []).find(e => e.id === ejId);
         if (!ej) return;
         const completing = ej.lastCompletedDate !== getToday();
-        const ejercicios = data.ejercicios.map(e =>
+        const ejercicios = (data.ejercicios ?? []).map(e =>
           e.id !== ejId ? e : { ...e, lastCompletedDate: completing ? getToday() : null }
         );
         tx.update(rutinaRef, { ejercicios });
@@ -819,7 +819,7 @@ export default function App() {
         const snap = await tx.get(rutinaRef);
         if (!snap.exists()) return;
         const data = snap.data() as FSRutina;
-        const ejercicios = data.ejercicios.map(e =>
+        const ejercicios = (data.ejercicios ?? []).map(e =>
           e.id === ejId ? { ...e, setsLog } : e
         );
         tx.update(rutinaRef, { ejercicios });
@@ -930,10 +930,10 @@ export default function App() {
         const snap = await tx.get(libroRef);
         if (!snap.exists()) return;
         const data = snap.data() as FSLibro;
-        const cap = data.capitulos.find(c => c.id === capId);
+        const cap = (data.capitulos ?? []).find(c => c.id === capId);
         if (!cap) return;
         const completing = !cap.leido;
-        const capitulos = data.capitulos.map(c => c.id !== capId ? c : { ...c, leido: completing });
+        const capitulos = (data.capitulos ?? []).map(c => c.id !== capId ? c : { ...c, leido: completing });
         tx.update(libroRef, { capitulos });
         tx.set(statsRef, { inteligencia: { xp: increment(completing ? data.xpPorCapitulo : -data.xpPorCapitulo) } }, { merge: true });
       });
@@ -948,7 +948,7 @@ export default function App() {
     if (!user?.uid) return;
     const libro = fsLibros.find(l => l.id === libroId);
     if (!libro) return;
-    const capitulos = libro.capitulos.map(c => c.id !== capId ? c : { ...c, notas });
+    const capitulos = (libro.capitulos ?? []).map(c => c.id !== capId ? c : { ...c, notas });
     try {
       await updateDoc(doc(db, 'usuarios', user.uid, 'libros', libroId), { capitulos });
     } catch (e) { console.error(e);
@@ -1008,7 +1008,7 @@ export default function App() {
     const m = fsMaterias.find(x => x.id === materiaId);
     if (!m) { pendingOps.current.delete(opKey); return; }
     try {
-      await updateDoc(doc(db, 'usuarios', user.uid, 'materias', materiaId), { materiales: m.materiales.filter(x => x.id !== matId) });
+      await updateDoc(doc(db, 'usuarios', user.uid, 'materias', materiaId), { materiales: (m.materiales ?? []).filter(x => x.id !== matId) });
     } catch (e) { console.error(e);
       showToast('Error al eliminar el material');
     } finally {
@@ -1025,7 +1025,7 @@ export default function App() {
       ...(tareaFacForm.fecha ? { fecha: tareaFacForm.fecha } : {}),
     };
     try {
-      await updateDoc(doc(db, 'usuarios', user.uid, 'materias', targetMateriaId), { tareas: [...materia.tareas, newT] });
+      await updateDoc(doc(db, 'usuarios', user.uid, 'materias', targetMateriaId), { tareas: [...(materia.tareas ?? []), newT] });
       setTareaFacForm({ titulo: '', fecha: '' });
       setModal(null);
     } catch (e: unknown) {
@@ -1037,10 +1037,10 @@ export default function App() {
     if (!user?.uid) return;
     const m = fsMaterias.find(x => x.id === materiaId);
     if (!m) return;
-    const t = m.tareas.find(x => x.id === tareaId);
+    const t = (m.tareas ?? []).find(x => x.id === tareaId);
     if (!t) return;
     const completing = !t.completada;
-    const tareas = m.tareas.map(x => x.id !== tareaId ? x : { ...x, completada: completing });
+    const tareas = (m.tareas ?? []).map(x => x.id !== tareaId ? x : { ...x, completada: completing });
     try {
       const batch = writeBatch(db);
       batch.update(doc(db, 'usuarios', user.uid, 'materias', materiaId), { tareas });
@@ -1057,7 +1057,7 @@ export default function App() {
     const m = fsMaterias.find(x => x.id === materiaId);
     if (!m) return;
     try {
-      await updateDoc(doc(db, 'usuarios', user.uid, 'materias', materiaId), { tareas: m.tareas.filter(x => x.id !== tareaId) });
+      await updateDoc(doc(db, 'usuarios', user.uid, 'materias', materiaId), { tareas: (m.tareas ?? []).filter(x => x.id !== tareaId) });
     } catch (e) { console.error(e);
       showToast('Error al eliminar la tarea');
     }
@@ -1076,7 +1076,7 @@ export default function App() {
     };
     try {
       const batch = writeBatch(db);
-      batch.update(doc(db, 'usuarios', user.uid, 'materias', targetMateriaId), { examenes: [...materia.examenes, newEx] });
+      batch.update(doc(db, 'usuarios', user.uid, 'materias', targetMateriaId), { examenes: [...(materia.examenes ?? []), newEx] });
       if (nota !== undefined) {
         const xp = Math.round((nota / notaMax) * 30);
         batch.set(doc(db, 'usuarios', user.uid, 'stats', 'main'),
@@ -1095,7 +1095,7 @@ export default function App() {
     const m = fsMaterias.find(x => x.id === materiaId);
     if (!m) return;
     try {
-      await updateDoc(doc(db, 'usuarios', user.uid, 'materias', materiaId), { examenes: m.examenes.filter(x => x.id !== examenId) });
+      await updateDoc(doc(db, 'usuarios', user.uid, 'materias', materiaId), { examenes: (m.examenes ?? []).filter(x => x.id !== examenId) });
     } catch (e) { console.error(e);
       showToast('Error al eliminar el examen');
     }
