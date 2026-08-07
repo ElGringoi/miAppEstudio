@@ -39,7 +39,7 @@ import { Modal, ModalHeader } from './components/Modal';
 import confetti from 'canvas-confetti';
 
 const DEFAULT_TASK_COLOR = '#3b82f6';
-import { HOY, FS_KEYS, STAT_META, DIAS_CORTO, DIAS_LETRA, ESTADO_LIBRO_META, MATERIAL_ICON, CATEGORIAS_GASTO, CATEGORIAS_INGRESO, CLASS_META, RANK_META, MONEDA_META, PRIORIDAD_META } from './utils/constants';
+import { HOY, getToday, FS_KEYS, STAT_META, DIAS_CORTO, DIAS_LETRA, ESTADO_LIBRO_META, MATERIAL_ICON, CATEGORIAS_GASTO, CATEGORIAS_INGRESO, CLASS_META, RANK_META, MONEDA_META, PRIORIDAD_META } from './utils/constants';
 import { xpLevel, statsFromDoc, buildTree, youtubeEmbedUrl, isHabitActiveToday, isHabitDoneToday, isDateInCurrentWeek, habitRecurrenceLabel, calcStreak, calcMainLevel, rankFromLevel, assignClass, calcXpPerDay, streakMultiplier, calcXpBySource } from './utils/helpers';
 import { ProgressBar } from './components/ProgressBar';
 import { StatCard } from './components/StatCard';
@@ -405,9 +405,10 @@ export default function App() {
     if (!h || !isHabitActiveToday(h)) return;
     const yaHecho = isHabitDoneToday(h);
     const prev = h.completedDates ?? (h.fechaCompletado ? [h.fechaCompletado] : []);
+    const today = getToday();
     const toggled = yaHecho
-      ? (h.recurrence === 'once_week' ? prev.filter(d => !isDateInCurrentWeek(d)) : prev.filter(d => d !== HOY))
-      : [...prev, HOY];
+      ? (h.recurrence === 'once_week' ? prev.filter(d => !isDateInCurrentWeek(d)) : prev.filter(d => d !== today))
+      : [...prev, today];
     const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 90);
     const next = toggled.filter(d => d >= cutoff.toISOString().slice(0, 10));
     const baseXp = h.xpValue ?? 20;

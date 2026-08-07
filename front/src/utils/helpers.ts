@@ -1,7 +1,6 @@
 import type { FSStatsDoc, FSMision, FSHabito, Stat, MissionNode, FSStatKey } from '../types';
 import type { HabitRecurrence } from '../types';
-import { FS_KEYS, STAT_META } from './constants';
-import { HOY } from './constants';
+import { FS_KEYS, STAT_META, getToday } from './constants';
 
 // Cada nivel requiere 100 XP más que el anterior: L1→L2=100, L2→L3=200...
 export function xpLevel(totalXp: number) {
@@ -91,11 +90,12 @@ export function isHabitActiveToday(h: FSHabito): boolean {
 }
 
 export function isHabitDoneToday(h: FSHabito): boolean {
+  const today = getToday();
   if (h.recurrence === 'once_week') {
     return (h.completedDates ?? []).some(d => isDateInCurrentWeek(d));
   }
-  if (h.fechaCompletado === HOY) return true;
-  return (h.completedDates ?? []).includes(HOY);
+  if (h.fechaCompletado === today) return true;
+  return (h.completedDates ?? []).includes(today);
 }
 
 export function habitRecurrenceLabel(recurrence: string, diasSemana: number[], diasCorto: string[]): string {

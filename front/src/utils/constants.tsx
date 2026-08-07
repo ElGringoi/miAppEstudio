@@ -3,6 +3,7 @@ import { Dumbbell, Heart, Brain, Zap, Sparkles, Star } from 'lucide-react';
 import type { FSStatKey, EstadoLibro, TipoMaterial, Stat } from '../types';
 
 export const HOY = new Date().toISOString().slice(0, 10);
+export const getToday = () => new Date().toISOString().slice(0, 10);
 export const PRIORIDAD_META: Record<string, { color: string; bg: string; label: string }> = {
   urgente: { color: 'text-red-100',    bg: 'bg-red-600',    label: '🔴 Urgente' },
   alta:    { color: 'text-orange-100', bg: 'bg-orange-500', label: '🟠 Alta'    },

@@ -2,14 +2,14 @@ import React from 'react';
 import { CheckCircle2, Trash2, Pencil, PlayCircle } from 'lucide-react';
 import { cn } from '../lib/utils';
 import type { FSEjercicio } from '../types';
-import { HOY } from '../utils/constants';
+import { getToday } from '../utils/constants';
 import { youtubeEmbedUrl, isImageUrl } from '../utils/helpers';
 
 export const EjercicioRow = ({ ejercicio, onToggle, onDelete, onEdit }: {
   ejercicio: FSEjercicio; onToggle: () => void; onDelete: () => void; onEdit: () => void;
 }) => {
   const [showMedia, setShowMedia] = React.useState(false);
-  const done     = ejercicio.lastCompletedDate === HOY;
+  const done     = ejercicio.lastCompletedDate === getToday();
   const embedUrl = ejercicio.mediaUrl ? youtubeEmbedUrl(ejercicio.mediaUrl) : null;
   const isImg    = ejercicio.mediaUrl ? isImageUrl(ejercicio.mediaUrl) : false;
   return (
