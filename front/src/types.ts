@@ -19,7 +19,8 @@ export type FSMision  = {
 };
 export type FSTarea   = { id: string; titulo: string; hora?: string; recurrence: 'once' | 'daily' | 'weekly'; weekday?: number; date?: string; color: string; completedDates: string[] };
 export type GCalEvent = { id: string; summary?: string; start: { dateTime?: string; date?: string }; end: { dateTime?: string; date?: string } };
-export type FSEjercicio = { id: string; nombre: string; series?: number; reps?: string; notas?: string; mediaUrl?: string; lastCompletedDate: string | null; restTimerSecs?: number };
+export type SetLog = { peso: number; reps: number; done: boolean };
+export type FSEjercicio = { id: string; nombre: string; series?: number; reps?: string; notas?: string; mediaUrl?: string; lastCompletedDate: string | null; restTimerSecs?: number; setsLog?: SetLog[] };
 export type FSRutina    = { id: string; nombre: string; diasSemana: number[]; ejercicios: FSEjercicio[]; orden: number };
 export type EstadoLibro = 'leyendo' | 'leido' | 'pendiente';
 export type FSCapitulo  = { id: string; numero: number; titulo?: string; leido: boolean; notas?: string };

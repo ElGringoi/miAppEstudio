@@ -32,8 +32,11 @@ import type {
   FSStatKey, FSStatsDoc, FSHabito, FSEvento, FSMision, FSTarea,
   GCalEvent, FSEjercicio, FSRutina, EstadoLibro, FSCapitulo, FSLibro,
   TipoMaterial, FSMaterial, FSTareaFac, FSExamen, FSMateria,
-  FSEntradaDiario, FSObjetivoCHA, FSTransaccion, Habit, Task, HabitRecurrence, TabId, Moneda, LevelUpEvent, MisionPrioridad,
+  FSEntradaDiario, FSObjetivoCHA, FSTransaccion, Habit, Task, HabitRecurrence, TabId, Moneda, LevelUpEvent, MisionPrioridad, SetLog,
 } from './types';
+import { BodyMap } from './components/BodyMap';
+import type { MuscleId } from './components/BodyMap';
+import { getMuscles } from './utils/muscleMap';
 import { HabitHeatmap } from './components/HabitHeatmap';
 import { Modal, ModalHeader } from './components/Modal';
 import confetti from 'canvas-confetti';
@@ -115,6 +118,7 @@ export default function App() {
   const [gymInnerTab,    setGymInnerTab]    = useState<'entreno' | 'comida'>('entreno');
   const [targetRutinaId,    setTargetRutinaId]    = useState<string | null>(null);
   const [targetEjercicioId, setTargetEjercicioId] = useState<string | null>(null);
+  const [activeGymEjercicioId, setActiveGymEjercicioId] = useState<string | null>(null);
 
   const [editingHabitXp, setEditingHabitXp] = useState<string | null>(null);
 
@@ -399,6 +403,15 @@ export default function App() {
 
   const habitsToday  = habits.filter(h => h.activeToday);
   const done         = habitsToday.filter(h => h.completed).length;
+
+  const activeMuscles = useMemo<MuscleId[]>(() => {
+    if (!activeGymEjercicioId) return [];
+    for (const r of fsRutinas) {
+      const ej = r.ejercicios?.find(e => e.id === activeGymEjercicioId);
+      if (ej) return getMuscles(ej.nombre);
+    }
+    return [];
+  }, [activeGymEjercicioId, fsRutinas]);
 
   const totalXp                                   = fsStats ? FS_KEYS.reduce((s, k) => s + (fsStats[k]?.xp ?? 0), 0) : 0;
   const { level: heroLevel, xpInLevel, xpForNext: heroXpForNext } = xpLevel(totalXp);
@@ -793,6 +806,26 @@ export default function App() {
     } finally {
       pendingOps.current.delete(opKey);
     }
+  }
+
+  async function updateEjercicioSets(rutinaId: string, ejId: string, setsLog: SetLog[]) {
+    if (!user?.uid) return;
+    const opKey = `sets-${rutinaId}-${ejId}`;
+    if (pendingOps.current.has(opKey)) return;
+    pendingOps.current.add(opKey);
+    try {
+      const rutinaRef = doc(db, 'usuarios', user.uid, 'rutinas', rutinaId);
+      await runTransaction(db, async tx => {
+        const snap = await tx.get(rutinaRef);
+        if (!snap.exists()) return;
+        const data = snap.data() as FSRutina;
+        const ejercicios = data.ejercicios.map(e =>
+          e.id === ejId ? { ...e, setsLog } : e
+        );
+        tx.update(rutinaRef, { ejercicios });
+      });
+    } catch (e) { console.error(e); }
+    finally { pendingOps.current.delete(opKey); }
   }
 
   async function seedRutinaHipertrofia() {
@@ -1858,8 +1891,44 @@ export default function App() {
                 const todayNum    = getDay(new Date());
                 const todayRuts   = fsRutinas.filter(r => r.diasSemana?.includes(todayNum));
                 const otherRuts   = fsRutinas.filter(r => !r.diasSemana?.includes(todayNum));
+                const activeEjNombre = (() => {
+                  if (!activeGymEjercicioId) return null;
+                  for (const r of fsRutinas) {
+                    const ej = r.ejercicios?.find(e => e.id === activeGymEjercicioId);
+                    if (ej) return ej.nombre;
+                  }
+                  return null;
+                })();
                 return (
-                  <div className="space-y-8">
+                  <div className="flex gap-6 items-start">
+                    {/* ── Body map (sticky, desktop) ── */}
+                    <div className="hidden lg:flex flex-col items-center w-52 shrink-0 sticky top-4">
+                      <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2">
+                        Músculos activos
+                      </p>
+                      <BodyMap activeMuscles={activeMuscles} className="w-full" />
+                      {activeEjNombre ? (
+                        <p className="mt-2 text-[10px] font-bold text-slate-400 text-center leading-tight px-2">
+                          {activeEjNombre}
+                        </p>
+                      ) : (
+                        <p className="mt-2 text-[9px] text-slate-500 text-center">
+                          Pasá el cursor sobre un ejercicio
+                        </p>
+                      )}
+                      {activeMuscles.length > 0 && (
+                        <div className="mt-3 flex flex-wrap justify-center gap-1 px-1">
+                          {activeMuscles.map(m => (
+                            <span key={m} className="text-[9px] font-black uppercase tracking-wide bg-red-100 dark:bg-red-900/30 text-red-600 px-1.5 py-0.5 rounded-full">
+                              {m}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* ── Exercise content ── */}
+                  <div className="flex-1 space-y-8">
 
                     {/* Hoy */}
                     <section>
@@ -1894,8 +1963,11 @@ export default function App() {
                               <p className="text-xs text-slate-400 text-center py-4">Sin ejercicios. Agregá uno abajo.</p>
                             ) : rutina.ejercicios?.map(ej => (
                               <EjercicioRow key={ej.id} ejercicio={ej}
+                                isActive={activeGymEjercicioId === ej.id}
+                                onSelect={() => setActiveGymEjercicioId(ej.id)}
                                 onToggle={() => toggleEjercicio(rutina.id, ej.id)}
                                 onDelete={() => deleteEjercicio(rutina.id, ej.id)}
+                                onUpdateSets={sets => updateEjercicioSets(rutina.id, ej.id, sets)}
                                 onEdit={() => {
                                   setTargetRutinaId(rutina.id);
                                   setTargetEjercicioId(ej.id);
@@ -1966,6 +2038,7 @@ export default function App() {
                         </div>
                       )}
                     </section>
+                  </div>
                   </div>
                 );
               })()}
