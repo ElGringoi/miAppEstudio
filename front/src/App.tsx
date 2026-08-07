@@ -25,7 +25,7 @@ import {
 import type { User } from 'firebase/auth';
 import {
   collection, doc, increment, onSnapshot,
-  updateDoc, addDoc, deleteDoc, writeBatch,
+  updateDoc, addDoc, deleteDoc, writeBatch, runTransaction,
 } from 'firebase/firestore';
 import { auth, db } from './lib/firebase';
 import type {
@@ -35,8 +35,11 @@ import type {
   FSEntradaDiario, FSObjetivoCHA, FSTransaccion, Habit, Task, HabitRecurrence, TabId, Moneda, LevelUpEvent, MisionPrioridad,
 } from './types';
 import { HabitHeatmap } from './components/HabitHeatmap';
+import { Modal, ModalHeader } from './components/Modal';
 import confetti from 'canvas-confetti';
-import { HOY, FS_KEYS, STAT_META, DIAS_CORTO, DIAS_LETRA, ESTADO_LIBRO_META, MATERIAL_ICON, CATEGORIAS_GASTO, CATEGORIAS_INGRESO, CLASS_META, RANK_META, MONEDA_META, PRIORIDAD_META } from './utils/constants';
+
+const DEFAULT_TASK_COLOR = '#3b82f6';
+import { HOY, getToday, FS_KEYS, STAT_META, DIAS_CORTO, DIAS_LETRA, ESTADO_LIBRO_META, MATERIAL_ICON, CATEGORIAS_GASTO, CATEGORIAS_INGRESO, CLASS_META, RANK_META, MONEDA_META, PRIORIDAD_META, APP_VERSION } from './utils/constants';
 import { xpLevel, statsFromDoc, buildTree, youtubeEmbedUrl, isHabitActiveToday, isHabitDoneToday, isDateInCurrentWeek, habitRecurrenceLabel, calcStreak, calcMainLevel, rankFromLevel, assignClass, calcXpPerDay, streakMultiplier, calcXpBySource } from './utils/helpers';
 import { ProgressBar } from './components/ProgressBar';
 import { StatCard } from './components/StatCard';
@@ -46,6 +49,38 @@ import { MissionNodeComp } from './components/MissionNodeComp';
 import { LoginScreen } from './components/LoginScreen';
 
 // ─── App ──────────────────────────────────────────────────────────────────────
+
+// ─── Constantes de módulo (no recrear en cada render) ────────────────────────
+
+const NAV: { id: TabId; icon: ReactNode; label: string }[] = [
+  { id: 'dashboard',  icon: <LayoutDashboard className="w-5 h-5" />, label: 'Dashboard'  },
+  { id: 'calendar',   icon: <CalendarIcon     className="w-5 h-5" />, label: 'Calendar'   },
+  { id: 'gym',        icon: <Dumbbell         className="w-5 h-5" />, label: 'Gym'        },
+  { id: 'attributes', icon: <Sword            className="w-5 h-5" />, label: 'Attributes' },
+  { id: 'habits',     icon: <Zap              className="w-5 h-5" />, label: 'Quests'     },
+  { id: 'missions',   icon: <Target           className="w-5 h-5" />, label: 'Missions'   },
+  { id: 'billetera',  icon: <Wallet           className="w-5 h-5" />, label: 'Treasury'   },
+  { id: 'settings',   icon: <Settings         className="w-5 h-5" />, label: 'Settings'   },
+];
+
+const PAGE_TITLE: Record<string, string> = {
+  dashboard: 'BATTLE STATION', calendar: 'BATTLE LOG', gym: 'GYM',
+  attributes: 'SKILL TREE', habits: 'DAILY QUESTS', missions: 'MISSION TREE',
+  billetera: 'TREASURY', settings: 'SETTINGS',
+};
+
+function getPageSub(firstName: string): Record<string, string> {
+  return {
+    dashboard: `Welcome back, ${firstName} 👋`,
+    calendar: 'Schedule your battles',
+    gym: 'Entrenamiento y alimentación',
+    attributes: "Your hero's power",
+    habits: 'Complete your daily quests',
+    missions: 'Track your objectives',
+    billetera: 'Controlá tus ingresos y gastos',
+    settings: 'Configure your hero',
+  };
+}
 
 export default function App() {
   const [user, setUser]           = useState<User | null>(null);
@@ -104,6 +139,7 @@ export default function App() {
   // ── Nuevas mejoras ────────────────────────────────────────────────────────
   const [levelUpEvent,     setLevelUpEvent]     = useState<LevelUpEvent | null>(null);
   const prevMainLevel = useRef<number | null>(null);
+  const pendingOps    = useRef<Set<string>>(new Set());
 
   // Dashboard
   const [todayFocus, setTodayFocus] = useState<string>(() => localStorage.getItem(`focus_${HOY}`) ?? '');
@@ -119,6 +155,10 @@ export default function App() {
   const [_expandedEntrada,  _setExpandedEntrada]  = useState<string | null>(null);
   const [_nuevaObjetivoTxt, _setNuevaObjetivoTxt] = useState('');
 
+  // Confirm modal
+  const [confirmModal, setConfirmModal] = useState<{ msg: string; onOk: () => void } | null>(null);
+  function showConfirm(msg: string, onOk: () => void) { setConfirmModal({ msg, onOk }); }
+
   // Modal state
   const [modal, setModal] = useState<'habit' | 'task' | 'evento' | 'rutina' | 'ejercicio' | 'libro' | 'materia' | 'material' | 'tareaFac' | 'examen' | 'entrada_diario' | 'mision' | null>(null);
   const [editingHabitId, setEditingHabitId] = useState<string | null>(null);
@@ -130,7 +170,7 @@ export default function App() {
     costoMonto: '', costoMoneda: 'ARS' as Moneda,
   });
   const [habitForm,      setHabitForm]      = useState({ nombre: '', stat: 'fuerza' as FSStatKey, recurrence: 'daily' as HabitRecurrence, diasSemana: [] as number[] });
-  const [taskForm,     setTaskForm]     = useState({ titulo: '', hora: '', recurrence: 'once' as FSTarea['recurrence'], weekday: 1, date: HOY, color: '#3b82f6' });
+  const [taskForm,     setTaskForm]     = useState({ titulo: '', hora: '', recurrence: 'once' as FSTarea['recurrence'], weekday: 1, date: HOY, color: DEFAULT_TASK_COLOR });
   const [eventoForm,   setEventoForm]   = useState({ titulo: '', hora: '', fecha: HOY });
   const [rutinaForm,   setRutinaForm]   = useState({ nombre: '', diasSemana: [] as number[] });
   const [ejercicioForm, setEjercicioForm] = useState({ nombre: '', series: 3, reps: '8-12', notas: '', mediaUrl: '' });
@@ -171,10 +211,10 @@ export default function App() {
     prevMainLevel.current = current;
   }, [fsStats]);
 
-  // Load GCal token from localStorage
+  // Load GCal token from sessionStorage (no persiste entre sesiones por seguridad)
   useEffect(() => {
-    const token = localStorage.getItem('gcal_token');
-    const exp   = parseInt(localStorage.getItem('gcal_token_exp') || '0');
+    const token = sessionStorage.getItem('gcal_token');
+    const exp   = parseInt(sessionStorage.getItem('gcal_token_exp') || '0');
     if (token && exp > Date.now()) setGcalToken(token);
   }, []);
 
@@ -192,12 +232,13 @@ export default function App() {
     }).then(r => {
       if (r.status === 401) {
         setGcalToken(null);
-        localStorage.removeItem('gcal_token');
-        localStorage.removeItem('gcal_token_exp');
+        sessionStorage.removeItem('gcal_token');
+        sessionStorage.removeItem('gcal_token_exp');
         return null;
       }
       return r.json();
-    }).then(data => { if (data?.items) setGcalEvents(data.items); });
+    }).then(data => { if (data?.items) setGcalEvents(data.items); })
+      .catch(err => console.error('GCal fetch error:', err));
   }, [gcalToken]);
 
   // Firestore listeners
@@ -207,20 +248,8 @@ export default function App() {
     const uid = user.uid;
     let loaded = 0;
     const markLoaded = () => { if (++loaded === 11) setDataReady(true); };
-    let prevStatsDoc: FSStatsDoc | null = null;
     const unsubStats = onSnapshot(doc(db, 'usuarios', uid, 'stats', 'main'), snap => {
-      const newStats = snap.data() as FSStatsDoc ?? null;
-      if (prevStatsDoc && newStats) {
-        const leveledUp = FS_KEYS.some(k =>
-          xpLevel(newStats[k]?.xp ?? 0).level > xpLevel(prevStatsDoc![k]?.xp ?? 0).level
-        );
-        if (leveledUp) {
-          confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 }, colors: ['#3b82f6', '#8b5cf6', '#f59e0b', '#10b981'] });
-          showToast('¡Subiste de nivel! 🎉', true);
-        }
-      }
-      prevStatsDoc = newStats;
-      setFsStats(newStats);
+      setFsStats(snap.data() as FSStatsDoc ?? null);
       markLoaded();
     });
     const u2  = onSnapshot(collection(db, 'usuarios', uid, 'habitos'),       s => { setFsHabitos(s.docs.map(d => ({ id: d.id, ...d.data() } as FSHabito))); markLoaded(); });
@@ -295,7 +324,7 @@ export default function App() {
   const heroClass     = useMemo(() => assignClass(fsStats), [fsStats]);
 
   // XP por día y logros
-  const xpPerDay = calcXpPerDay(fsHabitos, 14);
+  const xpPerDay = useMemo(() => calcXpPerDay(fsHabitos, 14), [fsHabitos]);
 
   // Heatmap data (últimos 365 días)
   const heatmapData = useMemo(() => {
@@ -325,9 +354,11 @@ export default function App() {
   const logrosUnlocked = useMemo(() => {
     const ids: string[] = [];
     if (fsHabitos.some(h => (h.completedDates?.length ?? 0) > 0)) ids.push('primera_quest');
-    if (fsHabitos.some(h => calcStreak(h.completedDates ?? [], h.recurrence ?? 'daily') >= 7)) ids.push('racha_7');
-    if (fsHabitos.some(h => calcStreak(h.completedDates ?? [], h.recurrence ?? 'daily') >= 30)) ids.push('racha_30');
-    if (Object.values(fsStats ?? {}).some((s: { xp: number }) => xpLevel(s.xp).level >= 5)) ids.push('nivel_5');
+    // Calcular streaks una sola vez para evitar O(n × 365) por logro
+    const streaks = fsHabitos.map(h => calcStreak(h.completedDates ?? [], h.recurrence ?? 'daily'));
+    if (streaks.some(s => s >= 7))  ids.push('racha_7');
+    if (streaks.some(s => s >= 30)) ids.push('racha_30');
+    if (Object.values(fsStats ?? {}).some((s: { xp: number }) => xpLevel(s.xp).level >= 5))  ids.push('nivel_5');
     if (Object.values(fsStats ?? {}).some((s: { xp: number }) => xpLevel(s.xp).level >= 10)) ids.push('nivel_10');
     if (fsLibros.some(l => l.estado === 'leido')) ids.push('primer_libro');
     if (fsMaterias.some(m => m.examenes.some(e => e.nota !== undefined))) ids.push('primer_examen');
@@ -348,7 +379,7 @@ export default function App() {
       })
       .map(t => ({
         id: t.id, title: t.titulo, time: t.hora ?? '',
-        color: t.color ?? '#3b82f6',
+        color: t.color ?? DEFAULT_TASK_COLOR,
         completed: t.completedDates?.includes(dStr) ?? false,
         recurrence: t.recurrence, weekday: t.weekday, date: t.date,
         completedDates: t.completedDates ?? [],
@@ -361,6 +392,7 @@ export default function App() {
   const totalXp                                   = fsStats ? FS_KEYS.reduce((s, k) => s + (fsStats[k]?.xp ?? 0), 0) : 0;
   const { level: heroLevel, xpInLevel, xpForNext: heroXpForNext } = xpLevel(totalXp);
   const initials   = (user?.displayName ?? 'H').split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
+  const pageSub    = useMemo(() => getPageSub(user?.displayName?.split(' ')[0] ?? 'Hero'), [user?.displayName]);
 
   // ── Firestore writes ──────────────────────────────────────────────────────
 
@@ -370,9 +402,10 @@ export default function App() {
     if (!h || !isHabitActiveToday(h)) return;
     const yaHecho = isHabitDoneToday(h);
     const prev = h.completedDates ?? (h.fechaCompletado ? [h.fechaCompletado] : []);
+    const today = getToday();
     const toggled = yaHecho
-      ? (h.recurrence === 'once_week' ? prev.filter(d => !isDateInCurrentWeek(d)) : prev.filter(d => d !== HOY))
-      : [...prev, HOY];
+      ? (h.recurrence === 'once_week' ? prev.filter(d => !isDateInCurrentWeek(d)) : prev.filter(d => d !== today))
+      : [...prev, today];
     const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 90);
     const next = toggled.filter(d => d >= cutoff.toISOString().slice(0, 10));
     const baseXp = h.xpValue ?? 20;
@@ -398,7 +431,7 @@ export default function App() {
           showToast(`+${xpFinal} XP ${STAT_META[h.stat].shortName}${multLabel}`, true);
         }
       }
-    } catch {
+    } catch (e) { console.error(e);
       showToast('Error al guardar el hábito');
     }
   }
@@ -414,7 +447,7 @@ export default function App() {
     const next = toggled.filter(x => x >= cutoff.toISOString().slice(0, 10));
     try {
       await updateDoc(doc(db, 'usuarios', user.uid, 'tareas', id), { completedDates: next });
-    } catch {
+    } catch (e) { console.error(e);
       showToast('Error al guardar la tarea');
     }
   }
@@ -465,7 +498,7 @@ export default function App() {
         showToast('Misión agregada', true);
       }
       setModal(null);
-    } catch {
+    } catch (e) { console.error(e);
       showToast('Error al guardar la misión');
     }
   }
@@ -478,7 +511,7 @@ export default function App() {
         titulo: title, completada: false, parentId: realParent,
         orden: fsMisiones.filter(m => m.parentId === realParent).length,
       });
-    } catch {
+    } catch (e) { console.error(e);
       showToast('Error al agregar la misión');
     }
   }
@@ -495,25 +528,24 @@ export default function App() {
     const nuevaCompletada = !m.completada;
     try {
       await updateDoc(doc(db, 'usuarios', user.uid, 'misiones', id), { completada: nuevaCompletada });
-      if (nuevaCompletada && m.costoMonto && m.costoMonto > 0 && user.uid) {
+      if (nuevaCompletada && m.costoMonto && m.costoMonto > 0) {
         const sym = MONEDA_META[m.costoMoneda ?? 'ARS']?.symbol ?? '$';
-        const ok = window.confirm(`¿Registrar gasto de ${sym}${m.costoMonto.toLocaleString('es-AR')} en Treasury por "${m.titulo}"?`);
-        if (ok) {
-          await addDoc(collection(db, 'usuarios', user.uid, 'transacciones'), {
-            descripcion: m.titulo,
-            monto: m.costoMonto,
-            tipo: 'gasto',
-            categoria: '🎯 Misión',
-            fecha: HOY,
-            moneda: m.costoMoneda ?? 'ARS',
-          });
-          showToast(`Gasto registrado en Treasury`, true);
-        }
+        showConfirm(
+          `¿Registrar gasto de ${sym}${m.costoMonto.toLocaleString('es-AR')} en Treasury por "${m.titulo}"?`,
+          async () => {
+            await addDoc(collection(db, 'usuarios', user.uid!, 'transacciones'), {
+              descripcion: m.titulo, monto: m.costoMonto, tipo: 'gasto',
+              categoria: '🎯 Misión', fecha: getToday(), moneda: m.costoMoneda ?? 'ARS',
+            });
+            showToast('Gasto registrado en Treasury', true);
+          }
+        );
       } else if (nuevaCompletada) {
         showToast('¡Misión completada!', true);
         confetti({ particleCount: 60, spread: 50, origin: { y: 0.6 } });
       }
-    } catch {
+    } catch (e) {
+      console.error(e);
       showToast('Error al actualizar la misión');
     }
   }
@@ -521,12 +553,19 @@ export default function App() {
   async function deleteMision(id: string) {
     if (!user?.uid) return;
     const hijos = fsMisiones.filter(m => m.parentId === id);
-    if (hijos.length > 0 && !window.confirm(`Esta misión tiene ${hijos.length} sub-misión(es). ¿Eliminar de todas formas?`)) return;
-    try {
-      await deleteDoc(doc(db, 'usuarios', user.uid, 'misiones', id));
-      showToast('Misión eliminada');
-    } catch {
-      showToast('Error al eliminar');
+    const doDelete = async () => {
+      try {
+        await deleteDoc(doc(db, 'usuarios', user.uid!, 'misiones', id));
+        showToast('Misión eliminada');
+      } catch (e) {
+        console.error(e);
+        showToast('Error al eliminar');
+      }
+    };
+    if (hijos.length > 0) {
+      showConfirm(`Esta misión tiene ${hijos.length} sub-misión(es). ¿Eliminar de todas formas?`, doDelete);
+    } else {
+      await doDelete();
     }
   }
 
@@ -564,7 +603,7 @@ export default function App() {
     if (!user?.uid) return;
     try {
       await deleteDoc(doc(db, 'usuarios', user.uid, 'habitos', id));
-    } catch {
+    } catch (e) { console.error(e);
       showToast('Error al eliminar el hábito');
     }
   }
@@ -573,7 +612,7 @@ export default function App() {
     if (!user?.uid || xpValue < 1) return;
     try {
       await updateDoc(doc(db, 'usuarios', user.uid, 'habitos', id), { xpValue });
-    } catch {
+    } catch (e) { console.error(e);
       showToast('Error al guardar el XP');
     }
   }
@@ -591,7 +630,7 @@ export default function App() {
     };
     try {
       await addDoc(collection(db, 'usuarios', user.uid, 'tareas'), data);
-      setTaskForm({ titulo: '', hora: '', recurrence: 'once', weekday: 1, date: HOY, color: '#3b82f6' });
+      setTaskForm({ titulo: '', hora: '', recurrence: 'once', weekday: 1, date: HOY, color: DEFAULT_TASK_COLOR });
       setModal(null);
     } catch (e: unknown) {
       setModalError((e as Error).message ?? 'Error al guardar');
@@ -602,7 +641,7 @@ export default function App() {
     if (!user?.uid) return;
     try {
       await deleteDoc(doc(db, 'usuarios', user.uid, 'tareas', id));
-    } catch {
+    } catch (e) { console.error(e);
       showToast('Error al eliminar la tarea');
     }
   }
@@ -627,7 +666,7 @@ export default function App() {
     if (!user?.uid) return;
     try {
       await deleteDoc(doc(db, 'usuarios', user.uid, 'eventos', id));
-    } catch {
+    } catch (e) { console.error(e);
       showToast('Error al eliminar el evento');
     }
   }
@@ -656,7 +695,7 @@ export default function App() {
     const rutina = fsRutinas.find(r => r.id === targetRutinaId);
     if (!rutina) return;
     const newEj: FSEjercicio = {
-      id: Date.now().toString(), lastCompletedDate: null,
+      id: crypto.randomUUID(), lastCompletedDate: null,
       nombre: ejercicioForm.nombre.trim(),
       ...(ejercicioForm.series  ? { series: ejercicioForm.series }   : {}),
       ...(ejercicioForm.reps    ? { reps: ejercicioForm.reps }       : {}),
@@ -701,35 +740,47 @@ export default function App() {
 
   async function deleteEjercicio(rutinaId: string, ejId: string) {
     if (!user?.uid) return;
+    const opKey = `del-ej-${rutinaId}-${ejId}`;
+    if (pendingOps.current.has(opKey)) return;
+    pendingOps.current.add(opKey);
     const rutina = fsRutinas.find(r => r.id === rutinaId);
-    if (!rutina) return;
+    if (!rutina) { pendingOps.current.delete(opKey); return; }
     try {
       await updateDoc(doc(db, 'usuarios', user.uid, 'rutinas', rutinaId), {
         ejercicios: rutina.ejercicios.filter(e => e.id !== ejId),
       });
-    } catch {
+    } catch (e) { console.error(e);
       showToast('Error al eliminar el ejercicio');
+    } finally {
+      pendingOps.current.delete(opKey);
     }
   }
 
   async function toggleEjercicio(rutinaId: string, ejId: string) {
     if (!user?.uid) return;
-    const rutina = fsRutinas.find(r => r.id === rutinaId);
-    if (!rutina) return;
-    const ej = rutina.ejercicios.find(e => e.id === ejId);
-    if (!ej) return;
-    const completing = ej.lastCompletedDate !== HOY;
-    const ejercicios = rutina.ejercicios.map(e =>
-      e.id !== ejId ? e : { ...e, lastCompletedDate: completing ? HOY : null }
-    );
+    const opKey = `ej-${rutinaId}-${ejId}`;
+    if (pendingOps.current.has(opKey)) return;
+    pendingOps.current.add(opKey);
     try {
-      const batch = writeBatch(db);
-      batch.update(doc(db, 'usuarios', user.uid, 'rutinas', rutinaId), { ejercicios });
-      batch.set(doc(db, 'usuarios', user.uid, 'stats', 'main'),
-        { fuerza: { xp: increment(completing ? 5 : -5) } }, { merge: true });
-      await batch.commit();
-    } catch {
+      const rutinaRef = doc(db, 'usuarios', user.uid, 'rutinas', rutinaId);
+      const statsRef  = doc(db, 'usuarios', user.uid, 'stats', 'main');
+      await runTransaction(db, async tx => {
+        const snap = await tx.get(rutinaRef);
+        if (!snap.exists()) return;
+        const data = snap.data() as FSRutina;
+        const ej = data.ejercicios.find(e => e.id === ejId);
+        if (!ej) return;
+        const completing = ej.lastCompletedDate !== getToday();
+        const ejercicios = data.ejercicios.map(e =>
+          e.id !== ejId ? e : { ...e, lastCompletedDate: completing ? getToday() : null }
+        );
+        tx.update(rutinaRef, { ejercicios });
+        tx.set(statsRef, { fuerza: { xp: increment(completing ? 5 : -5) } }, { merge: true });
+      });
+    } catch (e) { console.error(e);
       showToast('Error al guardar el ejercicio');
+    } finally {
+      pendingOps.current.delete(opKey);
     }
   }
 
@@ -790,7 +841,7 @@ export default function App() {
   async function addLibro() {
     if (!user?.uid || !libroForm.titulo.trim()) return;
     const capitulos: FSCapitulo[] = Array.from({ length: libroForm.totalCapitulos }, (_, i) => ({
-      id: `cap-${Date.now()}-${i}`, numero: i + 1, leido: false,
+      id: crypto.randomUUID(), numero: i + 1, leido: false,
     }));
     try {
       await addDoc(collection(db, 'usuarios', user.uid, 'libros'), {
@@ -809,7 +860,7 @@ export default function App() {
     try {
       await deleteDoc(doc(db, 'usuarios', user.uid, 'libros', id));
       if (expandedLibro === id) setExpandedLibro(null);
-    } catch {
+    } catch (e) { console.error(e);
       showToast('Error al eliminar el libro');
     }
   }
@@ -818,27 +869,34 @@ export default function App() {
     if (!user?.uid) return;
     try {
       await updateDoc(doc(db, 'usuarios', user.uid, 'libros', libroId), { estado });
-    } catch {
+    } catch (e) { console.error(e);
       showToast('Error al actualizar el estado');
     }
   }
 
   async function toggleCapitulo(libroId: string, capId: string) {
     if (!user?.uid) return;
-    const libro = fsLibros.find(l => l.id === libroId);
-    if (!libro) return;
-    const cap = libro.capitulos.find(c => c.id === capId);
-    if (!cap) return;
-    const completing = !cap.leido;
-    const capitulos = libro.capitulos.map(c => c.id !== capId ? c : { ...c, leido: completing });
+    const opKey = `cap-${libroId}-${capId}`;
+    if (pendingOps.current.has(opKey)) return;
+    pendingOps.current.add(opKey);
     try {
-      const batch = writeBatch(db);
-      batch.update(doc(db, 'usuarios', user.uid, 'libros', libroId), { capitulos });
-      batch.set(doc(db, 'usuarios', user.uid, 'stats', 'main'),
-        { inteligencia: { xp: increment(completing ? libro.xpPorCapitulo : -libro.xpPorCapitulo) } }, { merge: true });
-      await batch.commit();
-    } catch {
+      const libroRef = doc(db, 'usuarios', user.uid, 'libros', libroId);
+      const statsRef  = doc(db, 'usuarios', user.uid, 'stats', 'main');
+      await runTransaction(db, async tx => {
+        const snap = await tx.get(libroRef);
+        if (!snap.exists()) return;
+        const data = snap.data() as FSLibro;
+        const cap = data.capitulos.find(c => c.id === capId);
+        if (!cap) return;
+        const completing = !cap.leido;
+        const capitulos = data.capitulos.map(c => c.id !== capId ? c : { ...c, leido: completing });
+        tx.update(libroRef, { capitulos });
+        tx.set(statsRef, { inteligencia: { xp: increment(completing ? data.xpPorCapitulo : -data.xpPorCapitulo) } }, { merge: true });
+      });
+    } catch (e) { console.error(e);
       showToast('Error al guardar el capítulo');
+    } finally {
+      pendingOps.current.delete(opKey);
     }
   }
 
@@ -849,7 +907,7 @@ export default function App() {
     const capitulos = libro.capitulos.map(c => c.id !== capId ? c : { ...c, notas });
     try {
       await updateDoc(doc(db, 'usuarios', user.uid, 'libros', libroId), { capitulos });
-    } catch {
+    } catch (e) { console.error(e);
       showToast('Error al guardar las notas');
     }
   }
@@ -875,7 +933,7 @@ export default function App() {
     try {
       await deleteDoc(doc(db, 'usuarios', user.uid, 'materias', id));
       if (selectedMateria === id) setSelectedMateria(null);
-    } catch {
+    } catch (e) { console.error(e);
       showToast('Error al eliminar la materia');
     }
   }
@@ -885,7 +943,7 @@ export default function App() {
     const materia = fsMaterias.find(m => m.id === targetMateriaId);
     if (!materia) return;
     const newMat: FSMaterial = {
-      id: Date.now().toString(), tipo: materialForm.tipo, titulo: materialForm.titulo.trim(),
+      id: crypto.randomUUID(), tipo: materialForm.tipo, titulo: materialForm.titulo.trim(),
       ...(materialForm.contenido.trim() ? { contenido: materialForm.contenido.trim() } : {}),
       ...(materialForm.url.trim() ? { url: materialForm.url.trim() } : {}),
     };
@@ -900,12 +958,17 @@ export default function App() {
 
   async function deleteMaterial(materiaId: string, matId: string) {
     if (!user?.uid) return;
+    const opKey = `del-mat-${materiaId}-${matId}`;
+    if (pendingOps.current.has(opKey)) return;
+    pendingOps.current.add(opKey);
     const m = fsMaterias.find(x => x.id === materiaId);
-    if (!m) return;
+    if (!m) { pendingOps.current.delete(opKey); return; }
     try {
       await updateDoc(doc(db, 'usuarios', user.uid, 'materias', materiaId), { materiales: m.materiales.filter(x => x.id !== matId) });
-    } catch {
+    } catch (e) { console.error(e);
       showToast('Error al eliminar el material');
+    } finally {
+      pendingOps.current.delete(opKey);
     }
   }
 
@@ -914,7 +977,7 @@ export default function App() {
     const materia = fsMaterias.find(m => m.id === targetMateriaId);
     if (!materia) return;
     const newT: FSTareaFac = {
-      id: Date.now().toString(), titulo: tareaFacForm.titulo.trim(), completada: false,
+      id: crypto.randomUUID(), titulo: tareaFacForm.titulo.trim(), completada: false,
       ...(tareaFacForm.fecha ? { fecha: tareaFacForm.fecha } : {}),
     };
     try {
@@ -940,7 +1003,7 @@ export default function App() {
       batch.set(doc(db, 'usuarios', user.uid, 'stats', 'main'),
         { inteligencia: { xp: increment(completing ? 15 : -15) } }, { merge: true });
       await batch.commit();
-    } catch {
+    } catch (e) { console.error(e);
       showToast('Error al guardar la tarea');
     }
   }
@@ -951,7 +1014,7 @@ export default function App() {
     if (!m) return;
     try {
       await updateDoc(doc(db, 'usuarios', user.uid, 'materias', materiaId), { tareas: m.tareas.filter(x => x.id !== tareaId) });
-    } catch {
+    } catch (e) { console.error(e);
       showToast('Error al eliminar la tarea');
     }
   }
@@ -989,7 +1052,7 @@ export default function App() {
     if (!m) return;
     try {
       await updateDoc(doc(db, 'usuarios', user.uid, 'materias', materiaId), { examenes: m.examenes.filter(x => x.id !== examenId) });
-    } catch {
+    } catch (e) { console.error(e);
       showToast('Error al eliminar el examen');
     }
   }
@@ -1003,8 +1066,8 @@ export default function App() {
       const credential = GoogleAuthProvider.credentialFromResult(result);
       if (credential?.accessToken) {
         setGcalToken(credential.accessToken);
-        localStorage.setItem('gcal_token', credential.accessToken);
-        localStorage.setItem('gcal_token_exp', (Date.now() + 3500 * 1000).toString());
+        sessionStorage.setItem('gcal_token', credential.accessToken);
+        sessionStorage.setItem('gcal_token_exp', (Date.now() + 3500 * 1000).toString());
       }
     } catch (err) {
       console.error('Error connecting Google Calendar:', err);
@@ -1022,8 +1085,8 @@ export default function App() {
   function disconnectGCal() {
     setGcalToken(null);
     setGcalEvents([]);
-    localStorage.removeItem('gcal_token');
-    localStorage.removeItem('gcal_token_exp');
+    sessionStorage.removeItem('gcal_token');
+    sessionStorage.removeItem('gcal_token_exp');
   }
 
   function gcalForDate(d: Date): GCalEvent[] {
@@ -1069,7 +1132,7 @@ export default function App() {
         showToast('Transacción guardada', true);
       }
       closeTxModal();
-    } catch {
+    } catch (e) { console.error(e);
       showToast('Error al guardar la transacción');
     }
   }
@@ -1078,7 +1141,7 @@ export default function App() {
     if (!user?.uid) return;
     try {
       await deleteDoc(doc(db, 'usuarios', user.uid, 'transacciones', id));
-    } catch {
+    } catch (e) { console.error(e);
       showToast('Error al eliminar la transacción');
     }
   }
@@ -1103,32 +1166,6 @@ export default function App() {
       <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Loading hero data…</p>
     </div>
   );
-
-  // ── Nav ───────────────────────────────────────────────────────────────────
-
-  const NAV: { id: TabId; icon: ReactNode; label: string }[] = [
-    { id: 'dashboard',  icon: <LayoutDashboard className="w-5 h-5" />, label: 'Dashboard'  },
-    { id: 'calendar',   icon: <CalendarIcon     className="w-5 h-5" />, label: 'Calendar'   },
-    { id: 'gym',        icon: <Dumbbell         className="w-5 h-5" />, label: 'Gym'        },
-    { id: 'attributes', icon: <Sword            className="w-5 h-5" />, label: 'Attributes' },
-    { id: 'habits',     icon: <Zap              className="w-5 h-5" />, label: 'Quests'     },
-    { id: 'missions',   icon: <Target           className="w-5 h-5" />, label: 'Missions'   },
-    { id: 'billetera',  icon: <Wallet           className="w-5 h-5" />, label: 'Treasury'   },
-    { id: 'settings',   icon: <Settings         className="w-5 h-5" />, label: 'Settings'   },
-  ];
-
-  const PAGE_TITLE: Record<string, string> = {
-    dashboard: 'BATTLE STATION', calendar: 'BATTLE LOG', gym: 'GYM',
-    attributes: 'SKILL TREE', habits: 'DAILY QUESTS', missions: 'MISSION TREE',
-    billetera: 'TREASURY', settings: 'SETTINGS',
-  };
-  const PAGE_SUB: Record<string, string> = {
-    dashboard: `Welcome back, ${user.displayName?.split(' ')[0] ?? 'Hero'} 👋`,
-    calendar: 'Schedule your battles', gym: 'Entrenamiento y alimentación',
-    attributes: "Your hero's power", habits: 'Complete your daily quests',
-    missions: 'Track your objectives', billetera: 'Controlá tus ingresos y gastos',
-    settings: 'Configure your hero',
-  };
 
   return (
     <div className="flex min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 relative overflow-hidden">
@@ -1155,22 +1192,28 @@ export default function App() {
         )}
       </AnimatePresence>
 
+      {/* ── Confirm modal ── */}
+      <Modal open={!!confirmModal} onClose={() => setConfirmModal(null)}>
+        <ModalHeader title="Confirmar acción" onClose={() => setConfirmModal(null)} />
+        <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">{confirmModal?.msg}</p>
+        <div className="flex gap-3">
+          <button onClick={() => setConfirmModal(null)}
+            className="flex-1 py-3 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">
+            Cancelar
+          </button>
+          <button onClick={() => { confirmModal?.onOk(); setConfirmModal(null); }}
+            className="flex-1 py-3 bg-red-500 text-white rounded-xl text-sm font-black hover:bg-red-600 transition-all shadow-lg shadow-red-500/20">
+            Confirmar
+          </button>
+        </div>
+      </Modal>
+
       {/* ── Modal: Nueva / Editar transacción ── */}
-      <AnimatePresence>
-        {showTxModal && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
-            onClick={closeTxModal}>
-            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
-              onClick={e => e.stopPropagation()}
-              className="bg-white dark:bg-slate-900 rounded-3xl p-8 w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800 space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="font-black text-lg flex items-center gap-2">
-                  <Wallet className="w-5 h-5 text-emerald-600" />
-                  {editingTxId ? 'Editar transacción' : 'Nueva transacción'}
-                </h3>
-                <button onClick={closeTxModal} className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"><X className="w-4 h-4" /></button>
-              </div>
+      <Modal open={showTxModal} onClose={closeTxModal} className="space-y-4">
+        <ModalHeader
+          title={<><Wallet className="w-5 h-5 text-emerald-600" />{editingTxId ? 'Editar transacción' : 'Nueva transacción'}</>}
+          onClose={closeTxModal}
+        />
               <div className="flex bg-slate-100 dark:bg-slate-800 rounded-xl p-1 gap-1">
                 {(['gasto', 'ingreso'] as const).map(t => (
                   <button key={t} onClick={() => setTxForm(f => ({ ...f, tipo: t, categoria: '' }))}
@@ -1203,10 +1246,7 @@ export default function App() {
                 className="w-full py-3 bg-emerald-600 text-white rounded-xl text-sm font-black hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg shadow-emerald-500/20">
                 {editingTxId ? 'Actualizar' : 'Guardar'}
               </button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      </Modal>
 
       {/* ── Stat-up overlay ── */}
       <AnimatePresence>
@@ -1320,21 +1360,22 @@ export default function App() {
             {/* Hamburger — solo mobile */}
             <button
               onClick={() => setSidebarOpen(true)}
+              aria-label="Abrir menú"
               className="md:hidden shrink-0 p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400"
             >
               <Menu className="w-5 h-5" />
             </button>
             <div className="min-w-0">
-              <p className="text-slate-500 dark:text-slate-400 font-medium text-xs md:text-sm truncate">{PAGE_SUB[tab]}</p>
+              <p className="text-slate-500 dark:text-slate-400 font-medium text-xs md:text-sm truncate">{pageSub[tab]}</p>
               <h2 className="text-2xl md:text-4xl font-black tracking-tighter mt-0.5 truncate">{PAGE_TITLE[tab]}</h2>
             </div>
           </div>
           <div className="flex items-center gap-2 md:gap-4 shrink-0">
             <div className="relative hidden md:block">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <input type="text" placeholder="Search quests…" className="pl-10 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 w-64" />
+              <input type="text" placeholder="Search quests…" aria-label="Buscar" className="pl-10 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 w-64" />
             </div>
-            <button className="p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
+            <button aria-label="Notificaciones" className="p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
               <Bell className="w-5 h-5 text-slate-600 dark:text-slate-400" />
             </button>
           </div>
@@ -2730,6 +2771,11 @@ export default function App() {
                     className="flex items-center gap-2 px-6 py-3 border border-red-200 dark:border-red-900/40 text-red-600 rounded-xl text-xs font-black hover:bg-red-50 dark:hover:bg-red-900/10 transition-all">
                     <LogOut className="w-4 h-4" /> Cerrar sesión
                   </button>
+                </div>
+
+                <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                  <span className="text-[10px] font-black text-slate-300 dark:text-slate-700 uppercase tracking-widest">miAppEstudio</span>
+                  <span className="text-[10px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">v{APP_VERSION}</span>
                 </div>
               </div>
             </motion.div>
