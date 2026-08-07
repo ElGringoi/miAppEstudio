@@ -15,6 +15,11 @@ export const StatCard = ({ stat }: { stat: Stat }) => (
       <span className="text-xs font-mono font-bold text-slate-500">{stat.value}/{stat.max} xp</span>
     </div>
     <ProgressBar value={stat.value} max={stat.max} color={stat.color} />
-    <p className="text-[10px] text-slate-400 mt-2 leading-tight">{stat.description}</p>
+    <div className="flex items-center justify-between mt-2">
+      <p className="text-[10px] text-slate-400 leading-tight flex-1">{stat.description}</p>
+      <span className="text-[10px] font-black text-slate-500 shrink-0 ml-2 whitespace-nowrap">
+        {stat.max - stat.value} XP → Lv.{stat.level + 1}
+      </span>
+    </div>
   </div>
 );
