@@ -39,7 +39,7 @@ import { Modal, ModalHeader } from './components/Modal';
 import confetti from 'canvas-confetti';
 
 const DEFAULT_TASK_COLOR = '#3b82f6';
-import { HOY, getToday, FS_KEYS, STAT_META, DIAS_CORTO, DIAS_LETRA, ESTADO_LIBRO_META, MATERIAL_ICON, CATEGORIAS_GASTO, CATEGORIAS_INGRESO, CLASS_META, RANK_META, MONEDA_META, PRIORIDAD_META } from './utils/constants';
+import { HOY, getToday, FS_KEYS, STAT_META, DIAS_CORTO, DIAS_LETRA, ESTADO_LIBRO_META, MATERIAL_ICON, CATEGORIAS_GASTO, CATEGORIAS_INGRESO, CLASS_META, RANK_META, MONEDA_META, PRIORIDAD_META, APP_VERSION } from './utils/constants';
 import { xpLevel, statsFromDoc, buildTree, youtubeEmbedUrl, isHabitActiveToday, isHabitDoneToday, isDateInCurrentWeek, habitRecurrenceLabel, calcStreak, calcMainLevel, rankFromLevel, assignClass, calcXpPerDay, streakMultiplier, calcXpBySource } from './utils/helpers';
 import { ProgressBar } from './components/ProgressBar';
 import { StatCard } from './components/StatCard';
@@ -2771,6 +2771,11 @@ export default function App() {
                     className="flex items-center gap-2 px-6 py-3 border border-red-200 dark:border-red-900/40 text-red-600 rounded-xl text-xs font-black hover:bg-red-50 dark:hover:bg-red-900/10 transition-all">
                     <LogOut className="w-4 h-4" /> Cerrar sesión
                   </button>
+                </div>
+
+                <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                  <span className="text-[10px] font-black text-slate-300 dark:text-slate-700 uppercase tracking-widest">miAppEstudio</span>
+                  <span className="text-[10px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">v{APP_VERSION}</span>
                 </div>
               </div>
             </motion.div>

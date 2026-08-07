@@ -2,6 +2,7 @@ import React from 'react';
 import { Dumbbell, Heart, Brain, Zap, Sparkles, Star } from 'lucide-react';
 import type { FSStatKey, EstadoLibro, TipoMaterial, Stat } from '../types';
 
+export const APP_VERSION = '1.2.0';
 export const HOY = new Date().toISOString().slice(0, 10);
 export const getToday = () => new Date().toISOString().slice(0, 10);
 export const PRIORIDAD_META: Record<string, { color: string; bg: string; label: string }> = {
