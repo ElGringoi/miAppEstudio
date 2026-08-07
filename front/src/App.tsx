@@ -35,7 +35,10 @@ import type {
   FSEntradaDiario, FSObjetivoCHA, FSTransaccion, Habit, Task, HabitRecurrence, TabId, Moneda, LevelUpEvent, MisionPrioridad,
 } from './types';
 import { HabitHeatmap } from './components/HabitHeatmap';
+import { Modal, ModalHeader } from './components/Modal';
 import confetti from 'canvas-confetti';
+
+const DEFAULT_TASK_COLOR = '#3b82f6';
 import { HOY, FS_KEYS, STAT_META, DIAS_CORTO, DIAS_LETRA, ESTADO_LIBRO_META, MATERIAL_ICON, CATEGORIAS_GASTO, CATEGORIAS_INGRESO, CLASS_META, RANK_META, MONEDA_META, PRIORIDAD_META } from './utils/constants';
 import { xpLevel, statsFromDoc, buildTree, youtubeEmbedUrl, isHabitActiveToday, isHabitDoneToday, isDateInCurrentWeek, habitRecurrenceLabel, calcStreak, calcMainLevel, rankFromLevel, assignClass, calcXpPerDay, streakMultiplier, calcXpBySource } from './utils/helpers';
 import { ProgressBar } from './components/ProgressBar';
@@ -46,6 +49,38 @@ import { MissionNodeComp } from './components/MissionNodeComp';
 import { LoginScreen } from './components/LoginScreen';
 
 // ─── App ──────────────────────────────────────────────────────────────────────
+
+// ─── Constantes de módulo (no recrear en cada render) ────────────────────────
+
+const NAV: { id: TabId; icon: ReactNode; label: string }[] = [
+  { id: 'dashboard',  icon: <LayoutDashboard className="w-5 h-5" />, label: 'Dashboard'  },
+  { id: 'calendar',   icon: <CalendarIcon     className="w-5 h-5" />, label: 'Calendar'   },
+  { id: 'gym',        icon: <Dumbbell         className="w-5 h-5" />, label: 'Gym'        },
+  { id: 'attributes', icon: <Sword            className="w-5 h-5" />, label: 'Attributes' },
+  { id: 'habits',     icon: <Zap              className="w-5 h-5" />, label: 'Quests'     },
+  { id: 'missions',   icon: <Target           className="w-5 h-5" />, label: 'Missions'   },
+  { id: 'billetera',  icon: <Wallet           className="w-5 h-5" />, label: 'Treasury'   },
+  { id: 'settings',   icon: <Settings         className="w-5 h-5" />, label: 'Settings'   },
+];
+
+const PAGE_TITLE: Record<string, string> = {
+  dashboard: 'BATTLE STATION', calendar: 'BATTLE LOG', gym: 'GYM',
+  attributes: 'SKILL TREE', habits: 'DAILY QUESTS', missions: 'MISSION TREE',
+  billetera: 'TREASURY', settings: 'SETTINGS',
+};
+
+function getPageSub(firstName: string): Record<string, string> {
+  return {
+    dashboard: `Welcome back, ${firstName} 👋`,
+    calendar: 'Schedule your battles',
+    gym: 'Entrenamiento y alimentación',
+    attributes: "Your hero's power",
+    habits: 'Complete your daily quests',
+    missions: 'Track your objectives',
+    billetera: 'Controlá tus ingresos y gastos',
+    settings: 'Configure your hero',
+  };
+}
 
 export default function App() {
   const [user, setUser]           = useState<User | null>(null);
@@ -130,7 +165,7 @@ export default function App() {
     costoMonto: '', costoMoneda: 'ARS' as Moneda,
   });
   const [habitForm,      setHabitForm]      = useState({ nombre: '', stat: 'fuerza' as FSStatKey, recurrence: 'daily' as HabitRecurrence, diasSemana: [] as number[] });
-  const [taskForm,     setTaskForm]     = useState({ titulo: '', hora: '', recurrence: 'once' as FSTarea['recurrence'], weekday: 1, date: HOY, color: '#3b82f6' });
+  const [taskForm,     setTaskForm]     = useState({ titulo: '', hora: '', recurrence: 'once' as FSTarea['recurrence'], weekday: 1, date: HOY, color: DEFAULT_TASK_COLOR });
   const [eventoForm,   setEventoForm]   = useState({ titulo: '', hora: '', fecha: HOY });
   const [rutinaForm,   setRutinaForm]   = useState({ nombre: '', diasSemana: [] as number[] });
   const [ejercicioForm, setEjercicioForm] = useState({ nombre: '', series: 3, reps: '8-12', notas: '', mediaUrl: '' });
@@ -348,7 +383,7 @@ export default function App() {
       })
       .map(t => ({
         id: t.id, title: t.titulo, time: t.hora ?? '',
-        color: t.color ?? '#3b82f6',
+        color: t.color ?? DEFAULT_TASK_COLOR,
         completed: t.completedDates?.includes(dStr) ?? false,
         recurrence: t.recurrence, weekday: t.weekday, date: t.date,
         completedDates: t.completedDates ?? [],
@@ -591,7 +626,7 @@ export default function App() {
     };
     try {
       await addDoc(collection(db, 'usuarios', user.uid, 'tareas'), data);
-      setTaskForm({ titulo: '', hora: '', recurrence: 'once', weekday: 1, date: HOY, color: '#3b82f6' });
+      setTaskForm({ titulo: '', hora: '', recurrence: 'once', weekday: 1, date: HOY, color: DEFAULT_TASK_COLOR });
       setModal(null);
     } catch (e: unknown) {
       setModalError((e as Error).message ?? 'Error al guardar');
@@ -1104,31 +1139,10 @@ export default function App() {
     </div>
   );
 
-  // ── Nav ───────────────────────────────────────────────────────────────────
-
-  const NAV: { id: TabId; icon: ReactNode; label: string }[] = [
-    { id: 'dashboard',  icon: <LayoutDashboard className="w-5 h-5" />, label: 'Dashboard'  },
-    { id: 'calendar',   icon: <CalendarIcon     className="w-5 h-5" />, label: 'Calendar'   },
-    { id: 'gym',        icon: <Dumbbell         className="w-5 h-5" />, label: 'Gym'        },
-    { id: 'attributes', icon: <Sword            className="w-5 h-5" />, label: 'Attributes' },
-    { id: 'habits',     icon: <Zap              className="w-5 h-5" />, label: 'Quests'     },
-    { id: 'missions',   icon: <Target           className="w-5 h-5" />, label: 'Missions'   },
-    { id: 'billetera',  icon: <Wallet           className="w-5 h-5" />, label: 'Treasury'   },
-    { id: 'settings',   icon: <Settings         className="w-5 h-5" />, label: 'Settings'   },
-  ];
-
-  const PAGE_TITLE: Record<string, string> = {
-    dashboard: 'BATTLE STATION', calendar: 'BATTLE LOG', gym: 'GYM',
-    attributes: 'SKILL TREE', habits: 'DAILY QUESTS', missions: 'MISSION TREE',
-    billetera: 'TREASURY', settings: 'SETTINGS',
-  };
-  const PAGE_SUB: Record<string, string> = {
-    dashboard: `Welcome back, ${user.displayName?.split(' ')[0] ?? 'Hero'} 👋`,
-    calendar: 'Schedule your battles', gym: 'Entrenamiento y alimentación',
-    attributes: "Your hero's power", habits: 'Complete your daily quests',
-    missions: 'Track your objectives', billetera: 'Controlá tus ingresos y gastos',
-    settings: 'Configure your hero',
-  };
+  const pageSub = useMemo(
+    () => getPageSub(user.displayName?.split(' ')[0] ?? 'Hero'),
+    [user.displayName]
+  );
 
   return (
     <div className="flex min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 relative overflow-hidden">
@@ -1156,21 +1170,11 @@ export default function App() {
       </AnimatePresence>
 
       {/* ── Modal: Nueva / Editar transacción ── */}
-      <AnimatePresence>
-        {showTxModal && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
-            onClick={closeTxModal}>
-            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
-              onClick={e => e.stopPropagation()}
-              className="bg-white dark:bg-slate-900 rounded-3xl p-8 w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800 space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="font-black text-lg flex items-center gap-2">
-                  <Wallet className="w-5 h-5 text-emerald-600" />
-                  {editingTxId ? 'Editar transacción' : 'Nueva transacción'}
-                </h3>
-                <button onClick={closeTxModal} className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"><X className="w-4 h-4" /></button>
-              </div>
+      <Modal open={showTxModal} onClose={closeTxModal} className="space-y-4">
+        <ModalHeader
+          title={<><Wallet className="w-5 h-5 text-emerald-600" />{editingTxId ? 'Editar transacción' : 'Nueva transacción'}</>}
+          onClose={closeTxModal}
+        />
               <div className="flex bg-slate-100 dark:bg-slate-800 rounded-xl p-1 gap-1">
                 {(['gasto', 'ingreso'] as const).map(t => (
                   <button key={t} onClick={() => setTxForm(f => ({ ...f, tipo: t, categoria: '' }))}
@@ -1203,10 +1207,7 @@ export default function App() {
                 className="w-full py-3 bg-emerald-600 text-white rounded-xl text-sm font-black hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg shadow-emerald-500/20">
                 {editingTxId ? 'Actualizar' : 'Guardar'}
               </button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      </Modal>
 
       {/* ── Stat-up overlay ── */}
       <AnimatePresence>
@@ -1320,21 +1321,22 @@ export default function App() {
             {/* Hamburger — solo mobile */}
             <button
               onClick={() => setSidebarOpen(true)}
+              aria-label="Abrir menú"
               className="md:hidden shrink-0 p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400"
             >
               <Menu className="w-5 h-5" />
             </button>
             <div className="min-w-0">
-              <p className="text-slate-500 dark:text-slate-400 font-medium text-xs md:text-sm truncate">{PAGE_SUB[tab]}</p>
+              <p className="text-slate-500 dark:text-slate-400 font-medium text-xs md:text-sm truncate">{pageSub[tab]}</p>
               <h2 className="text-2xl md:text-4xl font-black tracking-tighter mt-0.5 truncate">{PAGE_TITLE[tab]}</h2>
             </div>
           </div>
           <div className="flex items-center gap-2 md:gap-4 shrink-0">
             <div className="relative hidden md:block">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <input type="text" placeholder="Search quests…" className="pl-10 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 w-64" />
+              <input type="text" placeholder="Search quests…" aria-label="Buscar" className="pl-10 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 w-64" />
             </div>
-            <button className="p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
+            <button aria-label="Notificaciones" className="p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
               <Bell className="w-5 h-5 text-slate-600 dark:text-slate-400" />
             </button>
           </div>
