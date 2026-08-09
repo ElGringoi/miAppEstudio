@@ -38,6 +38,8 @@ export type LogroId =
   | 'primera_quest' | 'racha_7' | 'racha_30' | 'nivel_5' | 'nivel_10'
   | 'primer_libro' | 'primer_examen' | 'todos_hoy' | 'xp_100_dia';
 export type FSLogro = { id: LogroId; fecha: string };
+export type DiarioReaction = 'like' | 'dislike';
+export type FSDiarioPrefs = { reactions: Record<string, DiarioReaction>; tagScores: Record<string, number> };
 
 // ─── UI types ─────────────────────────────────────────────────────────────────
 

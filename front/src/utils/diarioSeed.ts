@@ -1,0 +1,235 @@
+export interface DiarioArticulo {
+  id: string;
+  titulo: string;
+  contenido: string;
+  tags: string[];
+  fuente?: string;
+}
+
+export const ARTICULOS: DiarioArticulo[] = [
+  {
+    id: 'art-01',
+    titulo: 'El estoicismo y el arte de controlar lo que depende de ti',
+    contenido: 'Los filósofos estoicos dividían el mundo en dos dominios: lo que depende de nosotros y lo que no. Epicteto, quien nació esclavo y llegó a ser uno de los maestros más influyentes de la antigüedad, enseñaba que el error fundamental del ser humano es gastar energía en querer cambiar lo que está fuera de su control.\n\nLa práctica estoica no es resignación sino claridad estratégica. Si no puedes controlar el resultado, controla el esfuerzo, la intención y la respuesta. Marco Aurelio, el emperador romano que escribía filosofía en sus notas privadas, aplicaba este principio diariamente: "No esperes que lo exterior cambie. Cambia tú."\n\nHoy, cuando algo te genere frustración, detente un segundo y preguntá: ¿esto depende de mí? Si la respuesta es no, soltar no es debilidad. Es inteligencia aplicada.',
+    tags: ['filosofía', 'estoicismo', 'productividad', 'mentalidad'],
+    fuente: 'Epicteto — Enquiridión',
+  },
+  {
+    id: 'art-02',
+    titulo: 'Por qué los LLMs no "entienden" pero igual funcionan',
+    contenido: 'Los modelos de lenguaje como GPT o Claude no tienen comprensión en el sentido humano. No tienen experiencias, no sienten confusión ni curiosidad. Son, en esencia, maquinarias estadísticas entrenadas para predecir el siguiente token más probable dado un contexto. Y sin embargo, los resultados son sorprendentemente coherentes.\n\nEl debate filosófico aquí es fascinante: ¿puede haber inteligencia sin comprensión? John Searle argumentó que no, con su famoso experimento mental de la "habitación china". Pero los resultados prácticos de los LLMs desafían esa intuición. Quizás la comprensión sea, en parte, un epifenómeno de la predicción a escala.\n\nLo que sí es claro es que estas herramientas amplifican la cognición humana de formas sin precedentes. Saber usarlas bien —con pensamiento crítico, con prompts precisos y con validación activa— se está convirtiendo en la nueva alfabetización del siglo XXI.',
+    tags: ['ia', 'inteligencia artificial', 'tecnología', 'filosofía'],
+    fuente: 'Research: Attention is All You Need — Vaswani et al.',
+  },
+  {
+    id: 'art-03',
+    titulo: 'El sistema de bloques de tiempo que usa Cal Newport',
+    contenido: 'Cal Newport, profesor en Georgetown y autor de "Deep Work", no usa listas de tareas. Usa un cuaderno donde cada día bloquea el tiempo en franjas horarias específicas. No una lista de cosas por hacer, sino un mapa de cuándo va a hacer cada cosa.\n\nLa diferencia es crucial. Una lista de tareas te dice qué; el bloqueo de tiempo te obliga a decidir cuándo y cuánto. Eso fuerza el realismo: si tu lista tiene doce ítems pero solo tenés seis horas, el bloqueo te hace ver que algo no va a entrar. Mejor decidirlo vos que que el caos lo decida por vos.\n\nNewport propone también bloques de "captura" al final del día para revisar qué entró y qué no, y re-planificar el siguiente. Es un sistema de planificación que vive en tensión productiva con la realidad, en lugar de ignorarla.',
+    tags: ['productividad', 'gestión del tiempo', 'trabajo profundo'],
+    fuente: 'Cal Newport — Deep Work',
+  },
+  {
+    id: 'art-04',
+    titulo: 'Inflación, expectativas y la trampa de la política monetaria',
+    contenido: 'Una de las ideas más contraintuitivas en economía es que las expectativas de inflación son, en sí mismas, inflacionarias. Si los trabajadores esperan que los precios suban un 10%, pedirán aumentos de salario acordes. Si los empresarios esperan que los costos suban, adelantarán aumentos de precios. El resultado: la inflación se autocumple.\n\nEs por eso que los bancos centrales, como la Reserva Federal o el Banco Central Europeo, dedican tanto esfuerzo a la comunicación. No solo suben tasas para encarecer el crédito; también hablan para anclar las expectativas. La credibilidad del banco central es tan importante como sus herramientas.\n\nEn Argentina, donde las expectativas están desancladas hace décadas, este mecanismo se ve en toda su complejidad. La indexación salarial, los contratos en dólares y la dolarización de precios son, en parte, síntomas de un sistema de expectativas que aprendió a desconfiar de la moneda local.',
+    tags: ['economía', 'macroeconomía', 'argentina', 'política monetaria'],
+    fuente: 'Mishkin — The Economics of Money, Banking and Financial Markets',
+  },
+  {
+    id: 'art-05',
+    titulo: 'El efecto Dunning-Kruger: por qué los novatos creen que lo saben todo',
+    contenido: 'En 1999, David Dunning y Justin Kruger publicaron un paper que describía algo que todos intuimos pero pocas veces nombramos: las personas incompetentes en una habilidad tienden a sobreestimar sistemáticamente su competencia. No porque sean arrogantes, sino porque carecen de la metacognición necesaria para ver sus propios errores.\n\nLo paradójico es que el conocimiento experto lleva a la humildad. Cuanto más sabés de un campo, más consciente sos de la vastedad de lo que no sabés. Los mejores científicos, artistas y estrategas tienden a hablar con más incertidumbre, no con menos.\n\nLa aplicación práctica es doble: en primero lugar, buscá activamente feedback externo sobre áreas donde te sentís muy seguro. En segundo lugar, tomá con escepticismo la confianza extrema, especialmente en quien recién empieza en un campo. La verdadera expertise a menudo viene disfrazada de duda.',
+    tags: ['psicología', 'aprendizaje', 'metacognición', 'sesgos cognitivos'],
+    fuente: 'Dunning & Kruger — Unskilled and Unaware of It (1999)',
+  },
+  {
+    id: 'art-06',
+    titulo: 'El entrenamiento de fuerza y la longevidad: lo que dice la ciencia',
+    contenido: 'Durante décadas se asoció el envejecimiento con la pérdida inevitable de músculo. Hoy sabemos que gran parte de esa pérdida es opcional. La sarcopenia, la reducción de masa muscular con la edad, se puede ralentizar dramáticamente con entrenamiento de resistencia constante, incluso iniciado a los 60 o 70 años.\n\nPero los beneficios van más allá del aspecto físico. El músculo es un órgano metabólicamente activo: mejora la sensibilidad a la insulina, modula la inflamación sistémica y tiene efectos directos en la salud cerebral vía mioquinas, moléculas que el músculo libera durante el ejercicio y que cruzan la barrera hematoencefálica.\n\nEl investigador Peter Attia lo resume bien: si querés vivir bien a los 80, entrenás para eso hoy. El objetivo no es parecer atlético a los 30, sino ser funcional e independiente a los 85. Ese cambio de perspectiva transforma por qué y cómo entrenamos.',
+    tags: ['fitness', 'salud', 'longevidad', 'entrenamiento de fuerza'],
+    fuente: 'Peter Attia — Outlive',
+  },
+  {
+    id: 'art-07',
+    titulo: 'Heráclito y el río que nunca es el mismo',
+    contenido: 'Heráclito de Éfeso, el filósofo griego del siglo V a.C. conocido como "el oscuro", dejó una frase que resuena a través de los siglos: "Nadie se baña dos veces en el mismo río". La idea es simple y profunda: todo fluye, todo cambia. El río no es el mismo porque el agua es distinta. Y tú tampoco sos el mismo porque sos parte del cambio.\n\nEsta visión del mundo como flujo permanente —el logos como principio ordenador del cambio— anticipó ideas que hoy reaparecen en termodinámica, biología y sistemas complejos. El universo no es una colección de cosas fijas sino de procesos en curso.\n\nPara la vida cotidiana, Heráclito ofrece una herramienta poderosa: aceptar el cambio como la condición, no como la excepción. La rigidez —en planes, en identidades, en certezas— es lo que rompe. La adaptabilidad es la única constancia que tiene sentido cultivar.',
+    tags: ['filosofía', 'historia', 'filosofía antigua', 'cambio'],
+    fuente: 'Heráclito — Fragmentos (edición Kirk y Raven)',
+  },
+  {
+    id: 'art-08',
+    titulo: 'Agentes de IA: de chatbots a sistemas que actúan en el mundo',
+    contenido: 'El siguiente salto en inteligencia artificial no son modelos más grandes sino agentes más autónomos. Un agente de IA puede recibir un objetivo de alto nivel, descomponerlo en pasos, ejecutar cada uno usando herramientas —búsqueda web, código, APIs— y adaptar su plan en función de los resultados intermedios.\n\nEstas arquitecturas ya existen: AutoGPT, LangGraph, OpenAI Agents, y el ecosistema de MCP (Model Context Protocol) de Anthropic permiten construir flujos donde el modelo no solo responde preguntas sino que toma acciones reales en sistemas externos. La frontera entre software y AI se vuelve borrosa.\n\nLas implicaciones son enormes para la productividad individual y empresarial. Tareas que hoy requieren horas de trabajo humano —investigación, síntesis, generación de reportes, ejecución de workflows complejos— se pueden delegar a sistemas que trabajan en paralelo, sin pausa y a escala. La pregunta ya no es si esto va a pasar, sino cuán rápido.',
+    tags: ['ia', 'agentes', 'tecnología', 'productividad'],
+    fuente: 'Anthropic — Claude Agent SDK Documentation',
+  },
+  {
+    id: 'art-09',
+    titulo: 'La regla de las 2 horas de concentración profunda',
+    contenido: 'Investigaciones sobre el rendimiento cognitivo sugieren que la mayoría de las personas no puede sostener trabajo verdaderamente profundo —el tipo que requiere toda la atención y produce los mejores resultados— por más de cuatro horas al día. Y muchos lo sobreestiman: en la práctica, dos horas de concentración real es lo que se puede sostener de forma consistente.\n\nEl error más común no es no tener tiempo para concentrarse. Es fragmentar ese tiempo en pedazos de 20 minutos entre notificaciones, mails y reuniones. El costo del cambio de contexto no es solo los minutos perdidos; es el tiempo que tarda el cerebro en volver al estado de flujo profundo, que puede ser entre 15 y 25 minutos.\n\nLa estrategia más efectiva es simple y difícil: proteger un bloque ininterrumpido de 90 a 120 minutos cada mañana para el trabajo más importante del día. Sin teléfono, sin correo, sin Slack. Todo lo demás —incluyendo reuniones— entra después de ese bloque.',
+    tags: ['productividad', 'concentración', 'trabajo profundo', 'gestión del tiempo'],
+    fuente: 'Anders Ericsson — Peak; Cal Newport — Deep Work',
+  },
+  {
+    id: 'art-10',
+    titulo: 'El mercado de capitales y el inversor promedio: por qué casi nadie le gana al índice',
+    contenido: 'Uno de los datos más incómodos de las finanzas es que el 90% de los fondos de inversión activamente gestionados no logra superar al índice de referencia (como el S&P 500) en períodos de 15 o más años. Esto no es porque los gestores sean malos: es porque el mercado incorpora información muy rápidamente, y batirlo consistentemente requiere ventajas informativas que son ilegales o imposibles de mantener.\n\nJohn Bogle, el fundador de Vanguard, popularizó la solución: si no podés ganarle al mercado, sé el mercado. Los fondos indexados replican el índice completo con comisiones mínimas, y la evidencia muestra que a largo plazo superan a la mayoría de las alternativas activas por el simple efecto del costo compuesto.\n\nPara el inversor individual, la conclusión es liberadora: no necesitás análisis sofisticado ni seguir el mercado hora a hora. Una estrategia de inversión pasiva, diversificada y automatizada, sostenida durante décadas, supera estadísticamente a casi cualquier alternativa activa.',
+    tags: ['economía', 'inversión', 'finanzas personales', 'mercados'],
+    fuente: 'John Bogle — The Little Book of Common Sense Investing',
+  },
+  {
+    id: 'art-11',
+    titulo: 'La neurociencia del hábito: cómo el cerebro automatiza comportamientos',
+    contenido: 'En el centro del cerebro hay una estructura llamada ganglio basal que juega un papel clave en la formación de hábitos. Cuando repetís un comportamiento lo suficiente en un contexto consistente, los ganglios basales empiezan a "chunkearlo": lo comprimen en una secuencia automática que requiere mucho menos energía cognitiva que la primera vez.\n\nEsto explica por qué los hábitos son tan difíciles de romper: no desaparecen del cerebro, quedan codificados. Lo que sí podés cambiar es la respuesta ante el disparador. El loop hábito (disparador → rutina → recompensa) permanece; pero podés intervenir en la rutina.\n\nCharles Duhigg y James Clear documentaron extensamente que la clave para instalar un nuevo hábito no es la motivación sino la fricción. Reducir la fricción para el hábito deseado (dejar las zapatillas listas, tener el libro en la mesita) y aumentarla para el indeseado es más efectivo que cualquier discurso motivacional.',
+    tags: ['psicología', 'hábitos', 'neurociencia', 'comportamiento'],
+    fuente: 'Charles Duhigg — El poder del hábito; James Clear — Atomic Habits',
+  },
+  {
+    id: 'art-12',
+    titulo: 'El método científico como herramienta de pensamiento cotidiano',
+    contenido: 'El método científico no es solo para laboratorios. Es una forma de relacionarse con la incertidumbre que puede aplicarse a casi cualquier área de la vida. La idea central: formular una hipótesis, diseñar una prueba que podría refutarla, ejecutar esa prueba y actualizar las creencias según el resultado.\n\nKarl Popper lo formuló con claridad: una afirmación científica no es la que puede probarse verdadera, sino la que puede probarse falsa. La falsabilidad es el criterio. Cuando alguien hace una afirmación que no puede ser refutada por ningún dato posible, eso no es ciencia ni pensamiento riguroso: es dogma.\n\nEn la vida práctica, esto se traduce en una postura intelectual: "¿Qué evidencia me haría cambiar de opinión?" Si no tenés una respuesta a esa pregunta, es probable que estés creyendo algo por razones que no son epistémicas. Y eso vale para política, salud, negocios o cualquier dominio donde importa tener razón.',
+    tags: ['ciencia', 'epistemología', 'pensamiento crítico', 'filosofía'],
+    fuente: 'Karl Popper — La lógica de la investigación científica',
+  },
+  {
+    id: 'art-13',
+    titulo: 'El Imperio Romano y las lecciones de una caída que tardó 500 años',
+    contenido: 'Edward Gibbon, en su monumental "Historia de la decadencia y caída del Imperio Romano", identificó múltiples causas de su colapso: la corrupción de las instituciones políticas, la degradación del ejército, las presiones externas de las migraciones, las crisis económicas y los conflictos internos. Lo notable es que ninguna causa fue sola suficiente.\n\nLo que los historiadores modernos han destacado es que Roma no cayó de golpe. Fue un proceso de siglos, con momentos de recuperación y decadencia, donde cada generación creía estar viviendo en un período de normalidad. La caída del Imperio fue gradual hasta que no lo fue más.\n\nLa lección no es pesimista sino práctica: los sistemas complejos rara vez colapsan por una sola causa. Y los indicadores de deterioro están disponibles mucho antes del colapso final, si uno sabe dónde mirar. Eso vale tanto para civilizaciones como para organizaciones, economías y vidas individuales.',
+    tags: ['historia', 'historia antigua', 'sistemas complejos', 'geopolítica'],
+    fuente: 'Edward Gibbon — The History of the Decline and Fall of the Roman Empire',
+  },
+  {
+    id: 'art-14',
+    titulo: 'La paradoja de la elección y el costo cognitivo de las opciones',
+    contenido: 'Barry Schwartz documentó en "La paradoja de la elección" un fenómeno contraintuitivo: más opciones no producen más felicidad. Producen más parálisis, más arrepentimiento anticipado y, paradójicamente, menos satisfacción con la elección final. Esto se debe en parte a que cada opción elegida implica la renuncia a todas las demás.\n\nEl costo cognitivo de decidir es real y medible. Los jueces toman peores decisiones al final del día. Los consumidores compran menos cuando hay más opciones en la góndola. Los equipos creativos producen más cuando tienen restricciones que cuando tienen libertad total. Las restricciones paradójicamente liberan.\n\nLa solución práctica es diseñar sistemas que reduzcan las decisiones cotidianas. Steve Jobs usaba el mismo outfit todos los días. Obama limitaba las decisiones triviales para preservar energía mental. En productividad esto se llama "decidir por adelantado": elegir las reglas antes del juego, no durante.',
+    tags: ['psicología', 'toma de decisiones', 'productividad', 'bienestar'],
+    fuente: 'Barry Schwartz — La paradoja de la elección',
+  },
+  {
+    id: 'art-15',
+    titulo: 'La programación como pensamiento: por qué aprender a codificar cambia la mente',
+    contenido: 'Aprender a programar no es principalmente aprender una sintaxis. Es aprender una forma de descomponer problemas: tomar algo grande y ambiguo, dividirlo en pasos precisos y ejecutables, y razonar sobre qué puede salir mal en cada uno. Es una forma de pensar que se transfiere a otros dominios.\n\nSeymour Papert, el pionero de la educación computacional del MIT, hablaba de "pensar con computadoras". La programación, bien enseñada, desarrolla depuración sistemática (debugging), pensamiento recursivo y la capacidad de abstraer patrones. Habilidades que tienen valor mucho más allá del código.\n\nHoy, con herramientas de IA que generan código, el valor de saber programar no desaparece: se transforma. No necesitás saber la sintaxis de memoria, pero sí entender qué estás pidiendo, por qué puede fallar, y cómo verificar que funciona. El pensamiento computacional se vuelve más necesario, no menos.',
+    tags: ['tecnología', 'programación', 'aprendizaje', 'ia'],
+    fuente: 'Seymour Papert — Mindstorms',
+  },
+  {
+    id: 'art-16',
+    titulo: 'Friedrich Nietzsche y el eterno retorno como herramienta de vida',
+    contenido: 'Nietzsche propuso un experimento mental que llamó "el eterno retorno": imaginar que tu vida se va a repetir infinitas veces, exactamente igual, en cada detalle. ¿Cómo cambiaría eso tus decisiones actuales? ¿Elegirías esta vida de nuevo? ¿Y de nuevo, y de nuevo?\n\nNo se trata de una afirmación cosmológica sino de una herramienta ética. Si la perspectiva de repetir una elección infinitamente te resulta insoportable, quizás esa elección no es la tuya. Si podés decir sí sin vacilar, eso es lo que Nietzsche llamaría amor fati: amor al propio destino.\n\nLo que hace poderoso este marco es que evita el autoengaño. Es fácil justificar cualquier decisión presente con planes futuros vagos. El eterno retorno elimina ese escape: solo cuenta lo que hacés ahora, no lo que prometés hacer después.',
+    tags: ['filosofía', 'nietzsche', 'ética', 'mentalidad'],
+    fuente: 'Friedrich Nietzsche — Así habló Zaratustra',
+  },
+  {
+    id: 'art-17',
+    titulo: 'El sueño como herramienta de rendimiento: lo que 20 años de investigación muestran',
+    contenido: 'Matthew Walker, neurocientífico de UC Berkeley, documentó con rigor algo que intuitivamente sabemos pero sistemáticamente ignoramos: el sueño no es tiempo muerto. Es cuando el cerebro consolida la memoria, elimina residuos metabólicos tóxicos (incluyendo beta-amiloide, asociado al Alzheimer) y regula el sistema emocional.\n\nLos estudios muestran que con seis horas de sueño durante diez días, el rendimiento cognitivo decae al nivel de dos noches sin dormir, pero las personas no lo perciben subjetivamente. El sueño insuficiente afecta el juicio sobre el propio estado, creando una falsa confianza.\n\nLas implicaciones prácticas son directas: dormir menos para trabajar más no es eficiente; es autosabotaje. Un atleta que duerme 10 horas mejora su tiempo de reacción, su precisión y su recuperación más que cualquier suplemento. Para trabajo cognitivo, el ROI del sueño supera al de cualquier hack de productividad.',
+    tags: ['salud', 'sueño', 'neurociencia', 'rendimiento'],
+    fuente: 'Matthew Walker — Por qué dormimos',
+  },
+  {
+    id: 'art-18',
+    titulo: 'La revolución industrial del software: cómo la IA cambia el trabajo del desarrollador',
+    contenido: 'El código generado por IA ya supera el 30% de las contribuciones en algunas empresas de software. Este número va a subir. Pero la narrativa de "los programadores van a desaparecer" malinterpreta qué hace valioso a un desarrollador senior: no es la capacidad de recordar sintaxis, sino entender sistemas, arquitecturas, trade-offs y consecuencias.\n\nLo que la IA está haciendo es eliminar el trabajo de bajo valor —escribir código boilerplate, buscar en documentación, generar tests básicos— y amplificar el trabajo de alto valor: diseño de sistemas, decisiones de arquitectura, razonamiento sobre consecuencias. Los mejores ingenieros son más productivos que nunca.\n\nEl peligro real no es para los buenos desarrolladores, sino para los mediocres. La IA democratiza las habilidades de nivel medio y hace que el diferencial de calidad entre un desarrollador competente y uno excepcional sea más visible y valorado que antes.',
+    tags: ['ia', 'tecnología', 'programación', 'futuro del trabajo'],
+    fuente: 'GitHub Copilot Impact Research 2024',
+  },
+  {
+    id: 'art-19',
+    titulo: 'La historia de la escritura y cómo transformó la mente humana',
+    contenido: 'La escritura tiene aproximadamente 5.000 años, surgiendo independientemente en Mesopotamia, China y Mesoamérica. No fue inventada para literatura ni historia: fue creada por contadores, para registrar transacciones comerciales. Los primeros textos cuneiformes son listas de bienes y deudas.\n\nLo que la escritura hizo no fue solo permitir almacenar información fuera del cerebro. Transformó el pensamiento mismo. Walter Ong argumentó que la escritura hace posible pensar en nuevas formas: permite revisar lo dicho, estructurar argumentos lineales, crear ficciones complejas y razonar sobre razonamiento. La filosofía griega fue posible gracias a la escritura alfabética.\n\nHoy estamos al comienzo de otra transición cognitiva, con la IA como sistema de externalización del pensamiento. Así como la escritura cambió qué podía pensar la mente humana, la IA puede cambiar otra vez los límites de lo pensable. La pregunta es: ¿en qué dirección?',
+    tags: ['historia', 'cognición', 'escritura', 'filosofía'],
+    fuente: 'Walter Ong — Oralidad y escritura; Jack Goody — La domesticación del pensamiento salvaje',
+  },
+  {
+    id: 'art-20',
+    titulo: 'Por qué el VO2 máximo predice la longevidad mejor que casi cualquier otro marcador',
+    contenido: 'El VO2 máximo, la medida de cuánto oxígeno puede procesar tu cuerpo durante el ejercicio máximo, resulta ser uno de los predictores más robustos de mortalidad a largo plazo. Estudios con cientos de miles de sujetos muestran que pasar del cuartil inferior al superior de VO2 máximo reduce el riesgo de muerte por todas las causas en más del 40%.\n\nNo se trata solo de salud cardiovascular. Un VO2 máximo alto está correlacionado con mejor función cognitiva en la vejez, menor riesgo de demencia y mejor resiliencia metabólica. El corazón y el cerebro se conectan profundamente a través de la capacidad aeróbica.\n\nLa buena noticia es que el VO2 máximo es muy entrenable, incluyendo en personas mayores. El entrenamiento por intervalos de alta intensidad (HIIT) es el más eficiente para mejorarlo, pero incluso el cardio moderado consistente produce mejoras significativas. Si solo pudieras hacer una cosa por tu salud a largo plazo, mejorar tu capacidad aeróbica es una apuesta muy sólida.',
+    tags: ['fitness', 'salud', 'longevidad', 'entrenamiento'],
+    fuente: 'Peter Attia — Outlive; JAMA Network Open 2022',
+  },
+  {
+    id: 'art-21',
+    titulo: 'Adam Smith y la mano invisible: lo que la gente entiende mal',
+    contenido: 'Adam Smith acuñó el concepto de la "mano invisible" en La riqueza de las naciones para describir cómo el interés propio de los individuos puede, bajo ciertas condiciones, producir resultados benéficos para la sociedad. Lo que se olvida es que Smith era también el autor de "La teoría de los sentimientos morales", donde argumentaba que la empatía y los vínculos sociales son la base de cualquier sociedad funcional.\n\nSm no era el apóstol del mercado desregulado que los libertarios invocan. Fue explícitamente crítico del poder monopólico, de los acuerdos de precios entre empresarios y de los efectos sociales de la división del trabajo llevada al extremo. Su pensamiento era más matizado que el eslogan que se heredó.\n\nLa lección relevante: leer a los pensadores originales en lugar de sus versiones simplificadas. El mapa conceptual que muchos tienen de Smith, Keynes o Marx está más basado en caricaturas que en los textos. Las ideas complejas se empobrecen al comprimirse.',
+    tags: ['economía', 'historia económica', 'pensamiento crítico', 'filosofía'],
+    fuente: 'Adam Smith — La riqueza de las naciones; La teoría de los sentimientos morales',
+  },
+  {
+    id: 'art-22',
+    titulo: 'Espartanos, disciplina y el mito de la autarquía',
+    contenido: 'Esparta es el modelo que cita quien quiere hablar de disciplina, austeridad y fortaleza. Lo que el mito omite: la sociedad espartana dependía completamente de una población esclavizada —los ilotas— que los superaba en número seis a uno. La "libertad" espartana fue construida sobre una de las formas más brutales de esclavitud del mundo antiguo.\n\nEl sistema educativo espartano, el agoge, producía soldados extraordinarios. También producía una sociedad que no generó filosofía, arte, literatura, ciencia ni comercio significativos. Atenas, con todo su caos democrático, produjo el legado intelectual que todavía vivimos.\n\nLa lección histórica no es que la disciplina es mala, sino que la disciplina sin diversidad de objetivos produce un tipo muy estrecho de excelencia. El equilibrio entre rigor y apertura es lo que genera civilizaciones sostenibles, no el maximalismo de un solo valor.',
+    tags: ['historia', 'historia antigua', 'filosofía', 'liderazgo'],
+    fuente: 'Paul Cartledge — The Spartans',
+  },
+  {
+    id: 'art-23',
+    titulo: 'Flow: la psicología del estado óptimo de experiencia',
+    contenido: 'Mihaly Csikszentmihalyi estudió durante décadas qué hace que las actividades humanas se sientan significativas. Su hallazgo central: las experiencias más positivas ocurren cuando el nivel de desafío de una tarea está calibrado al nivel de habilidad de la persona. Ni tan fácil que aburra, ni tan difícil que genere ansiedad.\n\nA ese estado lo llamó "flow" o experiencia óptima: completa absorción en la tarea, pérdida de la noción del tiempo, ausencia de consciencia del yo, y una sensación de control y competencia. Los videojuegos están diseñados para inducirlo constantemente; los sistemas de XP y niveles son mecanismos de calibración de desafío.\n\nPara inducir flow en trabajo y estudio: definir objetivos claros, eliminar distracciones, asegurarse de que la tarea esté en el rango de dificultad correcto y comprometerse completamente. La gamificación de hábitos no es trivial: responde a principios psicológicos profundos sobre qué hace significativa la experiencia.',
+    tags: ['psicología', 'flow', 'motivación', 'productividad'],
+    fuente: 'Mihaly Csikszentmihalyi — Flow: The Psychology of Optimal Experience',
+  },
+  {
+    id: 'art-24',
+    titulo: 'Cómo los sesgos cognitivos afectan las decisiones de inversión',
+    contenido: 'Daniel Kahneman documentó que los inversores individuales cometen sistemáticamente los mismos errores. El sesgo de disponibilidad les hace sobreponderar eventos recientes. El sesgo de confirmación los lleva a buscar información que corrobora sus posiciones. La aversión a las pérdidas los hace mantener posiciones perdedoras más tiempo del racional y vender ganadores demasiado pronto.\n\nEl resultado es el "equity premium puzzle" amplificado: los inversores activos tienden a rendir significativamente por debajo del mercado incluso cuando el mercado en sí rinde bien. La causa principal no es mala información sino psicología mal calibrada.\n\nLa solución de diseño es automática: reglas que operan sin intervención emocional en cada decisión. Dollar-cost averaging (invertir una suma fija en intervalos regulares), límites predefinidos de pérdida, y portfolios que no requieren rebalanceo frecuente son herramientas que protegen al inversor de su propio cerebro.',
+    tags: ['economía', 'finanzas personales', 'psicología', 'sesgos cognitivos'],
+    fuente: 'Daniel Kahneman — Pensar rápido, pensar despacio',
+  },
+  {
+    id: 'art-25',
+    titulo: 'Cuánto afecta realmente la nutrición al rendimiento cognitivo',
+    contenido: 'El cerebro consume aproximadamente el 20% del gasto energético total del cuerpo, a pesar de representar solo el 2% del peso. La glucosa es su combustible primario, pero la calidad y estabilidad de ese suministro importa tanto como la cantidad. Los picos y caídas glucémicas producen variaciones en la atención y la toma de decisiones que son medibles.\n\nLos ácidos grasos omega-3, especialmente el DHA, son constituyentes estructurales de las membranas neuronales. La deficiencia de omega-3 se asocia con mayor riesgo de depresión, deterioro cognitivo y déficits de atención. Los países con mayor consumo de pescado muestran consistentemente mejores marcadores de salud mental en estudios epidemiológicos.\n\nLa creatina, conocida como suplemento de gym, tiene efectos cognitivos documentados: mejora el rendimiento en tareas que requieren memoria de trabajo y velocidad de procesamiento, especialmente bajo condiciones de privación de sueño o alta demanda cognitiva. El cerebro usa fosfocreatina como sistema de reserva energética.',
+    tags: ['salud', 'nutrición', 'rendimiento', 'neurociencia'],
+    fuente: 'Huberman Lab — Nutrition & Brain Performance; Gomez-Pinilla 2008',
+  },
+  {
+    id: 'art-26',
+    titulo: 'La revolución de Copérnico: por qué cambiar el marco lo cambia todo',
+    contenido: 'En 1543, Nicolás Copérnico publicó "De revolutionibus orbium coelestium" proponiendo un modelo heliocéntrico del sistema solar. No fue la primera vez que alguien sugirió que la Tierra giraba alrededor del Sol; Aristarco lo había propuesto en el siglo III a.C. Lo que hizo Copérnico fue construir un modelo matemático completo y funcional.\n\nLo revolucionario no fue el dato sino el marco. El geocentrismo no era solo una teoría astronómica; era una metáfora del orden cósmico, con el ser humano en el centro. El heliocentrismo descentró a la humanidad del universo y abrió la puerta al método científico moderno. Kant llamó a su propia revolución filosófica la "revolución copernicana" porque reconocía un cambio de perspectiva del mismo orden.\n\nLa lección aplicada: los cambios de marco cognitivo son más transformadores que los nuevos datos dentro del mismo marco. Antes de buscar más información, preguntate si el marco desde donde analizás un problema es el correcto.',
+    tags: ['ciencia', 'historia de la ciencia', 'epistemología', 'pensamiento crítico'],
+    fuente: 'Thomas Kuhn — La estructura de las revoluciones científicas',
+  },
+  {
+    id: 'art-27',
+    titulo: 'Victor Frankl y la búsqueda de sentido en la adversidad',
+    contenido: 'Victor Frankl sobrevivió cuatro campos de concentración nazis, incluyendo Auschwitz. Su obra "El hombre en busca de sentido" nació de esa experiencia. La tesis central: los seres humanos pueden soportar casi cualquier "cómo" si encuentran un "por qué". El sentido no elimina el sufrimiento, pero lo transforma en algo tolerable.\n\nFrankl desarrolló la logoterapia: una corriente psicológica centrada en la voluntad de sentido. A diferencia del freudismo (que ponía el placer como motivación central) o del adlerismo (el poder), Frankl argumentaba que la búsqueda de significado es la fuerza motivacional primaria del ser humano.\n\nLo que resulta más práctico de su obra es la distinción entre sufrimiento inevitable y sufrimiento elegido. No todo el dolor puede evitarse. Pero la actitud hacia ese dolor es, en última instancia, una elección. Frankl no lo plantea como optimismo fácil sino como la última libertad que nadie puede quitarte.',
+    tags: ['psicología', 'filosofía', 'resiliencia', 'mentalidad'],
+    fuente: 'Viktor Frankl — El hombre en busca de sentido',
+  },
+  {
+    id: 'art-28',
+    titulo: 'La Revolución Francesa y los peligros de los absolutos ideológicos',
+    contenido: 'La Revolución Francesa comenzó con los ideales más elevados de la Ilustración: libertad, igualdad, fraternidad. Terminó con el Terror, miles de guillotinados y Napoleón. La trayectoria de la revolución es uno de los estudios de caso más analizados en ciencia política sobre cómo los movimientos idealmente motivados pueden derivar en autoritarismo.\n\nEdmund Burke, el primer gran pensador conservador moderno, advirtió desde el principio: las instituciones evolucionadas tienen una sabiduría implícita que los planes racionales a priori no pueden capturar. Destruir lo existente para construir lo perfecto desde cero es más arriesgado de lo que parece, porque los imprevistos son inevitables y la complejidad social no se domina con voluntad.\n\nNo es un argumento contra el cambio: es un argumento por la humildad epistémica en el cambio. Las transformaciones sostenibles suelen ser graduales y preservan más de lo que destruyen. Las que intentan reconstruir la sociedad desde cero tienden a devorar a sus propios hijos.',
+    tags: ['historia', 'política', 'filosofía', 'ciencias sociales'],
+    fuente: 'Edmund Burke — Reflexiones sobre la revolución en Francia; Simon Schama — Citizens',
+  },
+  {
+    id: 'art-29',
+    titulo: 'Intervalos vs. cardio continuo: qué dice la evidencia',
+    contenido: 'El entrenamiento por intervalos de alta intensidad (HIIT) se volvió popular por una razón válida: produce adaptaciones similares al cardio continuo en mucho menos tiempo. Cuatro minutos de intervalos 4x4 (4 minutos al 90% + 3 de recuperación activa, repetido 4 veces) producen mejoras de VO2 máximo comparables a 45 minutos de cardio moderado.\n\nPero el cardio de zona 2 —donde podés mantener una conversación pero no cantar— tiene beneficios distintos que los intervalos no replican completamente. La zona 2 optimiza la función mitocondrial, la capacidad de oxidar grasas y la eficiencia cardíaca de base. Los mejores atletas de resistencia pasan el 80% de su tiempo en zona 2 y solo el 20% en alta intensidad.\n\nLa estrategia óptima para la mayoría: 2-3 sesiones de zona 2 de 40-60 minutos por semana como base, más 1-2 sesiones de HIIT. El HIIT sin base aeróbica suficiente tiene rendimientos decrecientes y mayor riesgo de lesión. La base importa.',
+    tags: ['fitness', 'entrenamiento', 'salud', 'cardio'],
+    fuente: 'Seiler & Tønnessen — Intervals, Thresholds, and Long Slow Distance; Peter Attia — Outlive',
+  },
+  {
+    id: 'art-30',
+    titulo: 'El Renacimiento como lección sobre cómo florecen las ideas',
+    contenido: 'El Renacimiento italiano no surgió de la nada. Fue el resultado de condiciones específicas: el mecenazgo de los Medici que financiaba artistas e intelectuales, la confluencia de saberes que llegaron con los refugiados del Imperio Bizantino caído, la invención de la imprenta que multiplicó la circulación de ideas, y ciudades-estado con suficiente autonomía para tolerar la experimentación.\n\nLeonardo da Vinci es el símbolo de esa era: científico, artista, ingeniero, filósofo. Su amplitud no era una rareza de genio sobrehumano; era un producto de su ambiente. En Florencia, cruzar disciplinas era valorado, no sancionado. La síntesis entre arte y ciencia era un signo de sofisticación, no de distracción.\n\nEl Renacimiento sugiere que las condiciones materiales y culturales de una época importan tanto como los individuos que produce. Los genios no surgen en el vacío: necesitan patronos, pares, herramientas y libertad. Crear el ambiente correcto es tan importante como encontrar las personas correctas.',
+    tags: ['historia', 'historia del arte', 'creatividad', 'ciencia'],
+    fuente: 'Giorgio Vasari — Las vidas de los artistas; Walter Isaacson — Leonardo da Vinci',
+  },
+];
+
+export function scoreArticulos(
+  articulos: DiarioArticulo[],
+  tagScores: Record<string, number>,
+  reactions: Record<string, string>,
+): DiarioArticulo[] {
+  const scored = articulos.map(a => {
+    const score = a.tags.reduce((s, t) => s + (tagScores[t] ?? 0), 0);
+    return { a, score };
+  });
+  scored.sort((x, y) => y.score - x.score);
+  const unreacted = scored.filter(x => !reactions[x.a.id]);
+  const reacted   = scored.filter(x =>  reactions[x.a.id]);
+  return [...unreacted, ...reacted].map(x => x.a);
+}
