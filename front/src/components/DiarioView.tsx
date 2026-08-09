@@ -46,7 +46,6 @@ export function DiarioView({ stats, habits, fsRutinas, fsMisiones, fsLibros, use
                     ?? pending[0];
 
   const librosLeyendo = fsLibros.filter(l => l.estado === 'leyendo');
-  const totalXP       = stats.reduce((s, st) => s + st.value, 0);
   const totalLevel    = stats.reduce((s, st) => s + st.level, 0);
 
   const fechaObj  = new Date(HOY + 'T12:00:00');
@@ -126,39 +125,19 @@ export function DiarioView({ stats, habits, fsRutinas, fsMisiones, fsLibros, use
     );
   }
 
+  const hora = new Date().getHours();
+  const saludo = hora < 12 ? 'Buenos días' : hora < 20 ? 'Buenas tardes' : 'Buenas noches';
+
   return (
     <div style={sh}>
-
-      {/* ── TICKER ── */}
-      <div style={{
-        display: 'flex', flexWrap: 'wrap', gap: '12px 20px',
-        fontFamily: MONO, fontSize: '10.5px', letterSpacing: '0.03em',
-        color: PAPER, background: INK, padding: '7px 14px', marginBottom: '18px', borderRadius: '2px',
-      }}>
-        {stats.map(st => {
-          const pct = st.max > 0 ? st.value / st.max : 0;
-          return (
-            <span key={st.name} style={{ display: 'inline-flex', gap: '5px', alignItems: 'center' }}>
-              <span style={{ opacity: 0.5 }}>{st.shortName.toUpperCase()}</span>
-              <strong style={{ fontWeight: 500 }}>Lv.{st.level}</strong>
-              <span style={{ fontSize: '9px', color: pct > 0.6 ? '#8fbf8f' : '#d9a05f' }}>
-                {pct > 0.6 ? '▲' : '▶'} {Math.round(pct * 100)}%
-              </span>
-            </span>
-          );
-        })}
-        <span style={{ marginLeft: 'auto', opacity: 0.55 }}>
-          XP TOTAL <strong style={{ fontWeight: 500, opacity: 1, color: PAPER }}>{totalXP.toLocaleString('es-AR')}</strong>
-        </span>
-      </div>
 
       {/* ── MASTHEAD ── */}
       <div style={{ textAlign: 'center', borderBottom: `4px double ${INK}`, paddingBottom: '14px', marginBottom: '10px' }}>
         <div style={{ fontFamily: MONO, fontSize: '11px', letterSpacing: '0.18em', textTransform: 'uppercase', color: INK_SOFT, marginBottom: '6px' }}>
           Edición personal · Quests · Gym · Misiones · Progreso
         </div>
-        <h1 style={{ fontFamily: SERIF, fontWeight: 900, fontSize: 'clamp(40px, 7vw, 88px)', letterSpacing: '-0.01em', margin: 0, lineHeight: 0.9 }}>
-          EL QUESTFLOW
+        <h1 style={{ fontFamily: SERIF, fontWeight: 900, fontSize: 'clamp(28px, 5.5vw, 72px)', letterSpacing: '-0.01em', margin: 0, lineHeight: 1 }}>
+          {saludo}, {userName}
         </h1>
         <div style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: '14px', color: INK_SOFT, marginTop: '8px' }}>
           "La batalla de hoy construye el héroe de mañana"
