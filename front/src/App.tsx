@@ -4,7 +4,7 @@ import {
   CheckCircle2, Plus, Target, Sword, Flame, Dumbbell,
   ChevronRight, Bell, Search, Trophy, Menu, Pencil,
   Repeat, CalendarDays, LogOut, Trash2, X, Utensils,
-  Wallet, TrendingUp, TrendingDown, Download, Moon, Sun,
+  Wallet, TrendingUp, TrendingDown, Download, Moon, Sun, Newspaper,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
@@ -48,6 +48,7 @@ import { ProgressBar } from './components/ProgressBar';
 import { StatCard } from './components/StatCard';
 import { CapituloRow } from './components/CapituloRow';
 import { EjercicioRow } from './components/EjercicioRow';
+import { DiarioView } from './components/DiarioView';
 import { MissionNodeComp } from './components/MissionNodeComp';
 import { LoginScreen } from './components/LoginScreen';
 
@@ -63,13 +64,14 @@ const NAV: { id: TabId; icon: ReactNode; label: string }[] = [
   { id: 'habits',     icon: <Zap              className="w-5 h-5" />, label: 'Quests'     },
   { id: 'missions',   icon: <Target           className="w-5 h-5" />, label: 'Missions'   },
   { id: 'billetera',  icon: <Wallet           className="w-5 h-5" />, label: 'Treasury'   },
+  { id: 'diario',    icon: <Newspaper        className="w-5 h-5" />, label: 'Diario'     },
   { id: 'settings',   icon: <Settings         className="w-5 h-5" />, label: 'Settings'   },
 ];
 
 const PAGE_TITLE: Record<string, string> = {
   dashboard: 'BATTLE STATION', calendar: 'BATTLE LOG', gym: 'GYM',
   attributes: 'SKILL TREE', habits: 'DAILY QUESTS', missions: 'MISSION TREE',
-  billetera: 'TREASURY', settings: 'SETTINGS',
+  billetera: 'TREASURY', diario: 'EL QUESTFLOW', settings: 'SETTINGS',
 };
 
 function getPageSub(firstName: string): Record<string, string> {
@@ -81,6 +83,7 @@ function getPageSub(firstName: string): Record<string, string> {
     habits: 'Complete your daily quests',
     missions: 'Track your objectives',
     billetera: 'Controlá tus ingresos y gastos',
+    diario: 'Tu diario personal de progreso',
     settings: 'Configure your hero',
   };
 }
@@ -2870,6 +2873,22 @@ export default function App() {
                     </div>
                 }
               </div>
+            </motion.div>
+          )}
+
+          {/* ══ DIARIO ══ */}
+          {tab === 'diario' && (
+            <motion.div key="diario" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="-mx-4 -mt-4 md:-mx-8 md:-mt-8"
+            >
+              <DiarioView
+                stats={stats}
+                habits={habits}
+                fsRutinas={fsRutinas}
+                fsMisiones={fsMisiones}
+                fsLibros={fsLibros}
+                userName={user?.displayName?.split(' ')[0] ?? 'Hero'}
+              />
             </motion.div>
           )}
 

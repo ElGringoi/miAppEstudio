@@ -41,7 +41,7 @@ export type FSLogro = { id: LogroId; fecha: string };
 
 // ─── UI types ─────────────────────────────────────────────────────────────────
 
-export type TabId = 'dashboard' | 'calendar' | 'gym' | 'attributes' | 'habits' | 'missions' | 'billetera' | 'settings';
+export type TabId = 'dashboard' | 'calendar' | 'gym' | 'attributes' | 'habits' | 'missions' | 'billetera' | 'settings' | 'diario';
 export interface Stat { name: string; value: number; max: number; level: number; icon: ReactNode; color: string; description: string; shortName: string; }
 export interface Habit { id: string; name: string; stat: FSStatKey; icon: ReactNode; completed: boolean; activeToday: boolean; attribute: string; xpValue: number; recurrence: HabitRecurrence; diasSemana: number[]; }
 export interface MissionNode {
