@@ -24,7 +24,7 @@ import {
 } from 'firebase/auth';
 import type { User } from 'firebase/auth';
 import {
-  collection, doc, increment, onSnapshot,
+  collection, doc, increment, onSnapshot, setDoc,
   updateDoc, addDoc, deleteDoc, writeBatch, runTransaction,
 } from 'firebase/firestore';
 import { auth, db } from './lib/firebase';
@@ -33,6 +33,7 @@ import type {
   GCalEvent, FSEjercicio, FSRutina, EstadoLibro, FSCapitulo, FSLibro,
   TipoMaterial, FSMaterial, FSTareaFac, FSExamen, FSMateria,
   FSEntradaDiario, FSObjetivoCHA, FSTransaccion, Habit, Task, HabitRecurrence, TabId, Moneda, LevelUpEvent, MisionPrioridad, SetLog,
+  DiarioReaction, FSDiarioPrefs,
 } from './types';
 import { BodyMap } from './components/BodyMap';
 import type { MuscleId } from './components/BodyMap';
@@ -146,6 +147,7 @@ export default function App() {
   // Carisma — Diario + Objetivos (pendiente de implementar UI)
   const [_fsDiario,         setFsDiario]          = useState<FSEntradaDiario[]>([]);
   const [_fsObjetivosCHA,   setFsObjetivosCHA]    = useState<FSObjetivoCHA[]>([]);
+  const [fsDiarioPrefs,     setFsDiarioPrefs]     = useState<FSDiarioPrefs>({ reactions: {}, tagScores: {} });
 
   // ── Nuevas mejoras ────────────────────────────────────────────────────────
   const [levelUpEvent,     setLevelUpEvent]     = useState<LevelUpEvent | null>(null);
@@ -265,7 +267,7 @@ export default function App() {
     setDataReady(false);
     const uid = user.uid;
     let loaded = 0;
-    const markLoaded = () => { if (++loaded === 11) setDataReady(true); };
+    const markLoaded = () => { if (++loaded === 12) setDataReady(true); };
     const unsubStats = onSnapshot(doc(db, 'usuarios', uid, 'stats', 'main'), snap => {
       setFsStats(snap.data() as FSStatsDoc ?? null);
       markLoaded();
@@ -280,7 +282,11 @@ export default function App() {
     const u9  = onSnapshot(collection(db, 'usuarios', uid, 'diario'),        s => { setFsDiario(s.docs.map(d => ({ id: d.id, ...d.data() } as FSEntradaDiario))); markLoaded(); });
     const u10 = onSnapshot(collection(db, 'usuarios', uid, 'objetivos_cha'), s => { setFsObjetivosCHA(s.docs.map(d => ({ id: d.id, ...d.data() } as FSObjetivoCHA))); markLoaded(); });
     const u11 = onSnapshot(collection(db, 'usuarios', uid, 'transacciones'), s => { setFsTransacciones(s.docs.map(d => ({ id: d.id, ...d.data() } as FSTransaccion))); markLoaded(); });
-    return () => { unsubStats(); u2(); u3(); u4(); u5(); u6(); u7(); u8(); u9(); u10(); u11(); };
+    const u12 = onSnapshot(doc(db, 'usuarios', uid, 'diario_prefs', 'main'), snap => {
+      if (snap.exists()) setFsDiarioPrefs(snap.data() as FSDiarioPrefs);
+      markLoaded();
+    });
+    return () => { unsubStats(); u2(); u3(); u4(); u5(); u6(); u7(); u8(); u9(); u10(); u11(); u12(); };
   }, [user?.uid]);
 
   // ── Derived ───────────────────────────────────────────────────────────────
@@ -1101,6 +1107,27 @@ export default function App() {
       await updateDoc(doc(db, 'usuarios', user.uid, 'materias', materiaId), { examenes: (m.examenes ?? []).filter(x => x.id !== examenId) });
     } catch (e) { console.error(e);
       showToast('Error al eliminar el examen');
+    }
+  }
+
+  async function reactArticulo(artId: string, reaction: DiarioReaction, tags: string[]) {
+    if (!user?.uid) return;
+    const prev = fsDiarioPrefs;
+    const prevReaction = prev.reactions[artId];
+    const newReactions = { ...prev.reactions, [artId]: reaction };
+    const newTagScores = { ...prev.tagScores };
+    const delta = reaction === 'like' ? 1 : -1;
+    const prevDelta = prevReaction === 'like' ? 1 : prevReaction === 'dislike' ? -1 : 0;
+    for (const tag of tags) {
+      newTagScores[tag] = (newTagScores[tag] ?? 0) - prevDelta + delta;
+    }
+    const newPrefs: FSDiarioPrefs = { reactions: newReactions, tagScores: newTagScores };
+    setFsDiarioPrefs(newPrefs);
+    try {
+      await setDoc(doc(db, 'usuarios', user.uid, 'diario_prefs', 'main'), newPrefs);
+    } catch (e) {
+      console.error(e);
+      setFsDiarioPrefs(prev);
     }
   }
 
@@ -2885,9 +2912,10 @@ export default function App() {
                 stats={stats}
                 habits={habits}
                 fsRutinas={fsRutinas}
-                fsMisiones={fsMisiones}
                 fsLibros={fsLibros}
                 userName={user?.displayName?.split(' ')[0] ?? 'Hero'}
+                diarioPrefs={fsDiarioPrefs}
+                onReact={reactArticulo}
               />
             </motion.div>
           )}
