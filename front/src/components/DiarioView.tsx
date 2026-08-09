@@ -46,7 +46,6 @@ export function DiarioView({ stats, habits, fsRutinas, fsMisiones, fsLibros, use
                     ?? pending[0];
 
   const librosLeyendo = fsLibros.filter(l => l.estado === 'leyendo');
-  const totalXP       = stats.reduce((s, st) => s + st.value, 0);
   const totalLevel    = stats.reduce((s, st) => s + st.level, 0);
 
   const fechaObj  = new Date(HOY + 'T12:00:00');
