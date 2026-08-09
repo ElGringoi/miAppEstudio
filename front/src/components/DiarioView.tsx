@@ -126,6 +126,9 @@ export function DiarioView({ stats, habits, fsRutinas, fsMisiones, fsLibros, use
     );
   }
 
+  const hora = new Date().getHours();
+  const saludo = hora < 12 ? 'Buenos días' : hora < 20 ? 'Buenas tardes' : 'Buenas noches';
+
   return (
     <div style={sh}>
 
@@ -134,8 +137,8 @@ export function DiarioView({ stats, habits, fsRutinas, fsMisiones, fsLibros, use
         <div style={{ fontFamily: MONO, fontSize: '11px', letterSpacing: '0.18em', textTransform: 'uppercase', color: INK_SOFT, marginBottom: '6px' }}>
           Edición personal · Quests · Gym · Misiones · Progreso
         </div>
-        <h1 style={{ fontFamily: SERIF, fontWeight: 900, fontSize: 'clamp(40px, 7vw, 88px)', letterSpacing: '-0.01em', margin: 0, lineHeight: 0.9 }}>
-          EL QUESTFLOW
+        <h1 style={{ fontFamily: SERIF, fontWeight: 900, fontSize: 'clamp(28px, 5.5vw, 72px)', letterSpacing: '-0.01em', margin: 0, lineHeight: 1 }}>
+          {saludo}, {userName}
         </h1>
         <div style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: '14px', color: INK_SOFT, marginTop: '8px' }}>
           "La batalla de hoy construye el héroe de mañana"
