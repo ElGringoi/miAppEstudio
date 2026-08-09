@@ -4,7 +4,7 @@ import {
   CheckCircle2, Plus, Target, Sword, Flame, Dumbbell,
   ChevronRight, Bell, Search, Trophy, Menu, Pencil,
   Repeat, CalendarDays, LogOut, Trash2, X, Utensils,
-  Wallet, TrendingUp, TrendingDown, Download,
+  Wallet, TrendingUp, TrendingDown, Download, Moon, Sun,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
@@ -32,8 +32,11 @@ import type {
   FSStatKey, FSStatsDoc, FSHabito, FSEvento, FSMision, FSTarea,
   GCalEvent, FSEjercicio, FSRutina, EstadoLibro, FSCapitulo, FSLibro,
   TipoMaterial, FSMaterial, FSTareaFac, FSExamen, FSMateria,
-  FSEntradaDiario, FSObjetivoCHA, FSTransaccion, Habit, Task, HabitRecurrence, TabId, Moneda, LevelUpEvent, MisionPrioridad,
+  FSEntradaDiario, FSObjetivoCHA, FSTransaccion, Habit, Task, HabitRecurrence, TabId, Moneda, LevelUpEvent, MisionPrioridad, SetLog,
 } from './types';
+import { BodyMap } from './components/BodyMap';
+import type { MuscleId } from './components/BodyMap';
+import { getMuscles } from './utils/muscleMap';
 import { HabitHeatmap } from './components/HabitHeatmap';
 import { Modal, ModalHeader } from './components/Modal';
 import confetti from 'canvas-confetti';
@@ -98,6 +101,10 @@ export default function App() {
   // UI state
   const [tab,         setTab]         = useState<TabId>('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [isDark, setIsDark] = useState(() => {
+    const saved = localStorage.getItem('questflow_dark');
+    return saved === 'true' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  });
   const [selDate,     setSelDate]     = useState(new Date());
 
   const [attrStat, setAttrStat] = useState<FSStatKey>('fuerza');
@@ -111,6 +118,7 @@ export default function App() {
   const [gymInnerTab,    setGymInnerTab]    = useState<'entreno' | 'comida'>('entreno');
   const [targetRutinaId,    setTargetRutinaId]    = useState<string | null>(null);
   const [targetEjercicioId, setTargetEjercicioId] = useState<string | null>(null);
+  const [activeGymEjercicioId, setActiveGymEjercicioId] = useState<string | null>(null);
 
   const [editingHabitXp, setEditingHabitXp] = useState<string | null>(null);
 
@@ -158,6 +166,13 @@ export default function App() {
   // Confirm modal
   const [confirmModal, setConfirmModal] = useState<{ msg: string; onOk: () => void } | null>(null);
   function showConfirm(msg: string, onOk: () => void) { setConfirmModal({ msg, onOk }); }
+
+  function toggleDark() {
+    const next = !isDark;
+    setIsDark(next);
+    document.documentElement.classList.toggle('dark', next);
+    localStorage.setItem('questflow_dark', String(next));
+  }
 
   // Modal state
   const [modal, setModal] = useState<'habit' | 'task' | 'evento' | 'rutina' | 'ejercicio' | 'libro' | 'materia' | 'material' | 'tareaFac' | 'examen' | 'entrada_diario' | 'mision' | null>(null);
@@ -361,7 +376,7 @@ export default function App() {
     if (Object.values(fsStats ?? {}).some((s: { xp: number }) => xpLevel(s.xp).level >= 5))  ids.push('nivel_5');
     if (Object.values(fsStats ?? {}).some((s: { xp: number }) => xpLevel(s.xp).level >= 10)) ids.push('nivel_10');
     if (fsLibros.some(l => l.estado === 'leido')) ids.push('primer_libro');
-    if (fsMaterias.some(m => m.examenes.some(e => e.nota !== undefined))) ids.push('primer_examen');
+    if (fsMaterias.some(m => m.examenes?.some(e => e.nota !== undefined))) ids.push('primer_examen');
     const habitsToday = fsHabitos.filter(h => isHabitActiveToday(h));
     const doneToday   = fsHabitos.filter(h => isHabitDoneToday(h)).length;
     if (habitsToday.length > 0 && doneToday === habitsToday.length) ids.push('todos_hoy');
@@ -388,6 +403,15 @@ export default function App() {
 
   const habitsToday  = habits.filter(h => h.activeToday);
   const done         = habitsToday.filter(h => h.completed).length;
+
+  const activeMuscles = useMemo<MuscleId[]>(() => {
+    if (!activeGymEjercicioId) return [];
+    for (const r of fsRutinas) {
+      const ej = r.ejercicios?.find(e => e.id === activeGymEjercicioId);
+      if (ej) return getMuscles(ej.nombre);
+    }
+    return [];
+  }, [activeGymEjercicioId, fsRutinas]);
 
   const totalXp                                   = fsStats ? FS_KEYS.reduce((s, k) => s + (fsStats[k]?.xp ?? 0), 0) : 0;
   const { level: heroLevel, xpInLevel, xpForNext: heroXpForNext } = xpLevel(totalXp);
@@ -717,7 +741,7 @@ export default function App() {
     if (!user?.uid || !targetRutinaId || !targetEjercicioId || !ejercicioForm.nombre.trim()) return;
     const rutina = fsRutinas.find(r => r.id === targetRutinaId);
     if (!rutina) return;
-    const ejercicios = rutina.ejercicios.map(e => {
+    const ejercicios = (rutina.ejercicios ?? []).map(e => {
       if (e.id !== targetEjercicioId) return e;
       return {
         ...e,
@@ -747,7 +771,7 @@ export default function App() {
     if (!rutina) { pendingOps.current.delete(opKey); return; }
     try {
       await updateDoc(doc(db, 'usuarios', user.uid, 'rutinas', rutinaId), {
-        ejercicios: rutina.ejercicios.filter(e => e.id !== ejId),
+        ejercicios: (rutina.ejercicios ?? []).filter(e => e.id !== ejId),
       });
     } catch (e) { console.error(e);
       showToast('Error al eliminar el ejercicio');
@@ -768,10 +792,10 @@ export default function App() {
         const snap = await tx.get(rutinaRef);
         if (!snap.exists()) return;
         const data = snap.data() as FSRutina;
-        const ej = data.ejercicios.find(e => e.id === ejId);
+        const ej = (data.ejercicios ?? []).find(e => e.id === ejId);
         if (!ej) return;
         const completing = ej.lastCompletedDate !== getToday();
-        const ejercicios = data.ejercicios.map(e =>
+        const ejercicios = (data.ejercicios ?? []).map(e =>
           e.id !== ejId ? e : { ...e, lastCompletedDate: completing ? getToday() : null }
         );
         tx.update(rutinaRef, { ejercicios });
@@ -782,6 +806,26 @@ export default function App() {
     } finally {
       pendingOps.current.delete(opKey);
     }
+  }
+
+  async function updateEjercicioSets(rutinaId: string, ejId: string, setsLog: SetLog[]) {
+    if (!user?.uid) return;
+    const opKey = `sets-${rutinaId}-${ejId}`;
+    if (pendingOps.current.has(opKey)) return;
+    pendingOps.current.add(opKey);
+    try {
+      const rutinaRef = doc(db, 'usuarios', user.uid, 'rutinas', rutinaId);
+      await runTransaction(db, async tx => {
+        const snap = await tx.get(rutinaRef);
+        if (!snap.exists()) return;
+        const data = snap.data() as FSRutina;
+        const ejercicios = (data.ejercicios ?? []).map(e =>
+          e.id === ejId ? { ...e, setsLog } : e
+        );
+        tx.update(rutinaRef, { ejercicios });
+      });
+    } catch (e) { console.error(e); }
+    finally { pendingOps.current.delete(opKey); }
   }
 
   async function seedRutinaHipertrofia() {
@@ -886,10 +930,10 @@ export default function App() {
         const snap = await tx.get(libroRef);
         if (!snap.exists()) return;
         const data = snap.data() as FSLibro;
-        const cap = data.capitulos.find(c => c.id === capId);
+        const cap = (data.capitulos ?? []).find(c => c.id === capId);
         if (!cap) return;
         const completing = !cap.leido;
-        const capitulos = data.capitulos.map(c => c.id !== capId ? c : { ...c, leido: completing });
+        const capitulos = (data.capitulos ?? []).map(c => c.id !== capId ? c : { ...c, leido: completing });
         tx.update(libroRef, { capitulos });
         tx.set(statsRef, { inteligencia: { xp: increment(completing ? data.xpPorCapitulo : -data.xpPorCapitulo) } }, { merge: true });
       });
@@ -904,7 +948,7 @@ export default function App() {
     if (!user?.uid) return;
     const libro = fsLibros.find(l => l.id === libroId);
     if (!libro) return;
-    const capitulos = libro.capitulos.map(c => c.id !== capId ? c : { ...c, notas });
+    const capitulos = (libro.capitulos ?? []).map(c => c.id !== capId ? c : { ...c, notas });
     try {
       await updateDoc(doc(db, 'usuarios', user.uid, 'libros', libroId), { capitulos });
     } catch (e) { console.error(e);
@@ -964,7 +1008,7 @@ export default function App() {
     const m = fsMaterias.find(x => x.id === materiaId);
     if (!m) { pendingOps.current.delete(opKey); return; }
     try {
-      await updateDoc(doc(db, 'usuarios', user.uid, 'materias', materiaId), { materiales: m.materiales.filter(x => x.id !== matId) });
+      await updateDoc(doc(db, 'usuarios', user.uid, 'materias', materiaId), { materiales: (m.materiales ?? []).filter(x => x.id !== matId) });
     } catch (e) { console.error(e);
       showToast('Error al eliminar el material');
     } finally {
@@ -981,7 +1025,7 @@ export default function App() {
       ...(tareaFacForm.fecha ? { fecha: tareaFacForm.fecha } : {}),
     };
     try {
-      await updateDoc(doc(db, 'usuarios', user.uid, 'materias', targetMateriaId), { tareas: [...materia.tareas, newT] });
+      await updateDoc(doc(db, 'usuarios', user.uid, 'materias', targetMateriaId), { tareas: [...(materia.tareas ?? []), newT] });
       setTareaFacForm({ titulo: '', fecha: '' });
       setModal(null);
     } catch (e: unknown) {
@@ -993,10 +1037,10 @@ export default function App() {
     if (!user?.uid) return;
     const m = fsMaterias.find(x => x.id === materiaId);
     if (!m) return;
-    const t = m.tareas.find(x => x.id === tareaId);
+    const t = (m.tareas ?? []).find(x => x.id === tareaId);
     if (!t) return;
     const completing = !t.completada;
-    const tareas = m.tareas.map(x => x.id !== tareaId ? x : { ...x, completada: completing });
+    const tareas = (m.tareas ?? []).map(x => x.id !== tareaId ? x : { ...x, completada: completing });
     try {
       const batch = writeBatch(db);
       batch.update(doc(db, 'usuarios', user.uid, 'materias', materiaId), { tareas });
@@ -1013,7 +1057,7 @@ export default function App() {
     const m = fsMaterias.find(x => x.id === materiaId);
     if (!m) return;
     try {
-      await updateDoc(doc(db, 'usuarios', user.uid, 'materias', materiaId), { tareas: m.tareas.filter(x => x.id !== tareaId) });
+      await updateDoc(doc(db, 'usuarios', user.uid, 'materias', materiaId), { tareas: (m.tareas ?? []).filter(x => x.id !== tareaId) });
     } catch (e) { console.error(e);
       showToast('Error al eliminar la tarea');
     }
@@ -1032,7 +1076,7 @@ export default function App() {
     };
     try {
       const batch = writeBatch(db);
-      batch.update(doc(db, 'usuarios', user.uid, 'materias', targetMateriaId), { examenes: [...materia.examenes, newEx] });
+      batch.update(doc(db, 'usuarios', user.uid, 'materias', targetMateriaId), { examenes: [...(materia.examenes ?? []), newEx] });
       if (nota !== undefined) {
         const xp = Math.round((nota / notaMax) * 30);
         batch.set(doc(db, 'usuarios', user.uid, 'stats', 'main'),
@@ -1051,7 +1095,7 @@ export default function App() {
     const m = fsMaterias.find(x => x.id === materiaId);
     if (!m) return;
     try {
-      await updateDoc(doc(db, 'usuarios', user.uid, 'materias', materiaId), { examenes: m.examenes.filter(x => x.id !== examenId) });
+      await updateDoc(doc(db, 'usuarios', user.uid, 'materias', materiaId), { examenes: (m.examenes ?? []).filter(x => x.id !== examenId) });
     } catch (e) { console.error(e);
       showToast('Error al eliminar el examen');
     }
@@ -1183,7 +1227,7 @@ export default function App() {
           <motion.div
             initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 16 }}
             className={cn(
-              'fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-xl shadow-lg text-sm font-semibold text-white pointer-events-none',
+              'fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-xl shadow-lg text-sm font-semibold text-white pointer-events-none',
               toast.ok ? 'bg-emerald-600' : 'bg-red-600'
             )}
           >
@@ -1353,8 +1397,36 @@ export default function App() {
         </div>
       </aside>
 
+      {/* ── Bottom Nav (mobile only) ── */}
+      <nav className="fixed bottom-0 inset-x-0 z-40 md:hidden">
+        <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-t border-slate-200 dark:border-slate-800 flex items-stretch h-16 px-1">
+          {NAV.filter(n => ['dashboard', 'habits', 'missions', 'gym', 'attributes'].includes(n.id)).map(item => (
+            <button
+              key={item.id}
+              onClick={() => { setTab(item.id); setSidebarOpen(false); }}
+              className={cn(
+                'relative flex flex-col items-center justify-center gap-0.5 flex-1 py-2 mx-0.5 rounded-xl transition-all',
+                tab === item.id ? 'text-blue-600' : 'text-slate-400'
+              )}
+            >
+              {tab === item.id && (
+                <motion.div
+                  layoutId="mobile-tab-indicator"
+                  className="absolute inset-0 bg-blue-50 dark:bg-blue-900/30 rounded-xl"
+                  transition={{ type: 'spring', stiffness: 500, damping: 40 }}
+                />
+              )}
+              <span className="relative z-10">{item.icon}</span>
+              <span className="relative z-10 text-[9px] font-black tracking-tight leading-none">
+                {item.label.split(' ')[0]}
+              </span>
+            </button>
+          ))}
+        </div>
+      </nav>
+
       {/* ── Main ── */}
-      <main className={cn('flex-1 p-4 md:p-8 transition-all duration-300', sidebarOpen ? 'ml-0 md:ml-64' : 'ml-0 md:ml-16')}>
+      <main className={cn('flex-1 p-4 md:p-8 pb-24 md:pb-8 transition-all duration-300', sidebarOpen ? 'ml-0 md:ml-64' : 'ml-0 md:ml-16')}>
         <header className="flex justify-between items-center mb-6 md:mb-8 gap-4">
           <div className="flex items-center gap-3 min-w-0">
             {/* Hamburger — solo mobile */}
@@ -1375,8 +1447,16 @@ export default function App() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <input type="text" placeholder="Search quests…" aria-label="Buscar" className="pl-10 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 w-64" />
             </div>
-            <button aria-label="Notificaciones" className="p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
+            <button onClick={toggleDark} aria-label="Cambiar tema" className="p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-600 dark:text-slate-400 hover:text-blue-500 transition-colors">
+              {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+            </button>
+            <button aria-label="Notificaciones" className="relative p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
               <Bell className="w-5 h-5 text-slate-600 dark:text-slate-400" />
+              {(habitsToday.length - done) > 0 && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center">
+                  {habitsToday.length - done}
+                </span>
+              )}
             </button>
           </div>
         </header>
@@ -1452,6 +1532,55 @@ export default function App() {
                   placeholder="¿En qué te vas a enfocar hoy?"
                   className="flex-1 bg-transparent text-sm font-bold placeholder-slate-500 outline-none text-slate-100"
                 />
+              </div>
+
+              {/* Today at a Glance */}
+              <div className="grid grid-cols-3 gap-3">
+                {([
+                  {
+                    label: 'XP HOY',
+                    value: habitsToday.filter(h => h.completed).reduce((s, h) => s + (h.xpValue ?? 20), 0),
+                    suffix: 'xp',
+                    icon: <Zap className="w-4 h-4" />,
+                    color: 'text-blue-600',
+                    bg: 'bg-blue-600/5 border-blue-200/50 dark:border-blue-900/30',
+                  },
+                  {
+                    label: 'MEJOR RACHA',
+                    value: fsHabitos.length
+                      ? Math.max(0, ...fsHabitos.map(h => calcStreak(h.completedDates ?? [], h.recurrence ?? 'daily')))
+                      : 0,
+                    suffix: '🔥',
+                    icon: <Flame className="w-4 h-4" />,
+                    color: 'text-orange-500',
+                    bg: 'bg-orange-500/5 border-orange-200/50 dark:border-orange-900/30',
+                  },
+                  {
+                    label: 'QUESTS',
+                    value: `${done}/${habitsToday.length}`,
+                    suffix: '',
+                    icon: <CheckCircle2 className="w-4 h-4" />,
+                    color: 'text-emerald-600',
+                    bg: 'bg-emerald-600/5 border-emerald-200/50 dark:border-emerald-900/30',
+                  },
+                ] as const).map((tile, i) => (
+                  <motion.div
+                    key={tile.label}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.07, duration: 0.4 }}
+                    className={cn('rounded-2xl p-3 border', tile.bg)}
+                  >
+                    <span className={cn('flex items-center gap-1 mb-1.5', tile.color)}>
+                      {tile.icon}
+                      <span className="text-[9px] font-black uppercase tracking-widest">{tile.label}</span>
+                    </span>
+                    <p className="text-xl font-black text-slate-800 dark:text-slate-100 leading-none tabular-nums">
+                      {tile.value}
+                      {tile.suffix && <span className="text-sm ml-0.5 font-bold">{tile.suffix}</span>}
+                    </p>
+                  </motion.div>
+                ))}
               </div>
 
               {/* Stats + Radar */}
@@ -1547,15 +1676,26 @@ export default function App() {
                     {habitsToday.length === 0
                       ? <p className="text-[11px] text-slate-400 text-center py-4">Sin quests para hoy.</p>
                       : <div className="space-y-2">
-                          {habitsToday.slice(0, 6).map(h => (
-                            <div key={h.id} onClick={() => toggleHabit(h.id)} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer">
-                              <div className={cn('w-8 h-8 rounded-lg flex items-center justify-center shrink-0', h.completed ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-400')}>{h.icon}</div>
-                              <p className={cn('font-bold text-xs flex-1', h.completed && 'line-through text-slate-400')}>{h.name}</p>
-                              <div className={cn('w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0', h.completed ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-200 dark:border-slate-700')}>
-                                {h.completed && <CheckCircle2 className="w-3 h-3" />}
+                          {habitsToday.slice(0, 6).map(h => {
+                            const fh = fsHabitos.find(x => x.id === h.id);
+                            const streak = fh ? calcStreak(fh.completedDates ?? [], fh.recurrence ?? 'daily') : 0;
+                            return (
+                              <div key={h.id} onClick={() => toggleHabit(h.id)} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer">
+                                <div className={cn('w-8 h-8 rounded-lg flex items-center justify-center shrink-0', h.completed ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-400')}>{h.icon}</div>
+                                <div className="flex-1 min-w-0">
+                                  <p className={cn('font-bold text-xs leading-tight truncate', h.completed && 'line-through text-slate-400')}>{h.name}</p>
+                                  {streak > 1 && (
+                                    <span className="flex items-center gap-0.5 text-[9px] font-black text-orange-500 mt-0.5">
+                                      <Flame className="w-2.5 h-2.5" /> {streak}d
+                                    </span>
+                                  )}
+                                </div>
+                                <div className={cn('w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0', h.completed ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-200 dark:border-slate-700')}>
+                                  {h.completed && <CheckCircle2 className="w-3 h-3" />}
+                                </div>
                               </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                     }
                     <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
@@ -1751,8 +1891,44 @@ export default function App() {
                 const todayNum    = getDay(new Date());
                 const todayRuts   = fsRutinas.filter(r => r.diasSemana?.includes(todayNum));
                 const otherRuts   = fsRutinas.filter(r => !r.diasSemana?.includes(todayNum));
+                const activeEjNombre = (() => {
+                  if (!activeGymEjercicioId) return null;
+                  for (const r of fsRutinas) {
+                    const ej = r.ejercicios?.find(e => e.id === activeGymEjercicioId);
+                    if (ej) return ej.nombre;
+                  }
+                  return null;
+                })();
                 return (
-                  <div className="space-y-8">
+                  <div className="flex gap-6 items-start">
+                    {/* ── Body map (sticky, desktop) ── */}
+                    <div className="hidden lg:flex flex-col items-center w-52 shrink-0 sticky top-4">
+                      <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2">
+                        Músculos activos
+                      </p>
+                      <BodyMap activeMuscles={activeMuscles} className="w-full" />
+                      {activeEjNombre ? (
+                        <p className="mt-2 text-[10px] font-bold text-slate-400 text-center leading-tight px-2">
+                          {activeEjNombre}
+                        </p>
+                      ) : (
+                        <p className="mt-2 text-[9px] text-slate-500 text-center">
+                          Pasá el cursor sobre un ejercicio
+                        </p>
+                      )}
+                      {activeMuscles.length > 0 && (
+                        <div className="mt-3 flex flex-wrap justify-center gap-1 px-1">
+                          {activeMuscles.map(m => (
+                            <span key={m} className="text-[9px] font-black uppercase tracking-wide bg-red-100 dark:bg-red-900/30 text-red-600 px-1.5 py-0.5 rounded-full">
+                              {m}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* ── Exercise content ── */}
+                  <div className="flex-1 space-y-8">
 
                     {/* Hoy */}
                     <section>
@@ -1787,8 +1963,11 @@ export default function App() {
                               <p className="text-xs text-slate-400 text-center py-4">Sin ejercicios. Agregá uno abajo.</p>
                             ) : rutina.ejercicios?.map(ej => (
                               <EjercicioRow key={ej.id} ejercicio={ej}
+                                isActive={activeGymEjercicioId === ej.id}
+                                onSelect={() => setActiveGymEjercicioId(ej.id)}
                                 onToggle={() => toggleEjercicio(rutina.id, ej.id)}
                                 onDelete={() => deleteEjercicio(rutina.id, ej.id)}
+                                onUpdateSets={sets => updateEjercicioSets(rutina.id, ej.id, sets)}
                                 onEdit={() => {
                                   setTargetRutinaId(rutina.id);
                                   setTargetEjercicioId(ej.id);
@@ -1859,6 +2038,7 @@ export default function App() {
                         </div>
                       )}
                     </section>
+                  </div>
                   </div>
                 );
               })()}
@@ -2390,6 +2570,26 @@ export default function App() {
                   </div>
                 : <>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {habits.filter(h => filterHabitStat === 'all' || h.stat === filterHabitStat).length === 0 && (
+                        <div className="md:col-span-2 py-14 text-center border-2 border-dashed border-slate-100 dark:border-slate-800 rounded-3xl">
+                          <div className={cn('w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-3 text-white',
+                            filterHabitStat !== 'all' ? STAT_META[filterHabitStat as FSStatKey].color : 'bg-slate-100 dark:bg-slate-800')}>
+                            {filterHabitStat !== 'all' ? STAT_META[filterHabitStat as FSStatKey].icon : <Zap className="w-5 h-5 text-slate-400" />}
+                          </div>
+                          <p className="font-bold text-slate-400 mb-1">
+                            Sin quests de {filterHabitStat !== 'all' ? STAT_META[filterHabitStat as FSStatKey].name : 'este atributo'}.
+                          </p>
+                          <p className="text-xs text-slate-400 mb-3">Creá una quest vinculada a este atributo para ganar XP.</p>
+                          <button
+                            onClick={() => {
+                              setHabitForm({ nombre: '', stat: filterHabitStat !== 'all' ? filterHabitStat as FSStatKey : 'fuerza', recurrence: 'daily', diasSemana: [] });
+                              setModal('habit');
+                            }}
+                            className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold hover:opacity-90 transition-all shadow-md shadow-blue-500/20">
+                            + Nueva quest de {filterHabitStat !== 'all' ? STAT_META[filterHabitStat as FSStatKey].shortName : 'atributo'}
+                          </button>
+                        </div>
+                      )}
                       {habits.filter(h => filterHabitStat === 'all' || h.stat === filterHabitStat).map(h => {
                         const fh = fsHabitos.find(x => x.id === h.id);
                         const streak = fh ? calcStreak(fh.completedDates ?? [], fh.recurrence ?? 'daily') : 0;
