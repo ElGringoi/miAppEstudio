@@ -13,7 +13,7 @@ export const PRIORIDAD_META: Record<string, { color: string; bg: string; label: 
 };
 
 export const CATEGORIAS_GASTO   = ['🍔 Comida', '🚗 Transporte', '🏠 Vivienda', '💊 Salud', '📚 Educación', '🎮 Ocio', '🛒 Compras', '📦 Otro'];
-export const CATEGORIAS_INGRESO = ['💼 Trabajo', '💻 Freelance', '📈 Inversión', '🎁 Regalo', '📦 Otro'];
+export const CATEGORIAS_INGRESO = ['💰 Sueldo', '💼 Trabajo', '💻 Freelance', '📈 Inversión', '🎁 Regalo', '📦 Otro'];
 export const MONEDA_META: Record<string, { symbol: string; label: string; flag: string }> = {
   ARS: { symbol: '$',    label: 'Peso Arg.',  flag: '🇦🇷' },
   USD: { symbol: 'U$S',  label: 'Dólar',      flag: '🇺🇸' },
