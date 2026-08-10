@@ -890,6 +890,79 @@ export default function App() {
     }
   }
 
+  async function seedRutinas2daEtapa() {
+    if (!user?.uid) return;
+    if (!confirm('¿Reemplazar todas las rutinas actuales con la 2da Etapa (5 días de gym)?')) return;
+    const SEED = [
+      {
+        nombre: 'PECHO', diasSemana: [1], orden: 0,
+        ejercicios: [
+          { id: crypto.randomUUID(), nombre: 'Press plano con barra',          series: 5, reps: '4-6 / 8-10', restTimerSecs: 180, notas: '',                                       lastCompletedDate: null },
+          { id: crypto.randomUUID(), nombre: 'Press inclinado con mancuernas', series: 4, reps: '8-10',       restTimerSecs: 150, notas: 'Mantener ángulo estable, retracción escapular', lastCompletedDate: null },
+          { id: crypto.randomUUID(), nombre: 'Press declinado con barra',      series: 3, reps: '8-10',       restTimerSecs: 90,  notas: 'Evitar rebote en el pecho',               lastCompletedDate: null },
+          { id: crypto.randomUUID(), nombre: 'Press declinado en máquina',     series: 3, reps: '12-15',      restTimerSecs: 90,  notas: 'Squeeze fuerte al centro 2s',              lastCompletedDate: null },
+          { id: crypto.randomUUID(), nombre: 'Cruces en polea baja',           series: 3, reps: '12-15',      restTimerSecs: 60,  notas: 'Trayectoria ligeramente ascendente',        lastCompletedDate: null },
+          { id: crypto.randomUUID(), nombre: 'Press en máquina convergente',   series: 3, reps: '15',         restTimerSecs: 60,  notas: 'Finalizar con bombeo, tensión continua',    lastCompletedDate: null },
+        ],
+      },
+      {
+        nombre: 'ESPALDA', diasSemana: [2], orden: 1,
+        ejercicios: [
+          { id: crypto.randomUUID(), nombre: 'Peso muerto convencional',          series: 4, reps: '3-5',   restTimerSecs: 180, notas: '',                                 lastCompletedDate: null },
+          { id: crypto.randomUUID(), nombre: 'Dominadas agarre neutro',           series: 4, reps: '6-10',  restTimerSecs: 150, notas: 'Pecho arriba, control en bajada', lastCompletedDate: null },
+          { id: crypto.randomUUID(), nombre: 'Remo mancuerna pesado',             series: 3, reps: '8-10',  restTimerSecs: 90,  notas: 'Codo atrás sin rotar tronco',     lastCompletedDate: null },
+          { id: crypto.randomUUID(), nombre: 'Jalón agarre abierto',             series: 3, reps: '10-12', restTimerSecs: 90,  notas: 'Llevar al pecho',                  lastCompletedDate: null },
+          { id: crypto.randomUUID(), nombre: 'Remo polea baja agarre cerrado',   series: 3, reps: '10-12', restTimerSecs: 90,  notas: 'Retraer escápulas al final',       lastCompletedDate: null },
+          { id: crypto.randomUUID(), nombre: 'Pullover mancuerna / polea',       series: 3, reps: '12-15', restTimerSecs: 60,  notas: 'Codos fijos, foco dorsal',         lastCompletedDate: null },
+        ],
+      },
+      {
+        nombre: 'PIERNA', diasSemana: [3], orden: 2,
+        ejercicios: [
+          { id: crypto.randomUUID(), nombre: 'Sentadilla frontal',                  series: 4, reps: '4-6',   restTimerSecs: 180, notas: '',                                          lastCompletedDate: null },
+          { id: crypto.randomUUID(), nombre: 'Prensa horizontal',                   series: 4, reps: '10-12', restTimerSecs: 150, notas: 'Pies medios, empuje parejo',                 lastCompletedDate: null },
+          { id: crypto.randomUUID(), nombre: 'Peso muerto rumano con mancuernas',   series: 4, reps: '8-10',  restTimerSecs: 90,  notas: 'Estiramiento femoral controlado',            lastCompletedDate: null },
+          { id: crypto.randomUUID(), nombre: 'Extensión de cuádriceps',             series: 3, reps: '12-15', restTimerSecs: 90,  notas: 'Pausa 1s arriba',                           lastCompletedDate: null },
+          { id: crypto.randomUUID(), nombre: 'Curl femoral sentado',                series: 3, reps: '10-12', restTimerSecs: 90,  notas: 'Controlar excéntrica 2-3s',                  lastCompletedDate: null },
+          { id: crypto.randomUUID(), nombre: 'Elevación de gemelos en prensa',      series: 3, reps: '12-15', restTimerSecs: 60,  notas: 'Recorrido completo, pausa arriba',           lastCompletedDate: null },
+        ],
+      },
+      {
+        nombre: 'HOMBROS', diasSemana: [4], orden: 3,
+        ejercicios: [
+          { id: crypto.randomUUID(), nombre: 'Press militar con mancuernas',            series: 4, reps: '5-7 / 8-10', restTimerSecs: 180, notas: '',                                    lastCompletedDate: null },
+          { id: crypto.randomUUID(), nombre: 'Elevaciones laterales pesadas',           series: 4, reps: '10-12',      restTimerSecs: 90,  notas: 'Ligeramente inclinadas',              lastCompletedDate: null },
+          { id: crypto.randomUUID(), nombre: 'Remo al mentón con barra Z',              series: 4, reps: '8-10',       restTimerSecs: 90,  notas: 'No elevar por encima del pecho',      lastCompletedDate: null },
+          { id: crypto.randomUUID(), nombre: 'Elevaciones laterales en polea baja',    series: 3, reps: '12-15',      restTimerSecs: 60,  notas: 'Tensión constante',                   lastCompletedDate: null },
+          { id: crypto.randomUUID(), nombre: 'Pájaros mancuernas / máquina',           series: 3, reps: '12-15',      restTimerSecs: 60,  notas: 'Aislar deltoide posterior',           lastCompletedDate: null },
+          { id: crypto.randomUUID(), nombre: 'Encogimientos con barra',                series: 3, reps: '10-12',      restTimerSecs: 60,  notas: 'Hombros arriba sin rotación',         lastCompletedDate: null },
+        ],
+      },
+      {
+        nombre: 'BRAZOS', diasSemana: [5], orden: 4,
+        ejercicios: [
+          { id: crypto.randomUUID(), nombre: 'Curl barra recta',           series: 4, reps: '8-10',  restTimerSecs: 90, notas: 'Codos fijos',         lastCompletedDate: null },
+          { id: crypto.randomUUID(), nombre: 'Curl mancuernas alternado',  series: 4, reps: '8-10',  restTimerSecs: 90, notas: 'Sin balanceo',         lastCompletedDate: null },
+          { id: crypto.randomUUID(), nombre: 'Curl Scott barra Z',         series: 3, reps: '10-12', restTimerSecs: 90, notas: 'Control total',        lastCompletedDate: null },
+          { id: crypto.randomUUID(), nombre: 'Curl polea alta cuerda',     series: 3, reps: '12-15', restTimerSecs: 75, notas: 'Tensión constante',    lastCompletedDate: null },
+          { id: crypto.randomUUID(), nombre: 'Curl invertido',             series: 3, reps: '12-15', restTimerSecs: 75, notas: 'Agarre prono o neutro', lastCompletedDate: null },
+          { id: crypto.randomUUID(), nombre: 'Fondos en banca o paralelas',series: 4, reps: '6-10',  restTimerSecs: 90, notas: 'Apertura mínima, control', lastCompletedDate: null },
+          { id: crypto.randomUUID(), nombre: 'Press francés con mancuernas',series: 4, reps: '8-10', restTimerSecs: 90, notas: 'Codos cerrados',       lastCompletedDate: null },
+          { id: crypto.randomUUID(), nombre: 'Extensión polea barra recta', series: 3, reps: '10-12',restTimerSecs: 90, notas: 'Sin mover hombros',    lastCompletedDate: null },
+          { id: crypto.randomUUID(), nombre: 'Jalón cuerda',               series: 3, reps: '12-15', restTimerSecs: 75, notas: 'Abrir al final del recorrido', lastCompletedDate: null },
+        ],
+      },
+    ];
+    const batch = writeBatch(db);
+    for (const r of fsRutinas) {
+      batch.delete(doc(db, 'usuarios', user.uid, 'rutinas', r.id));
+    }
+    await batch.commit();
+    for (const r of SEED) {
+      await addDoc(collection(db, 'usuarios', user.uid, 'rutinas'), r);
+    }
+  }
+
   // ── Biblioteca CRUD ───────────────────────────────────────────────────────────
 
   async function addLibro() {
@@ -2090,10 +2163,16 @@ export default function App() {
                     <section>
                       <div className="flex items-center justify-between mb-4">
                         <h3 className="text-lg font-black uppercase tracking-tight">Mis Rutinas</h3>
-                        <button onClick={() => setModal('rutina')}
-                          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold hover:opacity-90 shadow-md shadow-blue-500/20">
-                          <Plus className="w-4 h-4" /> Nueva Rutina
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button onClick={seedRutinas2daEtapa}
+                            className="flex items-center gap-1.5 px-3 py-2 bg-amber-500 text-white rounded-xl text-xs font-bold hover:opacity-90 shadow-md shadow-amber-500/20">
+                            <Dumbbell className="w-3.5 h-3.5" /> 2da Etapa
+                          </button>
+                          <button onClick={() => setModal('rutina')}
+                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold hover:opacity-90 shadow-md shadow-blue-500/20">
+                            <Plus className="w-4 h-4" /> Nueva
+                          </button>
+                        </div>
                       </div>
                       {fsRutinas.length === 0 ? (
                         <div className="py-12 text-center border-2 border-dashed border-slate-100 dark:border-slate-800 rounded-3xl">
