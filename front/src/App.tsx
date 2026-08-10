@@ -33,7 +33,7 @@ import type {
   GCalEvent, FSEjercicio, FSRutina, EstadoLibro, FSCapitulo, FSLibro,
   TipoMaterial, FSMaterial, FSTareaFac, FSExamen, FSMateria,
   FSEntradaDiario, FSObjetivoCHA, FSTransaccion, Habit, Task, HabitRecurrence, TabId, Moneda, LevelUpEvent, MisionPrioridad, SetLog,
-  DiarioReaction, FSDiarioPrefs,
+  DiarioReaction, FSDiarioPrefs, FSSueldoMeta,
 } from './types';
 import { BodyMap } from './components/BodyMap';
 import type { MuscleId } from './components/BodyMap';
@@ -143,6 +143,11 @@ export default function App() {
   const [editingTxId,      setEditingTxId]      = useState<string | null>(null);
   const [txMesFilter,      setTxMesFilter]      = useState(HOY.slice(0, 7));
   const [txForm,           setTxForm]           = useState({ descripcion: '', monto: '', tipo: 'gasto' as 'ingreso' | 'gasto', categoria: '', fecha: HOY, moneda: 'ARS' as Moneda });
+
+  // Sueldo
+  const [fsSueldosMeta,    setFsSueldosMeta]    = useState<FSSueldoMeta[]>([]);
+  const [showSueldoModal,  setShowSueldoModal]  = useState(false);
+  const [sueldoForm,       setSueldoForm]       = useState({ montoEsperado: '', moneda: 'ARS' as Moneda });
 
   // Carisma — Diario + Objetivos (pendiente de implementar UI)
   const [_fsDiario,         setFsDiario]          = useState<FSEntradaDiario[]>([]);
@@ -268,7 +273,7 @@ export default function App() {
     setDataReady(false);
     const uid = user.uid;
     let loaded = 0;
-    const markLoaded = () => { if (++loaded === 12) setDataReady(true); };
+    const markLoaded = () => { if (++loaded === 13) setDataReady(true); };
     const unsubStats = onSnapshot(doc(db, 'usuarios', uid, 'stats', 'main'), snap => {
       setFsStats(snap.data() as FSStatsDoc ?? null);
       markLoaded();
@@ -287,7 +292,8 @@ export default function App() {
       if (snap.exists()) setFsDiarioPrefs(snap.data() as FSDiarioPrefs);
       markLoaded();
     });
-    return () => { unsubStats(); u2(); u3(); u4(); u5(); u6(); u7(); u8(); u9(); u10(); u11(); u12(); };
+    const u13 = onSnapshot(collection(db, 'usuarios', uid, 'sueldos_meta'), s => { setFsSueldosMeta(s.docs.map(d => ({ id: d.id, ...d.data() } as FSSueldoMeta))); markLoaded(); });
+    return () => { unsubStats(); u2(); u3(); u4(); u5(); u6(); u7(); u8(); u9(); u10(); u11(); u12(); u13(); };
   }, [user?.uid]);
 
   // ── Derived ───────────────────────────────────────────────────────────────
@@ -342,6 +348,19 @@ export default function App() {
     const ordenadas = [...fsTransacciones].sort((a, b) => b.fecha.localeCompare(a.fecha));
     return { ingresosMes, gastosMes, porMoneda, porCategoria, ordenadas };
   }, [fsTransacciones, txMesFilter]);
+
+  const sueldoProgress = useMemo(() => {
+    return fsSueldosMeta
+      .filter(m => m.mes === txMesFilter)
+      .map(meta => {
+        const cobrado = fsTransacciones
+          .filter(t => t.fecha.startsWith(txMesFilter) && t.tipo === 'ingreso' && (t.moneda ?? 'ARS') === meta.moneda && t.categoria === '💰 Sueldo')
+          .reduce((s, t) => s + t.monto, 0);
+        const pct   = meta.montoEsperado > 0 ? Math.min(100, (cobrado / meta.montoEsperado) * 100) : 0;
+        const falta = Math.max(0, meta.montoEsperado - cobrado);
+        return { ...meta, cobrado, pct, falta };
+      });
+  }, [fsSueldosMeta, fsTransacciones, txMesFilter]);
 
   // Nivel principal, rango y clase
   const mainLevelData = useMemo(() => calcMainLevel(fsStats), [fsStats]);
@@ -1324,6 +1343,20 @@ export default function App() {
     }
   }
 
+  async function saveSueldoMeta() {
+    if (!user?.uid || !sueldoForm.montoEsperado) return;
+    const docId = `${txMesFilter}_${sueldoForm.moneda}`;
+    try {
+      await setDoc(doc(db, 'usuarios', user.uid, 'sueldos_meta', docId), {
+        mes: txMesFilter,
+        montoEsperado: parseFloat(sueldoForm.montoEsperado),
+        moneda: sueldoForm.moneda,
+      });
+      setShowSueldoModal(false);
+      showToast('Sueldo configurado', true);
+    } catch (e) { console.error(e); showToast('Error al guardar el sueldo'); }
+  }
+
   // ── Auth states ───────────────────────────────────────────────────────────
 
   if (authLoading) return (
@@ -1424,6 +1457,40 @@ export default function App() {
                 className="w-full py-3 bg-emerald-600 text-white rounded-xl text-sm font-black hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg shadow-emerald-500/20">
                 {editingTxId ? 'Actualizar' : 'Guardar'}
               </button>
+      </Modal>
+
+      {/* ── Modal: Configurar sueldo ── */}
+      <Modal open={showSueldoModal} onClose={() => setShowSueldoModal(false)} className="space-y-4">
+        <ModalHeader
+          title={<><span className="text-lg">💰</span> Sueldo esperado</>}
+          onClose={() => setShowSueldoModal(false)}
+        />
+        <p className="text-xs text-slate-400">Configurá cuánto esperás cobrar este mes. Luego registrá cada pago parcial con "Cobrar parte" y la barra mostrará tu progreso.</p>
+        <div className="flex gap-3">
+          <input
+            type="number"
+            placeholder="Monto total del sueldo"
+            value={sueldoForm.montoEsperado}
+            onChange={e => setSueldoForm(f => ({ ...f, montoEsperado: e.target.value }))}
+            className="flex-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm font-bold focus:outline-none focus:border-emerald-500 transition-colors"
+          />
+          <select
+            value={sueldoForm.moneda}
+            onChange={e => setSueldoForm(f => ({ ...f, moneda: e.target.value as Moneda }))}
+            className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-3 text-sm font-bold focus:outline-none focus:border-emerald-500 transition-colors"
+          >
+            {Object.entries(MONEDA_META).map(([code, m]) => (
+              <option key={code} value={code}>{m.flag} {code}</option>
+            ))}
+          </select>
+        </div>
+        <button
+          onClick={saveSueldoMeta}
+          disabled={!sueldoForm.montoEsperado || parseFloat(sueldoForm.montoEsperado) <= 0}
+          className="w-full py-3 bg-emerald-600 text-white rounded-xl text-sm font-black hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg shadow-emerald-500/20"
+        >
+          Guardar
+        </button>
       </Modal>
 
       {/* ── Stat-up overlay ── */}
@@ -3057,6 +3124,60 @@ export default function App() {
                   })}
                 </div>
               )}
+
+              {/* Tracker de sueldo */}
+              <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-black uppercase tracking-widest text-slate-400">💰 Sueldo del mes</h4>
+                  <button
+                    onClick={() => {
+                      const existing = fsSueldosMeta.find(m => m.mes === txMesFilter);
+                      setSueldoForm({ montoEsperado: existing ? String(existing.montoEsperado) : '', moneda: existing?.moneda ?? 'ARS' });
+                      setShowSueldoModal(true);
+                    }}
+                    className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-emerald-600 transition-colors flex items-center gap-1"
+                  >
+                    <Pencil className="w-3 h-3" /> Configurar
+                  </button>
+                </div>
+                {sueldoProgress.length === 0
+                  ? <p className="text-sm text-slate-400 text-center py-2">No hay sueldo configurado para este mes. Hacé clic en "Configurar" para empezar.</p>
+                  : sueldoProgress.map(sp => {
+                      const mon = MONEDA_META[sp.moneda] ?? MONEDA_META['ARS'];
+                      return (
+                        <div key={sp.id} className="space-y-2">
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="font-bold">{mon.flag} {sp.moneda} — Cobrado: <span className="text-emerald-600 font-black">{mon.symbol} {sp.cobrado.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span></span>
+                            <span className="text-slate-400 text-xs font-bold">de {mon.symbol} {sp.montoEsperado.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
+                          </div>
+                          <div className="w-full h-3 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                            <motion.div
+                              initial={{ width: 0 }}
+                              animate={{ width: `${sp.pct}%` }}
+                              transition={{ duration: 0.6, ease: 'easeOut' }}
+                              className={cn('h-full rounded-full', sp.pct >= 100 ? 'bg-emerald-500' : 'bg-blue-500')}
+                            />
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className={cn('text-xs font-black', sp.pct >= 100 ? 'text-emerald-600' : 'text-slate-400')}>
+                              {sp.pct >= 100 ? '✅ Sueldo completo' : `Te faltan: ${mon.symbol} ${sp.falta.toLocaleString('es-AR', { minimumFractionDigits: 2 })}`}
+                            </span>
+                            <button
+                              onClick={() => {
+                                setEditingTxId(null);
+                                setTxForm({ descripcion: 'Parte de sueldo', monto: '', tipo: 'ingreso', categoria: '💰 Sueldo', fecha: HOY, moneda: sp.moneda });
+                                setShowTxModal(true);
+                              }}
+                              className="text-[10px] font-black uppercase tracking-widest px-3 py-1 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+                            >
+                              + Cobrar parte
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })
+                }
+              </div>
 
               {/* Filtro de mes + resumen */}
               <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
