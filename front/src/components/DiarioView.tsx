@@ -3,6 +3,7 @@ import type { Stat, Habit, FSRutina, FSLibro } from '../types';
 import type { FSDiarioPrefs, DiarioReaction } from '../types';
 import { HOY } from '../utils/constants';
 import { ARTICULOS, scoreArticulos } from '../utils/diarioSeed';
+import type { DiarioArticulo } from '../utils/diarioSeed';
 
 const INK       = '#211d16';
 const INK_SOFT  = '#4a4438';
@@ -37,7 +38,7 @@ function DropCapPara({ text, style }: { text: string; style: React.CSSProperties
   );
 }
 
-function SectionHeader({ label, color }: { label: string; color: string }) {
+function SectionHeader({ label, color, action }: { label: string; color: string; action?: React.ReactNode }) {
   return (
     <div style={{ display: 'flex', alignItems: 'baseline', gap: '14px', margin: '32px 0 16px' }}>
       <h2 style={{
@@ -48,6 +49,7 @@ function SectionHeader({ label, color }: { label: string; color: string }) {
         {label}
       </h2>
       <div style={{ flex: 1, height: '1px', background: INK }} />
+      {action}
     </div>
   );
 }
@@ -72,11 +74,20 @@ export function DiarioView({ stats, habits, fsRutinas, fsLibros, userName, diari
   const hora   = new Date().getHours();
   const saludo = hora < 12 ? 'Buenos días' : hora < 20 ? 'Buenas tardes' : 'Buenas noches';
 
-  const articulosOrdenados = scoreArticulos(ARTICULOS, diarioPrefs.tagScores, diarioPrefs.reactions);
-  const leadArticulo       = articulosOrdenados[0];
-  const lecturas           = articulosOrdenados.slice(1, 7);
+  // Orden congelado al montar: no cambia mientras lees, solo en la próxima visita
+  const [articulosOrdenados] = useState(() =>
+    scoreArticulos(ARTICULOS, diarioPrefs.tagScores, diarioPrefs.reactions)
+  );
+  const leadArticulo = articulosOrdenados[0];
+  const lecturas     = articulosOrdenados.slice(1, 7);
 
-  const [expanded, setExpanded] = useState<string | null>(null);
+  const [expanded,      setExpanded]      = useState<string | null>(null);
+  const [showValorados, setShowValorados] = useState(false);
+
+  // Valorados: en tiempo real para reflejar reacciones de esta sesión
+  const likedArticles    = ARTICULOS.filter((a: DiarioArticulo) => diarioPrefs.reactions[a.id] === 'like');
+  const dislikedArticles = ARTICULOS.filter((a: DiarioArticulo) => diarioPrefs.reactions[a.id] === 'dislike');
+  const totalValorados   = likedArticles.length + dislikedArticles.length;
 
   const sh: React.CSSProperties = {
     background: PAPER,
@@ -114,7 +125,7 @@ export function DiarioView({ stats, habits, fsRutinas, fsLibros, userName, diari
   };
 
   function ReactionBtn({ artId, artTags, reaction }: { artId: string; artTags: string[]; reaction: DiarioReaction }) {
-    const current = diarioPrefs.reactions[artId];
+    const current  = diarioPrefs.reactions[artId];
     const isActive = current === reaction;
     const baseStyle: React.CSSProperties = {
       fontFamily: MONO, fontSize: '10px', letterSpacing: '0.06em', textTransform: 'uppercase',
@@ -135,20 +146,22 @@ export function DiarioView({ stats, habits, fsRutinas, fsLibros, userName, diari
     );
   }
 
-  function ArticleCard({ art, isLead }: { art: typeof ARTICULOS[0]; isLead?: boolean }) {
+  function ArticleCard({ art, isLead, compact }: { art: DiarioArticulo; isLead?: boolean; compact?: boolean }) {
     const isExpanded = expanded === art.id || isLead;
     const paragraphs = art.contenido.split('\n\n');
     const reaction   = diarioPrefs.reactions[art.id];
 
     return (
-      <div style={{ ...brief, opacity: reaction === 'dislike' ? 0.55 : 1 }}>
+      <div style={{ ...brief, opacity: reaction === 'dislike' ? 0.5 : 1 }}>
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' }}>
-          {art.tags.map(t => (
+          {art.tags.map((t: string) => (
             <span key={t} style={{
               fontFamily: MONO, fontSize: '8.5px', letterSpacing: '0.1em', textTransform: 'uppercase',
               color: BLUE, border: `1px solid ${BLUE}`, padding: '2px 6px', opacity: 0.75,
             }}>{t}</span>
           ))}
+          {reaction === 'like'    && <span style={{ fontFamily: MONO, fontSize: '8.5px', letterSpacing: '0.1em', textTransform: 'uppercase', color: GREEN, border: `1px solid ${GREEN}`, padding: '2px 6px' }}>✓ útil</span>}
+          {reaction === 'dislike' && <span style={{ fontFamily: MONO, fontSize: '8.5px', letterSpacing: '0.1em', textTransform: 'uppercase', color: RED,   border: `1px solid ${RED}`,   padding: '2px 6px' }}>✕ pasar</span>}
         </div>
         <h4
           style={{ ...briefH4, fontSize: isLead ? '22px' : '16px', cursor: 'pointer', marginBottom: '8px' }}
@@ -157,17 +170,17 @@ export function DiarioView({ stats, habits, fsRutinas, fsLibros, userName, diari
           {art.titulo}
         </h4>
 
-        {isExpanded ? (
+        {isExpanded && !compact ? (
           <>
             {isLead ? (
               <>
                 <DropCapPara text={paragraphs[0]} style={bodyText} />
-                {paragraphs.slice(1).map((p, i) => (
+                {paragraphs.slice(1).map((p: string, i: number) => (
                   <p key={i} style={bodyText}>{p}</p>
                 ))}
               </>
             ) : (
-              paragraphs.map((p, i) => (
+              paragraphs.map((p: string, i: number) => (
                 <p key={i} style={briefP}>{p}</p>
               ))
             )}
@@ -184,7 +197,7 @@ export function DiarioView({ stats, habits, fsRutinas, fsLibros, userName, diari
         <div style={{ display: 'flex', gap: '8px', marginTop: '12px', alignItems: 'center' }}>
           <ReactionBtn artId={art.id} artTags={art.tags} reaction="like" />
           <ReactionBtn artId={art.id} artTags={art.tags} reaction="dislike" />
-          {!isLead && (
+          {!isLead && !compact && (
             <button
               style={{ fontFamily: MONO, fontSize: '10px', letterSpacing: '0.06em', textTransform: 'uppercase', background: 'none', border: 'none', color: INK_SOFT, cursor: 'pointer', padding: '5px 0' }}
               onClick={() => setExpanded(expanded === art.id ? null : art.id)}
@@ -291,13 +304,64 @@ export function DiarioView({ stats, habits, fsRutinas, fsLibros, userName, diari
       {/* ── LECTURAS DEL DÍA ── */}
       <SectionHeader label="Lecturas del día" color={BLUE} />
       <p style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: '13px', color: INK_SOFT, margin: '-10px 0 18px' }}>
-        Usá ▲ y ▼ para enseñarle qué te interesa. El orden se adapta con el tiempo.
+        El orden se fija al abrir el Diario. Los ▲ y ▼ enseñan qué te interesa para la próxima visita.
       </p>
       <div style={{ columns: '2 320px', columnGap: '36px' }}>
-        {lecturas.map(art => (
+        {lecturas.map((art: DiarioArticulo) => (
           <ArticleCard key={art.id} art={art} />
         ))}
       </div>
+
+      {/* ── VALORADOS ── */}
+      {totalValorados > 0 && (
+        <>
+          <SectionHeader
+            label={`Valorados (${totalValorados})`}
+            color={GOLD}
+            action={
+              <button
+                onClick={() => setShowValorados(v => !v)}
+                style={{
+                  fontFamily: MONO, fontSize: '10px', letterSpacing: '0.08em', textTransform: 'uppercase',
+                  background: 'none', border: `1px solid ${RULE}`, color: INK_SOFT,
+                  padding: '4px 12px', cursor: 'pointer', whiteSpace: 'nowrap',
+                }}
+              >
+                {showValorados ? '▲ ocultar' : '▼ ver todos'}
+              </button>
+            }
+          />
+
+          {showValorados && (
+            <>
+              {likedArticles.length > 0 && (
+                <>
+                  <p style={{ fontFamily: MONO, fontSize: '10px', letterSpacing: '0.1em', textTransform: 'uppercase', color: GREEN, margin: '0 0 16px' }}>
+                    ▲ Útiles ({likedArticles.length})
+                  </p>
+                  <div style={{ columns: '2 320px', columnGap: '36px' }}>
+                    {likedArticles.map((art: DiarioArticulo) => (
+                      <ArticleCard key={art.id} art={art} compact />
+                    ))}
+                  </div>
+                </>
+              )}
+              {dislikedArticles.length > 0 && (
+                <>
+                  <p style={{ fontFamily: MONO, fontSize: '10px', letterSpacing: '0.1em', textTransform: 'uppercase', color: RED, margin: '16px 0' }}>
+                    ▼ Pasar ({dislikedArticles.length})
+                  </p>
+                  <div style={{ columns: '2 320px', columnGap: '36px' }}>
+                    {dislikedArticles.map((art: DiarioArticulo) => (
+                      <ArticleCard key={art.id} art={art} compact />
+                    ))}
+                  </div>
+                </>
+              )}
+            </>
+          )}
+        </>
+      )}
 
       {/* ── FOOTER ── */}
       <footer style={{
@@ -307,7 +371,7 @@ export function DiarioView({ stats, habits, fsRutinas, fsLibros, userName, diari
       }}>
         El Questflow — Edición personal · {userName}
         <div style={{ marginTop: '8px', fontSize: '9.5px', opacity: 0.7, textTransform: 'none', letterSpacing: '0.02em' }}>
-          {Object.keys(diarioPrefs.reactions).length} artículos valorados · Sistema adaptativo · {fechaCap}
+          {totalValorados} artículos valorados · Sistema adaptativo · {fechaCap}
         </div>
       </footer>
 
