@@ -963,6 +963,36 @@ export default function App() {
     }
   }
 
+  async function addRutinasFinde() {
+    if (!user?.uid) return;
+    const FINDE = [
+      {
+        nombre: 'PIERNAS — Finde', diasSemana: [6], orden: 5,
+        ejercicios: [
+          { id: crypto.randomUUID(), nombre: 'Hip thrust con barra',          series: 4, reps: '10-12', restTimerSecs: 90,  notas: 'Apretar glúteos arriba 2s',       lastCompletedDate: null },
+          { id: crypto.randomUUID(), nombre: 'Prensa pie alto (foco glúteo)', series: 3, reps: '10-12', restTimerSecs: 90,  notas: 'Pies altos y separados',          lastCompletedDate: null },
+          { id: crypto.randomUUID(), nombre: 'Sentadilla goblet con mancuerna',series: 3, reps: '12-15',restTimerSecs: 90,  notas: 'Bajá hasta el fondo, talones al piso', lastCompletedDate: null },
+          { id: crypto.randomUUID(), nombre: 'Curl femoral acostado',         series: 3, reps: '12-15', restTimerSecs: 75,  notas: 'Controlar excéntrica 2s',          lastCompletedDate: null },
+          { id: crypto.randomUUID(), nombre: 'Extensión de cuádriceps',        series: 3, reps: '15',    restTimerSecs: 60,  notas: 'Pausa 1s arriba, tensión constante', lastCompletedDate: null },
+          { id: crypto.randomUUID(), nombre: 'Elevación de gemelos de pie',   series: 4, reps: '15-20', restTimerSecs: 60,  notas: 'Rango completo, pausa arriba',    lastCompletedDate: null },
+        ],
+      },
+      {
+        nombre: 'PECHO — Finde', diasSemana: [0], orden: 6,
+        ejercicios: [
+          { id: crypto.randomUUID(), nombre: 'Press inclinado en máquina',    series: 4, reps: '12-15', restTimerSecs: 90,  notas: 'Foco en porción clavicular',      lastCompletedDate: null },
+          { id: crypto.randomUUID(), nombre: 'Aperturas con mancuernas plano',series: 3, reps: '12-15', restTimerSecs: 75,  notas: 'Leve flexión de codos, estirar bien', lastCompletedDate: null },
+          { id: crypto.randomUUID(), nombre: 'Fondos en paralelas',           series: 3, reps: '8-12',  restTimerSecs: 90,  notas: 'Ligero lean forward, codos controlados', lastCompletedDate: null },
+          { id: crypto.randomUUID(), nombre: 'Cruces en polea alta',          series: 3, reps: '15',    restTimerSecs: 60,  notas: 'Squeeze al cruzar',               lastCompletedDate: null },
+          { id: crypto.randomUUID(), nombre: 'Press en máquina convergente',  series: 3, reps: '15-20', restTimerSecs: 60,  notas: 'Bombeo final, tensión continua',   lastCompletedDate: null },
+        ],
+      },
+    ];
+    for (const r of FINDE) {
+      await addDoc(collection(db, 'usuarios', user.uid, 'rutinas'), r);
+    }
+  }
+
   // ── Biblioteca CRUD ───────────────────────────────────────────────────────────
 
   async function addLibro() {
@@ -2164,6 +2194,10 @@ export default function App() {
                       <div className="flex items-center justify-between mb-4">
                         <h3 className="text-lg font-black uppercase tracking-tight">Mis Rutinas</h3>
                         <div className="flex items-center gap-2">
+                          <button onClick={addRutinasFinde}
+                            className="flex items-center gap-1.5 px-3 py-2 bg-green-600 text-white rounded-xl text-xs font-bold hover:opacity-90 shadow-md shadow-green-500/20">
+                            <Plus className="w-3.5 h-3.5" /> Finde
+                          </button>
                           <button onClick={seedRutinas2daEtapa}
                             className="flex items-center gap-1.5 px-3 py-2 bg-amber-500 text-white rounded-xl text-xs font-bold hover:opacity-90 shadow-md shadow-amber-500/20">
                             <Dumbbell className="w-3.5 h-3.5" /> 2da Etapa
@@ -2235,39 +2269,95 @@ export default function App() {
                       <Plus className="w-4 h-4" /> Nuevo hábito
                     </button>
                   </div>
-                  {habits.filter(h => h.stat === 'fuerza').length === 0 ? (
-                    <div className="py-12 text-center border-2 border-dashed border-slate-100 dark:border-slate-800 rounded-3xl">
-                      <Utensils className="w-12 h-12 text-slate-200 dark:text-slate-800 mx-auto mb-3" />
-                      <p className="font-bold text-slate-400">Sin hábitos STR aún.</p>
-                      <button onClick={() => { setHabitForm({ nombre: '', stat: 'fuerza', recurrence: 'daily', diasSemana: [] }); setModal('habit'); }}
-                        className="mt-2 text-xs text-blue-500 font-bold hover:underline">+ Agregar hábito</button>
+
+                  {/* ── Plan de Volumen ── */}
+                  <div className="bg-gradient-to-br from-orange-950/60 via-slate-900 to-slate-900 rounded-3xl border border-orange-900/40 overflow-hidden">
+                    <div className="px-6 pt-5 pb-3">
+                      <div className="flex items-center gap-3 mb-1">
+                        <span className="text-2xl">🔥</span>
+                        <div>
+                          <h4 className="font-black text-lg text-white tracking-tight">Plan de Volumen — 2da Etapa</h4>
+                          <p className="text-xs text-orange-300/80">~3000 kcal · Superávit +400 kcal</p>
+                        </div>
+                      </div>
                     </div>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {habits.filter(h => h.stat === 'fuerza').map(h => (
-                        <motion.div key={h.id} layout
-                          className={cn('group relative flex items-center gap-5 p-6 rounded-2xl border-2 cursor-pointer transition-all',
-                            h.completed ? 'border-orange-200 dark:border-orange-900/40 bg-orange-50/50 dark:bg-orange-900/10'
-                                        : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-orange-200')}
-                          onClick={() => toggleHabit(h.id)}>
-                          <div className={cn('w-14 h-14 rounded-2xl flex items-center justify-center shrink-0',
-                            h.completed ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/30' : 'bg-slate-100 dark:bg-slate-800 text-slate-400')}>
-                            <div className="scale-150">{h.icon}</div>
-                          </div>
-                          <div className="flex-1">
-                            <p className={cn('font-black text-base', h.completed && 'line-through text-slate-400')}>{h.name}</p>
-                            <p className="text-[10px] font-bold text-orange-500 mt-1 uppercase tracking-widest">STR · {h.attribute}</p>
-                          </div>
-                          <div className={cn('w-8 h-8 rounded-xl border-2 flex items-center justify-center shrink-0',
-                            h.completed ? 'bg-orange-500 border-orange-500 text-white' : 'border-slate-200 dark:border-slate-700')}>
-                            {h.completed && <CheckCircle2 className="w-5 h-5" />}
-                          </div>
-                          <button onClick={e => { e.stopPropagation(); deleteHabit(h.id); }}
-                            className="opacity-0 group-hover:opacity-100 p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-400 hover:text-red-600 transition-all">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </motion.div>
+                    {/* Macros */}
+                    <div className="grid grid-cols-3 gap-px bg-orange-900/20 border-t border-b border-orange-900/30 mb-0">
+                      {[['🥩 Proteína', '180 g', 'bg-red-900/30', 'text-red-300'], ['🍚 Carbos', '350 g', 'bg-amber-900/30', 'text-amber-300'], ['🥑 Grasas', '80 g', 'bg-green-900/30', 'text-green-300']].map(([label, val, bg, color]) => (
+                        <div key={label as string} className={cn('flex flex-col items-center py-3', bg as string)}>
+                          <p className="text-xs text-slate-400 mb-0.5">{label as string}</p>
+                          <p className={cn('text-xl font-black', color as string)}>{val as string}</p>
+                        </div>
                       ))}
+                    </div>
+                    {/* Comidas */}
+                    <div className="divide-y divide-orange-900/20">
+                      {([
+                        { hora: '07:00', nombre: 'Desayuno', emoji: '🌅', items: ['4 huevos revueltos con avena (80 g)', '2 tostadas integrales con mantequilla de maní', '1 banana + café'], kcal: 620, p: 38, c: 72, g: 20 },
+                        { hora: '10:30', nombre: 'Colación AM', emoji: '🥛', items: ['Batido: 40 g proteína en polvo + 250 ml leche + 1 banana + 30 g avena'], kcal: 480, p: 45, c: 58, g: 8 },
+                        { hora: '13:00', nombre: 'Almuerzo', emoji: '🍗', items: ['200 g pollo/carne magra', '200 g arroz cocido o 300 g papa', 'Ensalada con aceite de oliva'], kcal: 680, p: 48, c: 80, g: 16 },
+                        { hora: '16:30', nombre: 'Pre-Entreno', emoji: '⚡', items: ['1 fruta grande (manzana/banana)', '40 g arroz cakes o 2 tostadas', 'Creatina 5 g + cafeína (opcional)'], kcal: 280, p: 6, c: 62, g: 2 },
+                        { hora: '19:30', nombre: 'Post-Entreno', emoji: '💪', items: ['40 g proteína en polvo con agua', '200 g arroz o 400 g papa', 'Verduras a elección'], kcal: 520, p: 45, c: 70, g: 5 },
+                        { hora: '22:00', nombre: 'Cena', emoji: '🌙', items: ['200 g salmón / atún / carne roja magra', '2 huevos', 'Verduras salteadas + aceite de oliva (20 g)'], kcal: 420, p: 48, c: 8, g: 29 },
+                      ] as const).map(comida => (
+                        <div key={comida.hora} className="flex gap-3 px-5 py-4">
+                          <div className="shrink-0 text-center w-12">
+                            <p className="text-lg leading-none mb-1">{comida.emoji}</p>
+                            <p className="text-[9px] font-black text-slate-500">{comida.hora}</p>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-black text-sm text-white mb-1">{comida.nombre} <span className="text-orange-400 font-bold text-xs ml-1">{comida.kcal} kcal</span></p>
+                            <ul className="space-y-0.5">
+                              {comida.items.map((item, i) => (
+                                <li key={i} className="text-xs text-slate-400 flex gap-1.5"><span className="text-orange-500/60 shrink-0">·</span>{item}</li>
+                              ))}
+                            </ul>
+                            <div className="flex gap-3 mt-2">
+                              <span className="text-[10px] text-red-400 font-bold">P {comida.p}g</span>
+                              <span className="text-[10px] text-amber-400 font-bold">C {comida.c}g</span>
+                              <span className="text-[10px] text-green-400 font-bold">G {comida.g}g</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="px-5 py-3 border-t border-orange-900/20">
+                      <p className="text-[10px] text-slate-500 leading-relaxed">
+                        💧 Agua: mínimo 3 L/día · 🧂 Creatina: 5 g/día con comida · Ajustá las cantidades según tu peso y TDEE real.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Hábitos STR */}
+                  {habits.filter(h => h.stat === 'fuerza').length > 0 && (
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">Hábitos de Fuerza</p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {habits.filter(h => h.stat === 'fuerza').map(h => (
+                          <motion.div key={h.id} layout
+                            className={cn('group relative flex items-center gap-5 p-6 rounded-2xl border-2 cursor-pointer transition-all',
+                              h.completed ? 'border-orange-200 dark:border-orange-900/40 bg-orange-50/50 dark:bg-orange-900/10'
+                                          : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-orange-200')}
+                            onClick={() => toggleHabit(h.id)}>
+                            <div className={cn('w-14 h-14 rounded-2xl flex items-center justify-center shrink-0',
+                              h.completed ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/30' : 'bg-slate-100 dark:bg-slate-800 text-slate-400')}>
+                              <div className="scale-150">{h.icon}</div>
+                            </div>
+                            <div className="flex-1">
+                              <p className={cn('font-black text-base', h.completed && 'line-through text-slate-400')}>{h.name}</p>
+                              <p className="text-[10px] font-bold text-orange-500 mt-1 uppercase tracking-widest">STR · {h.attribute}</p>
+                            </div>
+                            <div className={cn('w-8 h-8 rounded-xl border-2 flex items-center justify-center shrink-0',
+                              h.completed ? 'bg-orange-500 border-orange-500 text-white' : 'border-slate-200 dark:border-slate-700')}>
+                              {h.completed && <CheckCircle2 className="w-5 h-5" />}
+                            </div>
+                            <button onClick={e => { e.stopPropagation(); deleteHabit(h.id); }}
+                              className="opacity-0 group-hover:opacity-100 p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-400 hover:text-red-600 transition-all">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </motion.div>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
