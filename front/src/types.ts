@@ -35,6 +35,8 @@ export type FSObjetivoCHA   = { id: string; titulo: string; completado: boolean;
 export type Moneda = 'ARS' | 'USD' | 'EUR' | 'BRL' | 'CLP' | 'UYU';
 export type FSTransaccion   = { id: string; descripcion: string; monto: number; tipo: 'ingreso' | 'gasto'; categoria: string; fecha: string; moneda?: Moneda };
 export type FSSueldoMeta    = { id: string; mes: string; montoEsperado: number; moneda: Moneda };
+export type FSPresupuesto   = { id: string; mes: string; categoria: string; monto: number; moneda: Moneda };
+export type FSMetaAhorro    = { id: string; nombre: string; icono?: string; montoObjetivo: number; montoActual: number; moneda: Moneda; fechaLimite?: string };
 export type LogroId =
   | 'primera_quest' | 'racha_7' | 'racha_30' | 'nivel_5' | 'nivel_10'
   | 'primer_libro' | 'primer_examen' | 'todos_hoy' | 'xp_100_dia';

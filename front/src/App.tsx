@@ -33,7 +33,7 @@ import type {
   GCalEvent, FSEjercicio, FSRutina, EstadoLibro, FSCapitulo, FSLibro,
   TipoMaterial, FSMaterial, FSTareaFac, FSExamen, FSMateria,
   FSEntradaDiario, FSObjetivoCHA, FSTransaccion, Habit, Task, HabitRecurrence, TabId, Moneda, LevelUpEvent, MisionPrioridad, SetLog,
-  DiarioReaction, FSDiarioPrefs, FSSueldoMeta,
+  DiarioReaction, FSDiarioPrefs, FSSueldoMeta, FSPresupuesto, FSMetaAhorro,
 } from './types';
 import { BodyMap } from './components/BodyMap';
 import type { MuscleId } from './components/BodyMap';
@@ -148,6 +148,25 @@ export default function App() {
   const [fsSueldosMeta,    setFsSueldosMeta]    = useState<FSSueldoMeta[]>([]);
   const [showSueldoModal,  setShowSueldoModal]  = useState(false);
   const [sueldoForm,       setSueldoForm]       = useState({ montoEsperado: '', moneda: 'ARS' as Moneda });
+
+  // Presupuestos
+  const [fsPresupuestos,   setFsPresupuestos]   = useState<FSPresupuesto[]>([]);
+  const [showPresupModal,  setShowPresupModal]  = useState(false);
+  const [editingPresupId,  setEditingPresupId]  = useState<string | null>(null);
+  const [presupForm,       setPresupForm]       = useState({ categoria: '', monto: '', moneda: 'ARS' as Moneda });
+
+  // Metas de ahorro
+  const [fsMetas,          setFsMetas]          = useState<FSMetaAhorro[]>([]);
+  const [showMetaModal,    setShowMetaModal]    = useState(false);
+  const [editingMetaId,    setEditingMetaId]    = useState<string | null>(null);
+  const [metaForm,         setMetaForm]         = useState({ nombre: '', icono: '🎯', montoObjetivo: '', moneda: 'ARS' as Moneda, fechaLimite: '' });
+  const [showAportarModal, setShowAportarModal] = useState(false);
+  const [aportarMetaId,    setAportarMetaId]   = useState<string | null>(null);
+  const [aportarMonto,     setAportarMonto]    = useState('');
+
+  // Evolución financiera
+  const [evolucionMoneda,  setEvolucionMoneda]  = useState<Moneda>('ARS');
+  const [evolucionMeses,   setEvolucionMeses]   = useState<6 | 12>(6);
 
   // Carisma — Diario + Objetivos (pendiente de implementar UI)
   const [_fsDiario,         setFsDiario]          = useState<FSEntradaDiario[]>([]);
@@ -273,7 +292,7 @@ export default function App() {
     setDataReady(false);
     const uid = user.uid;
     let loaded = 0;
-    const markLoaded = () => { if (++loaded === 13) setDataReady(true); };
+    const markLoaded = () => { if (++loaded === 15) setDataReady(true); };
     const unsubStats = onSnapshot(doc(db, 'usuarios', uid, 'stats', 'main'), snap => {
       setFsStats(snap.data() as FSStatsDoc ?? null);
       markLoaded();
@@ -292,8 +311,10 @@ export default function App() {
       if (snap.exists()) setFsDiarioPrefs(snap.data() as FSDiarioPrefs);
       markLoaded();
     });
-    const u13 = onSnapshot(collection(db, 'usuarios', uid, 'sueldos_meta'), s => { setFsSueldosMeta(s.docs.map(d => ({ id: d.id, ...d.data() } as FSSueldoMeta))); markLoaded(); });
-    return () => { unsubStats(); u2(); u3(); u4(); u5(); u6(); u7(); u8(); u9(); u10(); u11(); u12(); u13(); };
+    const u13 = onSnapshot(collection(db, 'usuarios', uid, 'sueldos_meta'),  s => { setFsSueldosMeta(s.docs.map(d => ({ id: d.id, ...d.data() } as FSSueldoMeta))); markLoaded(); });
+    const u14 = onSnapshot(collection(db, 'usuarios', uid, 'presupuestos'),  s => { setFsPresupuestos(s.docs.map(d => ({ id: d.id, ...d.data() } as FSPresupuesto))); markLoaded(); });
+    const u15 = onSnapshot(collection(db, 'usuarios', uid, 'metas_ahorro'), s => { setFsMetas(s.docs.map(d => ({ id: d.id, ...d.data() } as FSMetaAhorro))); markLoaded(); });
+    return () => { unsubStats(); u2(); u3(); u4(); u5(); u6(); u7(); u8(); u9(); u10(); u11(); u12(); u13(); u14(); u15(); };
   }, [user?.uid]);
 
   // ── Derived ───────────────────────────────────────────────────────────────
@@ -361,6 +382,34 @@ export default function App() {
         return { ...meta, cobrado, pct, falta };
       });
   }, [fsSueldosMeta, fsTransacciones, txMesFilter]);
+
+  const presupuestoProgress = useMemo(() => {
+    return fsPresupuestos
+      .filter(p => p.mes === txMesFilter)
+      .map(p => {
+        const gastado = fsTransacciones
+          .filter(t => t.fecha.startsWith(txMesFilter) && t.tipo === 'gasto' && t.categoria === p.categoria && (t.moneda ?? 'ARS') === p.moneda)
+          .reduce((s, t) => s + t.monto, 0);
+        const pct  = p.monto > 0 ? (gastado / p.monto) * 100 : 0;
+        const sobra = p.monto - gastado;
+        return { ...p, gastado, pct, sobra };
+      });
+  }, [fsPresupuestos, fsTransacciones, txMesFilter]);
+
+  const evolucionData = useMemo(() => {
+    const now = new Date();
+    return Array.from({ length: evolucionMeses }, (_, i) => {
+      const d      = new Date(now.getFullYear(), now.getMonth() - (evolucionMeses - 1 - i), 1);
+      const mesKey = d.toISOString().slice(0, 7);
+      const label  = d.toLocaleDateString('es-AR', { month: 'short', year: '2-digit' });
+      const txsMes = fsTransacciones.filter(t => t.fecha.startsWith(mesKey) && (t.moneda ?? 'ARS') === evolucionMoneda);
+      return {
+        mes:      label,
+        ingresos: txsMes.filter(t => t.tipo === 'ingreso').reduce((s, t) => s + t.monto, 0),
+        gastos:   txsMes.filter(t => t.tipo === 'gasto').reduce((s, t) => s + t.monto, 0),
+      };
+    });
+  }, [fsTransacciones, evolucionMoneda, evolucionMeses]);
 
   // Nivel principal, rango y clase
   const mainLevelData = useMemo(() => calcMainLevel(fsStats), [fsStats]);
@@ -1357,6 +1406,57 @@ export default function App() {
     } catch (e) { console.error(e); showToast('Error al guardar el sueldo'); }
   }
 
+  async function savePresupuesto() {
+    if (!user?.uid || !presupForm.categoria || !presupForm.monto) return;
+    try {
+      const data = { mes: txMesFilter, categoria: presupForm.categoria, monto: parseFloat(presupForm.monto), moneda: presupForm.moneda };
+      if (editingPresupId) {
+        await updateDoc(doc(db, 'usuarios', user.uid, 'presupuestos', editingPresupId), data);
+        showToast('Presupuesto actualizado', true);
+      } else {
+        await addDoc(collection(db, 'usuarios', user.uid, 'presupuestos'), data);
+        showToast('Presupuesto guardado', true);
+      }
+      setShowPresupModal(false); setEditingPresupId(null); setPresupForm({ categoria: '', monto: '', moneda: 'ARS' });
+    } catch (e) { console.error(e); showToast('Error al guardar presupuesto'); }
+  }
+
+  async function deletePresupuesto(id: string) {
+    if (!user?.uid) return;
+    try { await deleteDoc(doc(db, 'usuarios', user.uid, 'presupuestos', id)); }
+    catch (e) { console.error(e); showToast('Error al eliminar presupuesto'); }
+  }
+
+  async function saveMetaAhorro() {
+    if (!user?.uid || !metaForm.nombre.trim() || !metaForm.montoObjetivo) return;
+    try {
+      const data = { nombre: metaForm.nombre.trim(), icono: metaForm.icono || '🎯', montoObjetivo: parseFloat(metaForm.montoObjetivo), moneda: metaForm.moneda, ...(metaForm.fechaLimite ? { fechaLimite: metaForm.fechaLimite } : {}), ...(!editingMetaId ? { montoActual: 0 } : {}) };
+      if (editingMetaId) {
+        await updateDoc(doc(db, 'usuarios', user.uid, 'metas_ahorro', editingMetaId), data);
+        showToast('Meta actualizada', true);
+      } else {
+        await addDoc(collection(db, 'usuarios', user.uid, 'metas_ahorro'), data);
+        showToast('Meta creada', true);
+      }
+      setShowMetaModal(false); setEditingMetaId(null); setMetaForm({ nombre: '', icono: '🎯', montoObjetivo: '', moneda: 'ARS', fechaLimite: '' });
+    } catch (e) { console.error(e); showToast('Error al guardar la meta'); }
+  }
+
+  async function deleteMetaAhorro(id: string) {
+    if (!user?.uid) return;
+    try { await deleteDoc(doc(db, 'usuarios', user.uid, 'metas_ahorro', id)); }
+    catch (e) { console.error(e); showToast('Error al eliminar la meta'); }
+  }
+
+  async function aportarAMeta() {
+    if (!user?.uid || !aportarMetaId || !aportarMonto) return;
+    try {
+      await updateDoc(doc(db, 'usuarios', user.uid, 'metas_ahorro', aportarMetaId), { montoActual: increment(parseFloat(aportarMonto)) });
+      showToast('Aporte registrado', true);
+      setShowAportarModal(false); setAportarMetaId(null); setAportarMonto('');
+    } catch (e) { console.error(e); showToast('Error al registrar el aporte'); }
+  }
+
   // ── Auth states ───────────────────────────────────────────────────────────
 
   if (authLoading) return (
@@ -1490,6 +1590,90 @@ export default function App() {
           className="w-full py-3 bg-emerald-600 text-white rounded-xl text-sm font-black hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg shadow-emerald-500/20"
         >
           Guardar
+        </button>
+      </Modal>
+
+      {/* ── Modal: Presupuesto ── */}
+      <Modal open={showPresupModal} onClose={() => { setShowPresupModal(false); setEditingPresupId(null); }} className="space-y-4">
+        <ModalHeader
+          title={<><span className="text-lg">📊</span> {editingPresupId ? 'Editar presupuesto' : 'Nuevo presupuesto'}</>}
+          onClose={() => { setShowPresupModal(false); setEditingPresupId(null); }}
+        />
+        <div>
+          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Categoría</label>
+          <select value={presupForm.categoria} onChange={e => setPresupForm(f => ({ ...f, categoria: e.target.value }))}
+            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm font-bold focus:outline-none focus:border-emerald-500 transition-colors">
+            <option value="">— Elegí una categoría</option>
+            {(editingPresupId
+              ? CATEGORIAS_GASTO
+              : CATEGORIAS_GASTO.filter(c => !fsPresupuestos.some(p => p.mes === txMesFilter && p.categoria === c && p.id !== editingPresupId))
+            ).map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+        <div className="flex gap-3">
+          <input type="number" placeholder="Monto límite" value={presupForm.monto} onChange={e => setPresupForm(f => ({ ...f, monto: e.target.value }))}
+            className="flex-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm font-bold focus:outline-none focus:border-emerald-500 transition-colors" />
+          <select value={presupForm.moneda} onChange={e => setPresupForm(f => ({ ...f, moneda: e.target.value as Moneda }))}
+            className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-3 text-sm font-bold focus:outline-none focus:border-emerald-500 transition-colors">
+            {Object.entries(MONEDA_META).map(([code, m]) => <option key={code} value={code}>{m.flag} {code}</option>)}
+          </select>
+        </div>
+        <button onClick={savePresupuesto} disabled={!presupForm.categoria || !presupForm.monto || parseFloat(presupForm.monto) <= 0}
+          className="w-full py-3 bg-emerald-600 text-white rounded-xl text-sm font-black hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg shadow-emerald-500/20">
+          {editingPresupId ? 'Actualizar' : 'Guardar'}
+        </button>
+      </Modal>
+
+      {/* ── Modal: Meta de ahorro ── */}
+      <Modal open={showMetaModal} onClose={() => { setShowMetaModal(false); setEditingMetaId(null); }} className="space-y-4">
+        <ModalHeader
+          title={<><span className="text-lg">🏦</span> {editingMetaId ? 'Editar meta' : 'Nueva meta de ahorro'}</>}
+          onClose={() => { setShowMetaModal(false); setEditingMetaId(null); }}
+        />
+        <div className="flex gap-3">
+          <input type="text" placeholder="Emoji" value={metaForm.icono} onChange={e => setMetaForm(f => ({ ...f, icono: e.target.value }))}
+            className="w-14 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-3 text-center text-lg focus:outline-none focus:border-emerald-500 transition-colors" />
+          <input type="text" placeholder="Nombre de la meta" value={metaForm.nombre} onChange={e => setMetaForm(f => ({ ...f, nombre: e.target.value }))}
+            className="flex-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm font-bold focus:outline-none focus:border-emerald-500 transition-colors" />
+        </div>
+        <div className="flex gap-3">
+          <input type="number" placeholder="Monto objetivo" value={metaForm.montoObjetivo} onChange={e => setMetaForm(f => ({ ...f, montoObjetivo: e.target.value }))}
+            className="flex-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm font-bold focus:outline-none focus:border-emerald-500 transition-colors" />
+          <select value={metaForm.moneda} onChange={e => setMetaForm(f => ({ ...f, moneda: e.target.value as Moneda }))}
+            className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-3 text-sm font-bold focus:outline-none focus:border-emerald-500 transition-colors">
+            {Object.entries(MONEDA_META).map(([code, m]) => <option key={code} value={code}>{m.flag} {code}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Fecha límite (opcional)</label>
+          <input type="date" value={metaForm.fechaLimite} onChange={e => setMetaForm(f => ({ ...f, fechaLimite: e.target.value }))}
+            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm font-bold focus:outline-none focus:border-emerald-500 transition-colors" />
+        </div>
+        <button onClick={saveMetaAhorro} disabled={!metaForm.nombre.trim() || !metaForm.montoObjetivo || parseFloat(metaForm.montoObjetivo) <= 0}
+          className="w-full py-3 bg-emerald-600 text-white rounded-xl text-sm font-black hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg shadow-emerald-500/20">
+          {editingMetaId ? 'Actualizar' : 'Crear meta'}
+        </button>
+      </Modal>
+
+      {/* ── Modal: Aportar a meta ── */}
+      <Modal open={showAportarModal} onClose={() => { setShowAportarModal(false); setAportarMetaId(null); setAportarMonto(''); }} className="space-y-4">
+        <ModalHeader
+          title={<><span className="text-lg">{fsMetas.find(m => m.id === aportarMetaId)?.icono ?? '🎯'}</span> Aportar a: {fsMetas.find(m => m.id === aportarMetaId)?.nombre ?? ''}</>}
+          onClose={() => { setShowAportarModal(false); setAportarMetaId(null); setAportarMonto(''); }}
+        />
+        {(() => {
+          const meta = fsMetas.find(m => m.id === aportarMetaId);
+          const mon  = MONEDA_META[meta?.moneda ?? 'ARS'] ?? MONEDA_META['ARS'];
+          return meta ? (
+            <p className="text-xs text-slate-400">Actual: <span className="font-black text-slate-700 dark:text-slate-200">{mon.symbol} {meta.montoActual.toLocaleString('es-AR')}</span> / Objetivo: <span className="font-black text-slate-700 dark:text-slate-200">{mon.symbol} {meta.montoObjetivo.toLocaleString('es-AR')}</span></p>
+          ) : null;
+        })()}
+        <input type="number" autoFocus placeholder="Monto a aportar" value={aportarMonto} onChange={e => setAportarMonto(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' && aportarMonto) aportarAMeta(); }}
+          className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm font-bold focus:outline-none focus:border-emerald-500 transition-colors" />
+        <button onClick={aportarAMeta} disabled={!aportarMonto || parseFloat(aportarMonto) <= 0}
+          className="w-full py-3 bg-emerald-600 text-white rounded-xl text-sm font-black hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg shadow-emerald-500/20">
+          Aportar
         </button>
       </Modal>
 
@@ -3125,6 +3309,45 @@ export default function App() {
                 </div>
               )}
 
+              {/* Gráfico de evolución */}
+              {evolucionData.some(d => d.ingresos > 0 || d.gastos > 0) && (
+                <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <h4 className="text-xs font-black uppercase tracking-widest text-slate-400">📈 Evolución financiera</h4>
+                    <div className="flex items-center gap-2">
+                      <div className="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5">
+                        {([6, 12] as const).map(n => (
+                          <button key={n} onClick={() => setEvolucionMeses(n)}
+                            className={cn('px-2.5 py-1 rounded-md text-[10px] font-black transition-all', evolucionMeses === n ? 'bg-white dark:bg-slate-700 shadow-sm' : 'text-slate-400')}>
+                            {n}M
+                          </button>
+                        ))}
+                      </div>
+                      <select value={evolucionMoneda} onChange={e => setEvolucionMoneda(e.target.value as Moneda)}
+                        className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-[10px] font-black focus:outline-none focus:border-emerald-500 transition-colors">
+                        {Object.entries(MONEDA_META).map(([code, m]) => <option key={code} value={code}>{m.flag} {code}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4 text-[10px] font-black">
+                    <span className="flex items-center gap-1"><span className="w-3 h-1 rounded-full bg-emerald-500 inline-block" /> Ingresos</span>
+                    <span className="flex items-center gap-1"><span className="w-3 h-1 rounded-full bg-red-400 inline-block" /> Gastos</span>
+                  </div>
+                  <ResponsiveContainer width="100%" height={150}>
+                    <LineChart data={evolucionData} margin={{ left: 0, right: 8, top: 4, bottom: 0 }}>
+                      <XAxis dataKey="mes" tick={{ fontSize: 10, fontWeight: 700, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                      <YAxis hide />
+                      <Tooltip
+                        formatter={(v, name) => [typeof v === 'number' ? `${MONEDA_META[evolucionMoneda]?.symbol ?? '$'} ${v.toLocaleString('es-AR', { minimumFractionDigits: 2 })}` : v, name === 'ingresos' ? 'Ingresos' : 'Gastos']}
+                        contentStyle={{ fontSize: 11, borderRadius: 8 }}
+                      />
+                      <Line type="monotone" dataKey="ingresos" stroke="#10b981" strokeWidth={2} dot={{ r: 3, fill: '#10b981' }} activeDot={{ r: 5 }} />
+                      <Line type="monotone" dataKey="gastos"   stroke="#f87171" strokeWidth={2} dot={{ r: 3, fill: '#f87171' }} activeDot={{ r: 5 }} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+
               {/* Tracker de sueldo */}
               <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
                 <div className="flex items-center justify-between">
@@ -3221,6 +3444,120 @@ export default function App() {
                     </ResponsiveContainer>
                   </div>
                 )}
+              </div>
+
+              {/* Presupuestos del mes */}
+              <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-black uppercase tracking-widest text-slate-400">📊 Presupuestos del mes</h4>
+                  <button
+                    onClick={() => { setEditingPresupId(null); setPresupForm({ categoria: '', monto: '', moneda: 'ARS' }); setShowPresupModal(true); }}
+                    className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-emerald-600 transition-colors flex items-center gap-1"
+                  >
+                    <Plus className="w-3 h-3" /> Agregar
+                  </button>
+                </div>
+                {presupuestoProgress.length === 0
+                  ? <p className="text-sm text-slate-400 text-center py-2">Sin presupuestos para este mes. Hacé clic en "+ Agregar" para configurar límites por categoría.</p>
+                  : <div className="space-y-3">
+                      {presupuestoProgress.map(pp => {
+                        const mon   = MONEDA_META[pp.moneda] ?? MONEDA_META['ARS'];
+                        const color = pp.pct > 100 ? 'bg-red-500' : pp.pct > 80 ? 'bg-yellow-400' : 'bg-emerald-500';
+                        const textColor = pp.pct > 100 ? 'text-red-600' : pp.pct > 80 ? 'text-yellow-600' : 'text-emerald-600';
+                        return (
+                          <div key={pp.id} className="group space-y-1.5">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold">{pp.categoria}</span>
+                              <div className="flex items-center gap-2">
+                                <span className={cn('text-[10px] font-black', textColor)}>
+                                  {mon.symbol} {pp.gastado.toLocaleString('es-AR', { minimumFractionDigits: 0 })} / {mon.symbol} {pp.monto.toLocaleString('es-AR', { minimumFractionDigits: 0 })}
+                                </span>
+                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                                  <button onClick={() => { setEditingPresupId(pp.id); setPresupForm({ categoria: pp.categoria, monto: String(pp.monto), moneda: pp.moneda }); setShowPresupModal(true); }}
+                                    className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-blue-500 transition-all"><Pencil className="w-3 h-3" /></button>
+                                  <button onClick={() => deletePresupuesto(pp.id)}
+                                    className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-slate-400 hover:text-red-500 transition-all"><Trash2 className="w-3 h-3" /></button>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                              <motion.div
+                                initial={{ width: 0 }}
+                                animate={{ width: `${Math.min(100, pp.pct)}%` }}
+                                transition={{ duration: 0.5, ease: 'easeOut' }}
+                                className={cn('h-full rounded-full', color)}
+                              />
+                            </div>
+                            {pp.pct > 100 && <p className="text-[10px] font-black text-red-500">⚠️ Superaste el presupuesto por {mon.symbol} {Math.abs(pp.sobra).toLocaleString('es-AR', { minimumFractionDigits: 0 })}</p>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                }
+              </div>
+
+              {/* Metas de ahorro */}
+              <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-black uppercase tracking-widest text-slate-400">🏦 Metas de ahorro</h4>
+                  <button
+                    onClick={() => { setEditingMetaId(null); setMetaForm({ nombre: '', icono: '🎯', montoObjetivo: '', moneda: 'ARS', fechaLimite: '' }); setShowMetaModal(true); }}
+                    className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-emerald-600 transition-colors flex items-center gap-1"
+                  >
+                    <Plus className="w-3 h-3" /> Nueva meta
+                  </button>
+                </div>
+                {fsMetas.length === 0
+                  ? <p className="text-sm text-slate-400 text-center py-2">Sin metas de ahorro. Hacé clic en "+ Nueva meta" para empezar.</p>
+                  : <div className="space-y-4">
+                      {fsMetas.map(meta => {
+                        const mon  = MONEDA_META[meta.moneda] ?? MONEDA_META['ARS'];
+                        const pct  = meta.montoObjetivo > 0 ? Math.min(100, (meta.montoActual / meta.montoObjetivo) * 100) : 0;
+                        const done = meta.montoActual >= meta.montoObjetivo;
+                        return (
+                          <div key={meta.id} className="group space-y-2">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex items-center gap-2">
+                                <span className="text-lg">{meta.icono ?? '🎯'}</span>
+                                <div>
+                                  <p className="text-sm font-bold leading-tight">{meta.nombre}</p>
+                                  {meta.fechaLimite && <p className="text-[10px] text-slate-400 font-medium">Vence: {new Date(meta.fechaLimite + 'T00:00:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: 'numeric' })}</p>}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1 shrink-0">
+                                {!done && (
+                                  <button onClick={() => { setAportarMetaId(meta.id); setAportarMonto(''); setShowAportarModal(true); }}
+                                    className="text-[10px] font-black uppercase tracking-widest px-2.5 py-1 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors">
+                                    + Aportar
+                                  </button>
+                                )}
+                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                                  <button onClick={() => { setEditingMetaId(meta.id); setMetaForm({ nombre: meta.nombre, icono: meta.icono ?? '🎯', montoObjetivo: String(meta.montoObjetivo), moneda: meta.moneda, fechaLimite: meta.fechaLimite ?? '' }); setShowMetaModal(true); }}
+                                    className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-blue-500 transition-all"><Pencil className="w-3 h-3" /></button>
+                                  <button onClick={() => deleteMetaAhorro(meta.id)}
+                                    className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-slate-400 hover:text-red-500 transition-all"><Trash2 className="w-3 h-3" /></button>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="w-full h-3 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                              <motion.div
+                                initial={{ width: 0 }}
+                                animate={{ width: `${pct}%` }}
+                                transition={{ duration: 0.6, ease: 'easeOut' }}
+                                className={cn('h-full rounded-full', done ? 'bg-emerald-500' : 'bg-blue-500')}
+                              />
+                            </div>
+                            <div className="flex items-center justify-between text-[10px] font-bold">
+                              <span className={done ? 'text-emerald-600 font-black' : 'text-slate-400'}>
+                                {done ? '✅ Meta cumplida' : `${mon.symbol} ${meta.montoActual.toLocaleString('es-AR', { minimumFractionDigits: 0 })} ahorrados`}
+                              </span>
+                              <span className="text-slate-400">{mon.symbol} {meta.montoObjetivo.toLocaleString('es-AR', { minimumFractionDigits: 0 })} objetivo · {Math.round(pct)}%</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                }
               </div>
 
               {/* Lista de transacciones */}
