@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import type { Stat, Habit, FSRutina, FSMision, FSLibro, FSEntradaDiario } from '../types';
 import type { FSDiarioPrefs, DiarioReaction } from '../types';
 import { HOY } from '../utils/constants';
@@ -29,26 +29,18 @@ interface Props {
 // ── Reusable components ───────────────────────────────────────────────────────
 function Hr({ thick }: { thick?: boolean }) {
   return (
-    <div style={{
-      borderTop: thick ? `3px double ${INK}` : `1px solid ${INK}`,
-    }} />
+    <div style={{ borderTop: thick ? `3px double ${INK}` : `1px solid ${INK}` }} />
   );
 }
 
-/** Section header: category label + big headline + optional subtitle */
-function SectionHead({
-  category, title, subtitle,
-}: {
-  category: string;
-  title: string;
-  subtitle?: string;
+function SectionHead({ category, title, subtitle }: {
+  category: string; title: string; subtitle?: string;
 }) {
   return (
     <div style={{ margin: '0 0 8px' }}>
       <div style={{
         fontFamily: SANS, fontSize: '10px', letterSpacing: '0.18em',
-        textTransform: 'uppercase', fontWeight: 700, color: ACC,
-        marginBottom: '10px',
+        textTransform: 'uppercase', fontWeight: 700, color: ACC, marginBottom: '10px',
       }}>
         {category}
       </div>
@@ -84,35 +76,95 @@ function TagBadge({ label }: { label: string }) {
   );
 }
 
-function ReactionBar({ artId, tags, reactions, onReact }: {
+/** TikTok/Instagram-style reaction buttons */
+function ArticleReactions({ artId, tags, reactions, onReact, onDismiss }: {
   artId: string;
   tags: string[];
   reactions: Record<string, DiarioReaction>;
   onReact: (id: string, r: DiarioReaction, t: string[]) => void;
+  onDismiss?: (id: string) => void;
 }) {
-  const current = reactions[artId];
-  const btn = (r: DiarioReaction, symbol: string, label: string) => (
-    <button
-      key={r}
-      onClick={() => onReact(artId, r, tags)}
-      style={{
-        fontFamily: SANS, fontSize: '10px', letterSpacing: '0.07em',
-        textTransform: 'uppercase', fontWeight: 700,
-        padding: '5px 12px', border: `1px solid ${INK}`,
-        background: current === r ? (r === 'like' ? INK : ACC) : 'transparent',
-        color: current === r ? BG : INK2,
-        cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px',
-        transition: 'all 0.15s',
-      }}
-    >
-      <span style={{ fontSize: '8px' }}>{symbol}</span> {label}
-    </button>
-  );
+  const liked = reactions[artId] === 'like';
+  const [heartBeat, setHeartBeat] = useState(false);
+
+  function handleLike() {
+    if (!liked) {
+      setHeartBeat(true);
+      setTimeout(() => setHeartBeat(false), 500);
+    }
+    onReact(artId, 'like', tags);
+  }
+
+  function handleDislike() {
+    onReact(artId, 'dislike', tags);
+    onDismiss?.(artId);
+  }
+
   return (
-    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-      {btn('like', '▲', 'ÚTIL')}
-      {btn('dislike', '▼', 'PASAR')}
+    <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+      {/* ♥ Like */}
+      <button
+        onClick={handleLike}
+        title="Me interesa"
+        style={{
+          display: 'flex', alignItems: 'center', gap: '6px',
+          fontFamily: SANS, fontSize: '11px', letterSpacing: '0.07em',
+          textTransform: 'uppercase', fontWeight: 700,
+          padding: '6px 14px', border: `1.5px solid ${liked ? '#c0392b' : BORDER}`,
+          background: liked ? '#fef2f2' : 'transparent',
+          color: liked ? '#c0392b' : INK2,
+          cursor: 'pointer',
+          transform: heartBeat ? 'scale(1.15)' : 'scale(1)',
+          transition: 'all 0.2s cubic-bezier(0.34,1.56,0.64,1)',
+        }}
+      >
+        <span style={{ fontSize: '16px', lineHeight: 1 }}>
+          {liked ? '♥' : '♡'}
+        </span>
+        {liked ? 'Guardado' : 'Me gusta'}
+      </button>
+
+      {/* ✕ No me interesa */}
+      {onDismiss && (
+        <button
+          onClick={handleDislike}
+          title="No me interesa"
+          style={{
+            display: 'flex', alignItems: 'center', gap: '6px',
+            fontFamily: SANS, fontSize: '11px', letterSpacing: '0.07em',
+            textTransform: 'uppercase', fontWeight: 700,
+            padding: '6px 14px', border: `1.5px solid ${BORDER}`,
+            background: 'transparent', color: INK2,
+            cursor: 'pointer', transition: 'all 0.15s',
+          }}
+          onMouseEnter={e => {
+            (e.currentTarget as HTMLButtonElement).style.borderColor = ACC;
+            (e.currentTarget as HTMLButtonElement).style.color = ACC;
+          }}
+          onMouseLeave={e => {
+            (e.currentTarget as HTMLButtonElement).style.borderColor = BORDER;
+            (e.currentTarget as HTMLButtonElement).style.color = INK2;
+          }}
+        >
+          <span style={{ fontSize: '14px', lineHeight: 1 }}>✕</span>
+          No me interesa
+        </button>
+      )}
     </div>
+  );
+}
+
+/** Lead article: solo ♥ like, sin dismiss */
+function LeadReactions({ artId, tags, reactions, onReact }: {
+  artId: string; tags: string[];
+  reactions: Record<string, DiarioReaction>;
+  onReact: (id: string, r: DiarioReaction, t: string[]) => void;
+}) {
+  return (
+    <ArticleReactions
+      artId={artId} tags={tags} reactions={reactions}
+      onReact={onReact} onDismiss={undefined}
+    />
   );
 }
 
@@ -124,11 +176,19 @@ export function DiarioView({
   const [articulos] = useState(() =>
     scoreArticulos(ARTICULOS, diarioPrefs.tagScores, diarioPrefs.reactions)
   );
-  const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const totalLevel     = stats.reduce((s, st) => s + st.level, 0);
-  const librosLeyendo  = fsLibros.filter(l => l.estado === 'leyendo');
-  const pendingM       = fsMisiones.filter(m => !m.completada).slice(0, 5);
+  const [expandedId,  setExpandedId]  = useState<string | null>(null);
+  // IDs that the user dismissed (collapsed but undoable)
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(() => new Set());
+
+  const dismiss   = useCallback((id: string) => setDismissedIds(p => new Set([...p, id])), []);
+  const undismiss = useCallback((id: string) => setDismissedIds(p => {
+    const n = new Set(p); n.delete(id); return n;
+  }), []);
+
+  const totalLevel    = stats.reduce((s, st) => s + st.level, 0);
+  const librosLeyendo = fsLibros.filter(l => l.estado === 'leyendo');
+  const pendingM      = fsMisiones.filter(m => !m.completada).slice(0, 5);
 
   const fechaObj   = new Date(HOY + 'T12:00:00');
   const fechaLarga = fechaObj.toLocaleDateString('es-AR', {
@@ -149,26 +209,19 @@ export function DiarioView({
   };
 
   return (
-    <div style={{
-      background: BG, fontFamily: SANS, color: INK,
-      padding: '0 40px 80px', minHeight: '100vh',
-    }}>
+    <div style={{ background: BG, fontFamily: SANS, color: INK, padding: '0 40px 80px', minHeight: '100vh' }}>
       <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
 
-        {/* ══════════════════════════════════════════
-            § 1  MASTHEAD
-        ══════════════════════════════════════════ */}
+        {/* ══ § 1  MASTHEAD ══ */}
         <header style={{
-          textAlign: 'center',
-          padding: '40px 0 32px',
+          textAlign: 'center', padding: '40px 0 32px',
           borderBottom: `3px double ${INK}`,
-          marginBottom: '0',
         }}>
           <div style={{
             fontFamily: SANS, fontSize: '11px', letterSpacing: '0.18em',
             textTransform: 'uppercase', color: INK2, fontWeight: 600,
-            marginBottom: '20px',
-            display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap',
+            marginBottom: '20px', display: 'flex', gap: '10px',
+            justifyContent: 'center', flexWrap: 'wrap',
           }}>
             {['FILOSOFÍA', 'IA', 'CIENCIA', 'HISTORIA', 'PSICOLOGÍA', 'ECONOMÍA'].map((c, i, a) => (
               <React.Fragment key={c}>
@@ -177,20 +230,16 @@ export function DiarioView({
               </React.Fragment>
             ))}
           </div>
-
-          {/* Mega-headline */}
           <div style={{
             fontFamily: SANS, fontSize: '10px', letterSpacing: '0.18em',
-            textTransform: 'uppercase', color: ACC, fontWeight: 700,
-            marginBottom: '12px',
+            textTransform: 'uppercase', color: ACC, fontWeight: 700, marginBottom: '12px',
           }}>
             Edición personal · El Questflow
           </div>
           <h1 style={{
             fontFamily: SERIF, fontWeight: 800,
             fontSize: 'clamp(40px, 7vw, 88px)',
-            lineHeight: 0.95, letterSpacing: '-0.025em',
-            margin: '0 0 20px',
+            lineHeight: 0.95, letterSpacing: '-0.025em', margin: '0 0 20px',
           }}>
             {saludo},<br />{userName}
           </h1>
@@ -200,7 +249,6 @@ export function DiarioView({
           }}>
             "El conocimiento es el único recurso que crece al compartirse"
           </p>
-
           <div style={{
             display: 'flex', justifyContent: 'space-between', alignItems: 'center',
             borderTop: `1px solid ${INK}`, paddingTop: '12px',
@@ -214,9 +262,7 @@ export function DiarioView({
           </div>
         </header>
 
-        {/* ══════════════════════════════════════════
-            § 2  IDEA DEL DÍA  (lead + sidebar)
-        ══════════════════════════════════════════ */}
+        {/* ══ § 2  IDEA DEL DÍA ══ */}
         <section style={sec}>
           <SectionHead
             category="Idea del día"
@@ -224,14 +270,11 @@ export function DiarioView({
             subtitle="El pensamiento más relevante para empezar la jornada"
           />
           <Hr />
-
           <div style={{
             display: 'grid',
             gridTemplateColumns: 'minmax(0,7fr) minmax(220px,3fr)',
-            gap: '48px',
-            marginTop: '32px',
+            gap: '48px', marginTop: '32px',
           }}>
-            {/* Lead article body */}
             {leadArt && (
               <article>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '20px' }}>
@@ -272,7 +315,7 @@ export function DiarioView({
                   )}
                 </div>
                 <div style={{ marginTop: '20px' }}>
-                  <ReactionBar
+                  <LeadReactions
                     artId={leadArt.id} tags={leadArt.tags}
                     reactions={diarioPrefs.reactions} onReact={onReact}
                   />
@@ -280,54 +323,38 @@ export function DiarioView({
               </article>
             )}
 
-            {/* Sidebar column */}
+            {/* Sidebar */}
             <aside style={{ display: 'flex', flexDirection: 'column', gap: '40px' }}>
-
-              {/* TODAY'S FOCUS */}
               <div>
                 <div style={{
                   fontFamily: SANS, fontSize: '10px', letterSpacing: '0.18em',
-                  textTransform: 'uppercase', color: ACC, fontWeight: 700,
-                  marginBottom: '8px',
+                  textTransform: 'uppercase', color: ACC, fontWeight: 700, marginBottom: '8px',
                 }}>
                   Misiones activas
                 </div>
-                <h3 style={{
-                  fontFamily: SERIF, fontWeight: 700, fontSize: '26px',
-                  lineHeight: 1.1, margin: '0 0 6px',
-                }}>
+                <h3 style={{ fontFamily: SERIF, fontWeight: 700, fontSize: '26px', lineHeight: 1.1, margin: '0 0 6px' }}>
                   TODAY'S FOCUS
                 </h3>
-                <p style={{
-                  fontFamily: SERIF, fontStyle: 'italic',
-                  fontSize: '13px', color: INK2, margin: '0 0 16px',
-                }}>
+                <p style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: '13px', color: INK2, margin: '0 0 16px' }}>
                   Tus prioridades para hoy
                 </p>
                 <Hr />
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '14px' }}>
                   {pendingM.length === 0 ? (
-                    <p style={{
-                      fontFamily: SERIF, fontStyle: 'italic',
-                      fontSize: '13px', color: INK2,
-                    }}>
+                    <p style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: '13px', color: INK2 }}>
                       Sin misiones pendientes.
                     </p>
                   ) : pendingM.map(m => (
                     <div key={m.id} style={{
                       border: `1px solid ${BORDER}`, background: BG_ALT,
-                      padding: '12px 14px',
-                      display: 'flex', alignItems: 'flex-start', gap: '12px',
+                      padding: '12px 14px', display: 'flex', alignItems: 'flex-start', gap: '12px',
                     }}>
                       <div style={{
                         width: '14px', height: '14px', borderRadius: '50%',
                         border: `1.5px solid ${INK}`, flexShrink: 0, marginTop: '4px',
                       }} />
                       <div>
-                        <p style={{
-                          fontFamily: SERIF, fontSize: '15px', fontWeight: 600,
-                          color: INK, margin: 0, lineHeight: 1.3,
-                        }}>
+                        <p style={{ fontFamily: SERIF, fontSize: '15px', fontWeight: 600, color: INK, margin: 0, lineHeight: 1.3 }}>
                           {m.titulo}
                         </p>
                         {m.prioridad && (
@@ -345,26 +372,18 @@ export function DiarioView({
                 </div>
               </div>
 
-              {/* EN LECTURA */}
               {librosLeyendo.length > 0 && (
                 <div>
                   <div style={{
                     fontFamily: SANS, fontSize: '10px', letterSpacing: '0.18em',
-                    textTransform: 'uppercase', color: ACC, fontWeight: 700,
-                    marginBottom: '8px',
+                    textTransform: 'uppercase', color: ACC, fontWeight: 700, marginBottom: '8px',
                   }}>
                     Biblioteca
                   </div>
-                  <h3 style={{
-                    fontFamily: SERIF, fontWeight: 700, fontSize: '26px',
-                    lineHeight: 1.1, margin: '0 0 6px',
-                  }}>
+                  <h3 style={{ fontFamily: SERIF, fontWeight: 700, fontSize: '26px', lineHeight: 1.1, margin: '0 0 6px' }}>
                     En Lectura
                   </h3>
-                  <p style={{
-                    fontFamily: SERIF, fontStyle: 'italic',
-                    fontSize: '13px', color: INK2, margin: '0 0 16px',
-                  }}>
+                  <p style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: '13px', color: INK2, margin: '0 0 16px' }}>
                     Lo que estás leyendo ahora
                   </p>
                   <Hr />
@@ -374,29 +393,16 @@ export function DiarioView({
                       const total  = l.capitulos.length;
                       const pct    = total > 0 ? Math.round((leidos / total) * 100) : 0;
                       return (
-                        <div key={l.id} style={{
-                          borderBottom: `1px solid ${BORDER}`,
-                          paddingBottom: '14px',
-                        }}>
-                          <h4 style={{
-                            fontFamily: SERIF, fontWeight: 700, fontSize: '17px',
-                            margin: '0 0 3px', lineHeight: 1.25,
-                          }}>
+                        <div key={l.id} style={{ borderBottom: `1px solid ${BORDER}`, paddingBottom: '14px' }}>
+                          <h4 style={{ fontFamily: SERIF, fontWeight: 700, fontSize: '17px', margin: '0 0 3px', lineHeight: 1.25 }}>
                             {l.titulo}
                           </h4>
                           {l.autor && (
-                            <p style={{ fontFamily: SANS, fontSize: '12px', color: INK2, margin: '0 0 8px' }}>
-                              {l.autor}
-                            </p>
+                            <p style={{ fontFamily: SANS, fontSize: '12px', color: INK2, margin: '0 0 8px' }}>{l.autor}</p>
                           )}
-                          <p style={{ fontFamily: SANS, fontSize: '11px', color: INK2, margin: '0 0 6px' }}>
-                            {pct}% completado
-                          </p>
+                          <p style={{ fontFamily: SANS, fontSize: '11px', color: INK2, margin: '0 0 6px' }}>{pct}% completado</p>
                           <div style={{ height: '3px', background: BORDER, borderRadius: '2px', overflow: 'hidden' }}>
-                            <div style={{
-                              height: '100%', width: `${pct}%`,
-                              background: '#a5793a', transition: 'width 0.3s',
-                            }} />
+                            <div style={{ height: '100%', width: `${pct}%`, background: '#a5793a', transition: 'width 0.3s' }} />
                           </div>
                         </div>
                       );
@@ -408,9 +414,7 @@ export function DiarioView({
           </div>
         </section>
 
-        {/* ══════════════════════════════════════════
-            § 3  MENSAJES Y DIARIO
-        ══════════════════════════════════════════ */}
+        {/* ══ § 3  MENSAJES Y DIARIO ══ */}
         {fsEntradas.length > 0 && (
           <section style={sec}>
             <SectionHead
@@ -419,18 +423,13 @@ export function DiarioView({
               subtitle="Tus últimas entradas, leídas como conversación"
             />
             <Hr />
-
             <div style={{
               display: 'grid',
               gridTemplateColumns: 'minmax(0,3fr) minmax(160px,1fr)',
-              gap: '32px',
-              marginTop: '32px',
+              gap: '32px', marginTop: '32px',
             }}>
               <div>
-                <h3 style={{
-                  fontFamily: SERIF, fontWeight: 700, fontSize: '28px',
-                  margin: '0 0 24px', lineHeight: 1.2,
-                }}>
+                <h3 style={{ fontFamily: SERIF, fontWeight: 700, fontSize: '28px', margin: '0 0 24px', lineHeight: 1.2 }}>
                   {fsEntradas[0].titulo ?? 'Notas Personales'}
                 </h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
@@ -459,15 +458,10 @@ export function DiarioView({
                         <div style={{
                           flex: 1, background: isRight ? INK : BG_ALT,
                           border: `1px solid ${isRight ? INK : BORDER}`,
-                          borderRadius: isRight
-                            ? '14px 0 14px 14px'
-                            : '0 14px 14px 14px',
+                          borderRadius: isRight ? '14px 0 14px 14px' : '0 14px 14px 14px',
                           padding: '14px',
                         }}>
-                          <div style={{
-                            display: 'flex', justifyContent: 'space-between',
-                            marginBottom: '8px',
-                          }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
                             <span style={{
                               fontFamily: SANS, fontSize: '10px', fontWeight: 700,
                               textTransform: 'uppercase', letterSpacing: '0.08em',
@@ -475,19 +469,12 @@ export function DiarioView({
                             }}>
                               {persona}
                             </span>
-                            <span style={{
-                              fontFamily: SANS, fontSize: '10px',
-                              color: isRight ? '#6b7280' : INK2,
-                            }}>
+                            <span style={{ fontFamily: SANS, fontSize: '10px', color: isRight ? '#6b7280' : INK2 }}>
                               {fechaE}
                             </span>
                           </div>
-                          <p style={{
-                            fontFamily: SERIF, fontSize: '15px', lineHeight: 1.65,
-                            color: isRight ? BG : INK, margin: 0,
-                          }}>
-                            {snippet}
-                            {entrada.contenido.length > 220 ? '…' : ''}
+                          <p style={{ fontFamily: SERIF, fontSize: '15px', lineHeight: 1.65, color: isRight ? BG : INK, margin: 0 }}>
+                            {snippet}{entrada.contenido.length > 220 ? '…' : ''}
                           </p>
                         </div>
                       </div>
@@ -495,40 +482,21 @@ export function DiarioView({
                   })}
                 </div>
               </div>
-
-              {/* Mini sidebar */}
-              <div style={{
-                background: BG_ALT, border: `1px solid ${BORDER}`,
-                padding: '20px', alignSelf: 'start',
-              }}>
+              <div style={{ background: BG_ALT, border: `1px solid ${BORDER}`, padding: '20px', alignSelf: 'start' }}>
                 <div style={{
                   fontFamily: SANS, fontSize: '10px', letterSpacing: '0.12em',
-                  textTransform: 'uppercase', fontWeight: 700, color: ACC,
-                  marginBottom: '6px',
+                  textTransform: 'uppercase', fontWeight: 700, color: ACC, marginBottom: '6px',
                 }}>
                   Stats
                 </div>
-                <h5 style={{
-                  fontFamily: SERIF, fontWeight: 700, fontSize: '20px',
-                  margin: '0 0 12px', lineHeight: 1.2,
-                }}>
+                <h5 style={{ fontFamily: SERIF, fontWeight: 700, fontSize: '20px', margin: '0 0 12px', lineHeight: 1.2 }}>
                   Resumen Diario
                 </h5>
                 <Hr />
-                <div style={{
-                  marginTop: '12px',
-                  display: 'flex', flexDirection: 'column', gap: '10px',
-                  fontFamily: SERIF, fontSize: '14px', color: INK2,
-                }}>
-                  <div>
-                    <strong style={{ color: INK }}>Entradas:</strong>{' '}
-                    {fsEntradas.length} registradas
-                  </div>
+                <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '10px', fontFamily: SERIF, fontSize: '14px', color: INK2 }}>
+                  <div><strong style={{ color: INK }}>Entradas:</strong> {fsEntradas.length} registradas</div>
                   {fsEntradas[0]?.titulo && (
-                    <div>
-                      <strong style={{ color: INK }}>Última:</strong>{' '}
-                      {fsEntradas[0].titulo}
-                    </div>
+                    <div><strong style={{ color: INK }}>Última:</strong> {fsEntradas[0].titulo}</div>
                   )}
                   <div>
                     <strong style={{ color: INK }}>Fecha:</strong>{' '}
@@ -541,125 +509,172 @@ export function DiarioView({
           </section>
         )}
 
-        {/* ══════════════════════════════════════════
-            § 4  LECTURAS DEL DÍA
-        ══════════════════════════════════════════ */}
+        {/* ══ § 4  LECTURAS DEL DÍA ══ */}
         <section style={{ ...sec, borderBottom: 'none' }}>
           <SectionHead
             category="Inteligencia adaptativa"
             title="Lecturas del día"
-            subtitle="Artículos seleccionados según tus intereses. Usá ▲ ÚTIL y ▼ PASAR para afinar el algoritmo."
+            subtitle="Tocá ♥ para guardar o ✕ para descartar — el algoritmo aprende de tus elecciones."
           />
           <Hr />
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0', marginTop: '8px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', marginTop: '8px' }}>
             {lecturas.map((art, idx) => {
-              const isExpanded = expandedId === art.id;
-              const paragraphs = art.contenido.split('\n\n');
-              const faded = diarioPrefs.reactions[art.id] === 'dislike';
-              const primaryTag = art.tags[0] ?? '';
+              const isDismissed = dismissedIds.has(art.id);
+              const isExpanded  = expandedId === art.id;
+              const paragraphs  = art.contenido.split('\n\n');
+              const primaryTag  = art.tags[0] ?? '';
 
               return (
-                <article key={art.id} style={{
-                  padding: '40px 0',
-                  borderBottom: idx < lecturas.length - 1 ? `1px solid ${BORDER}` : 'none',
-                  opacity: faded ? 0.45 : 1,
-                }}>
-                  {/* Article section label + headline */}
-                  <div style={{
-                    fontFamily: SANS, fontSize: '10px', letterSpacing: '0.18em',
-                    textTransform: 'uppercase', fontWeight: 700, color: ACC,
-                    marginBottom: '8px',
-                  }}>
-                    {primaryTag}
-                  </div>
-                  <h3
-                    style={{
-                      fontFamily: SERIF, fontWeight: 700,
-                      fontSize: 'clamp(22px, 3vw, 34px)',
-                      lineHeight: 1.15, margin: '0 0 10px',
-                      cursor: 'pointer', color: INK,
-                    }}
-                    onClick={() => setExpandedId(isExpanded ? null : art.id)}
-                  >
-                    {art.titulo}
-                  </h3>
-
-                  {/* Tags row */}
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '14px' }}>
-                    {art.tags.map(t => <TagBadge key={t} label={t} />)}
-                  </div>
-
-                  {/* Subtitle = first sentence of article (collapsed) or full (expanded) */}
-                  {isExpanded ? (
-                    <>
-                      {paragraphs.map((p, i) => (
-                        <p key={i} style={{
-                          fontFamily: SERIF, fontSize: '15px', lineHeight: 1.75,
-                          color: INK2, margin: '0 0 14px',
-                        }}>
-                          {p}
-                        </p>
-                      ))}
-                      {art.fuente && (
-                        <p style={{
-                          fontFamily: SANS, fontSize: '10px', letterSpacing: '0.07em',
-                          textTransform: 'uppercase', color: INK2, margin: '8px 0 0',
-                        }}>
-                          Fuente: {art.fuente}
-                        </p>
-                      )}
-                    </>
+                <div
+                  key={art.id}
+                  style={{
+                    overflow: 'hidden',
+                    maxHeight: isDismissed ? '60px' : '3000px',
+                    opacity: isDismissed ? 0.7 : 1,
+                    transition: 'max-height 0.45s ease, opacity 0.3s ease',
+                    borderBottom: idx < lecturas.length - 1 ? `1px solid ${BORDER}` : 'none',
+                  }}
+                >
+                  {/* Dismissed bar */}
+                  {isDismissed ? (
+                    <div style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      padding: '16px 0', color: INK2,
+                    }}>
+                      <span style={{ fontFamily: SANS, fontSize: '12px', letterSpacing: '0.04em' }}>
+                        ✕ Contenido descartado — el algoritmo aprendió tus preferencias
+                      </span>
+                      <button
+                        onClick={() => undismiss(art.id)}
+                        style={{
+                          fontFamily: SANS, fontSize: '11px', fontWeight: 700,
+                          letterSpacing: '0.06em', textTransform: 'uppercase',
+                          background: 'none', border: `1px solid ${BORDER}`,
+                          color: INK2, cursor: 'pointer', padding: '4px 12px',
+                        }}
+                      >
+                        Deshacer
+                      </button>
+                    </div>
                   ) : (
-                    <>
-                      {/* Subtitle: first sentence as italic lead */}
-                      <p style={{
-                        fontFamily: SERIF, fontStyle: 'italic',
-                        fontSize: '16px', lineHeight: 1.6,
-                        color: INK2, margin: '0 0 6px',
+                    <article style={{ padding: '40px 0' }}>
+                      {/* Category label */}
+                      <div style={{
+                        fontFamily: SANS, fontSize: '10px', letterSpacing: '0.18em',
+                        textTransform: 'uppercase', fontWeight: 700, color: ACC, marginBottom: '8px',
                       }}>
-                        {paragraphs[0].split('.')[0]}.
-                      </p>
-                      {/* Rest clipped */}
-                      <p style={{
-                        fontFamily: SERIF, fontSize: '14.5px', lineHeight: 1.65,
-                        color: INK2, margin: '0 0 14px',
-                        display: '-webkit-box',
-                        WebkitLineClamp: 2,
-                        WebkitBoxOrient: 'vertical',
-                        overflow: 'hidden',
-                      } as React.CSSProperties}>
-                        {paragraphs[0].split('.').slice(1).join('.').trim()}
-                      </p>
-                    </>
-                  )}
+                        {primaryTag}
+                      </div>
+                      {/* Title */}
+                      <h3
+                        style={{
+                          fontFamily: SERIF, fontWeight: 700,
+                          fontSize: 'clamp(22px, 3vw, 34px)',
+                          lineHeight: 1.15, margin: '0 0 10px',
+                          cursor: 'pointer', color: INK,
+                        }}
+                        onClick={() => setExpandedId(isExpanded ? null : art.id)}
+                      >
+                        {art.titulo}
+                      </h3>
+                      {/* Tags */}
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '14px' }}>
+                        {art.tags.map(t => <TagBadge key={t} label={t} />)}
+                      </div>
 
-                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                    <ReactionBar
-                      artId={art.id} tags={art.tags}
-                      reactions={diarioPrefs.reactions} onReact={onReact}
-                    />
-                    <button
-                      onClick={() => setExpandedId(isExpanded ? null : art.id)}
-                      style={{
-                        fontFamily: SANS, fontSize: '10px', letterSpacing: '0.07em',
-                        textTransform: 'uppercase', background: 'none', border: 'none',
-                        color: INK2, cursor: 'pointer', padding: '5px 4px',
-                        fontWeight: 700,
-                      }}
-                    >
-                      {isExpanded ? '▲ cerrar' : '▼ leer más'}
-                    </button>
-                  </div>
-                </article>
+                      {/* Content */}
+                      {isExpanded ? (
+                        <>
+                          {paragraphs.map((p, i) => (
+                            <p key={i} style={{
+                              fontFamily: SERIF, fontSize: '15px', lineHeight: 1.75,
+                              color: INK2, margin: '0 0 14px',
+                            }}>
+                              {p}
+                            </p>
+                          ))}
+                          {art.fuente && (
+                            <p style={{
+                              fontFamily: SANS, fontSize: '10px', letterSpacing: '0.07em',
+                              textTransform: 'uppercase', color: INK2, margin: '8px 0 0',
+                            }}>
+                              Fuente: {art.fuente}
+                            </p>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          {/* Subtitle: first sentence italic */}
+                          <p style={{
+                            fontFamily: SERIF, fontStyle: 'italic',
+                            fontSize: '16px', lineHeight: 1.6,
+                            color: INK2, margin: '0 0 6px',
+                          }}>
+                            {paragraphs[0].split('.')[0]}.
+                          </p>
+                          {/* Rest clipped */}
+                          <p style={{
+                            fontFamily: SERIF, fontSize: '14.5px', lineHeight: 1.65,
+                            color: INK2, margin: '0 0 14px',
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical',
+                            overflow: 'hidden',
+                          } as React.CSSProperties}>
+                            {paragraphs[0].split('.').slice(1).join('.').trim()}
+                          </p>
+                        </>
+                      )}
+
+                      {/* Reactions + expand */}
+                      <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                        <ArticleReactions
+                          artId={art.id} tags={art.tags}
+                          reactions={diarioPrefs.reactions}
+                          onReact={onReact}
+                          onDismiss={dismiss}
+                        />
+                        <button
+                          onClick={() => setExpandedId(isExpanded ? null : art.id)}
+                          style={{
+                            fontFamily: SANS, fontSize: '11px', letterSpacing: '0.07em',
+                            textTransform: 'uppercase', background: 'none',
+                            border: `1px solid ${BORDER}`,
+                            color: INK2, cursor: 'pointer', padding: '6px 14px', fontWeight: 700,
+                          }}
+                        >
+                          {isExpanded ? '▲ Cerrar' : '▼ Leer más'}
+                        </button>
+                      </div>
+                    </article>
+                  )}
+                </div>
               );
             })}
           </div>
+
+          {/* Algorithm hint */}
+          <div style={{
+            marginTop: '24px', padding: '16px 20px',
+            border: `1px solid ${BORDER}`, background: BG_ALT,
+            display: 'flex', alignItems: 'center', gap: '12px',
+          }}>
+            <span style={{ fontSize: '20px' }}>♥</span>
+            <div>
+              <p style={{ fontFamily: SANS, fontSize: '11px', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', margin: '0 0 2px', color: INK }}>
+                Algoritmo adaptativo
+              </p>
+              <p style={{ fontFamily: SERIF, fontSize: '13px', color: INK2, margin: 0 }}>
+                {Object.values(diarioPrefs.reactions).filter(r => r === 'like').length} guardados ·{' '}
+                {Object.values(diarioPrefs.reactions).filter(r => r === 'dislike').length} descartados ·{' '}
+                El orden mejora con cada reacción
+              </p>
+            </div>
+          </div>
         </section>
 
-        {/* ══════════════════════════════════════════
-            FOOTER
-        ══════════════════════════════════════════ */}
+        {/* FOOTER */}
         <footer style={{
           marginTop: '16px', paddingTop: '24px',
           borderTop: `3px double ${INK}`,
@@ -667,10 +682,7 @@ export function DiarioView({
           letterSpacing: '0.06em', color: INK2, textTransform: 'uppercase',
         }}>
           El Questflow — Edición personal · {userName}
-          <div style={{
-            marginTop: '8px', fontSize: '9.5px', opacity: 0.65,
-            textTransform: 'none', letterSpacing: '0.02em',
-          }}>
+          <div style={{ marginTop: '8px', fontSize: '9.5px', opacity: 0.65, textTransform: 'none', letterSpacing: '0.02em' }}>
             {Object.keys(diarioPrefs.reactions).length} artículos valorados · Sistema adaptativo · {fechaCap}
           </div>
         </footer>

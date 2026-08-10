@@ -1220,8 +1220,8 @@ export default function App() {
     const prevReaction = prev.reactions[artId];
     const newReactions = { ...prev.reactions, [artId]: reaction };
     const newTagScores = { ...prev.tagScores };
-    const delta = reaction === 'like' ? 1 : -1;
-    const prevDelta = prevReaction === 'like' ? 1 : prevReaction === 'dislike' ? -1 : 0;
+    const delta = reaction === 'like' ? 3 : -3;
+    const prevDelta = prevReaction === 'like' ? 3 : prevReaction === 'dislike' ? -3 : 0;
     for (const tag of tags) {
       newTagScores[tag] = (newTagScores[tag] ?? 0) - prevDelta + delta;
     }
