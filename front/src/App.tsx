@@ -3153,7 +3153,9 @@ export default function App() {
                 stats={stats}
                 habits={habits}
                 fsRutinas={fsRutinas}
+                fsMisiones={fsMisiones}
                 fsLibros={fsLibros}
+                fsEntradas={_fsDiario}
                 userName={user?.displayName?.split(' ')[0] ?? 'Hero'}
                 diarioPrefs={fsDiarioPrefs}
                 onReact={reactArticulo}
