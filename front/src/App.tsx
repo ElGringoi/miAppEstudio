@@ -1596,7 +1596,7 @@ export default function App() {
               {showNotifications && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)} />
-                  <div className="absolute right-0 top-full mt-2 w-80 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl z-50 overflow-hidden">
+                  <div className="absolute right-0 top-full mt-2 w-[min(320px,calc(100vw-2rem))] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl z-50 overflow-hidden">
                     <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
                       <h3 className="font-bold text-sm text-slate-800 dark:text-slate-100">Notificaciones</h3>
                       <button onClick={() => setShowNotifications(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-lg leading-none">×</button>
@@ -1684,7 +1684,7 @@ export default function App() {
                     <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-amber-400 text-black text-[9px] font-black px-2 py-0.5 rounded-full whitespace-nowrap shadow-lg">LVL {heroLevel}</span>
                   </div>
                   <div className="flex-1 min-w-[180px]">
-                    <div className="flex items-center gap-3 mb-1">
+                    <div className="flex flex-wrap items-center gap-2 mb-1">
                       <h3 className="text-xl font-black text-white tracking-tight">{user.displayName}</h3>
                       <span className={cn('text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest border', CLASS_META[heroClass]?.color ?? 'text-blue-300', 'bg-white/10 border-white/20')}>
                         {CLASS_META[heroClass]?.icon} {heroClass}
@@ -1740,7 +1740,7 @@ export default function App() {
               </div>
 
               {/* Today at a Glance */}
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-3 gap-2 md:gap-3">
                 {([
                   {
                     label: 'XP HOY',
@@ -1823,8 +1823,8 @@ export default function App() {
               {/* Agenda + Side panel */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2">
-                  <section className="bg-white dark:bg-slate-900 rounded-3xl p-8 border border-slate-200 dark:border-slate-800">
-                    <div className="flex items-center justify-between mb-8">
+                  <section className="bg-white dark:bg-slate-900 rounded-3xl p-4 md:p-8 border border-slate-200 dark:border-slate-800">
+                    <div className="flex items-center justify-between mb-4 md:mb-8">
                       <h3 className="text-xl font-black flex items-center gap-3"><CalendarIcon className="w-6 h-6 text-blue-600" /> DAILY AGENDA</h3>
                       <button onClick={() => { setEventoForm(p => ({ ...p, fecha: HOY })); setModal('evento'); }}
                         className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold hover:opacity-90 transition-all shadow-md shadow-blue-500/20">
@@ -1842,15 +1842,15 @@ export default function App() {
                               className="mt-2 text-xs text-blue-500 font-bold hover:underline">+ Agregar evento</button>
                           </div>
                         : <div className="space-y-4 relative">
-                            <div className="absolute left-[87px] top-0 bottom-0 w-px bg-slate-100 dark:bg-slate-800" />
+                            <div className="absolute left-[67px] md:left-[87px] top-0 bottom-0 w-px bg-slate-100 dark:bg-slate-800" />
                             {allToday.map(ev => {
                               const isGCal = '_gcal' in ev;
                               return (
-                                <div key={ev.id} className="grid grid-cols-[80px_1fr] gap-8">
+                                <div key={ev.id} className="grid grid-cols-[56px_1fr] gap-3 md:grid-cols-[80px_1fr] md:gap-8">
                                   <div className="text-right py-2"><span className="text-xs font-black text-slate-400">{ev.hora || '—'}</span></div>
-                                  <div className="relative pl-4">
-                                    <div className={cn('absolute -left-[41px] top-3 w-3 h-3 rounded-full border-2 border-white dark:border-slate-900 z-10', isGCal ? 'bg-emerald-500' : 'bg-blue-600')} />
-                                    <div className="group/ev relative p-5 rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
+                                  <div className="relative pl-3 md:pl-4">
+                                    <div className={cn('absolute -left-[27px] md:-left-[41px] top-3 w-3 h-3 rounded-full border-2 border-white dark:border-slate-900 z-10', isGCal ? 'bg-emerald-500' : 'bg-blue-600')} />
+                                    <div className="group/ev relative p-3 md:p-5 rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
                                       <h4 className="font-bold text-sm">{ev.titulo}</h4>
                                       <p className={cn('text-[10px] mt-1 font-bold uppercase tracking-widest', isGCal ? 'text-emerald-500' : 'text-blue-500')}>
                                         {isGCal ? '📅 Google Calendar' : 'evento'}
@@ -1991,8 +1991,8 @@ export default function App() {
           {/* ══ CALENDAR ══ */}
           {tab === 'calendar' && (
             <motion.div key="calendar" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
-              <section className="bg-white dark:bg-slate-900 rounded-3xl p-8 border border-slate-200 dark:border-slate-800">
-                <div className="flex items-center justify-between mb-8">
+              <section className="bg-white dark:bg-slate-900 rounded-3xl p-4 md:p-8 border border-slate-200 dark:border-slate-800">
+                <div className="flex items-center justify-between mb-4 md:mb-8">
                   <h3 className="text-xl font-black flex items-center gap-3"><CalendarIcon className="w-6 h-6 text-blue-600" /> BATTLE LOG</h3>
                   <div className="flex gap-2 items-center">
                     <button className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg" onClick={() => setSelDate(addDays(selDate, -7))}><ChevronRight className="w-4 h-4 rotate-180" /></button>
@@ -2000,14 +2000,17 @@ export default function App() {
                     <button className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg" onClick={() => setSelDate(addDays(selDate, 7))}><ChevronRight className="w-4 h-4" /></button>
                   </div>
                 </div>
-                <div className="grid grid-cols-7 gap-3 mb-8">
+                <div className="grid grid-cols-7 gap-1 md:gap-3 mb-4 md:mb-8">
                   {eachDayOfInterval({ start: startOfWeek(selDate), end: addDays(startOfWeek(selDate), 6) }).map(day => (
                     <button key={day.toString()} onClick={() => setSelDate(day)}
-                      className={cn('flex flex-col items-center p-4 rounded-2xl border transition-all',
+                      className={cn('flex flex-col items-center p-1.5 md:p-4 rounded-xl md:rounded-2xl border transition-all',
                         isSameDay(day, selDate) ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-500/20' : 'bg-slate-50 dark:bg-slate-800/50 border-slate-100 dark:border-slate-800 hover:border-blue-200'
                       )}>
-                      <span className="text-[10px] font-black uppercase tracking-widest opacity-60 mb-1">{format(day, 'EEE')}</span>
-                      <span className="text-lg font-black">{format(day, 'd')}</span>
+                      <span className="text-[8px] md:text-[10px] font-black uppercase tracking-widest opacity-60 mb-0.5 md:mb-1">
+                        <span className="md:hidden">{format(day, 'EEEEE')}</span>
+                        <span className="hidden md:inline">{format(day, 'EEE')}</span>
+                      </span>
+                      <span className="text-sm md:text-lg font-black">{format(day, 'd')}</span>
                       {isToday(day) && <div className={cn('w-1 h-1 rounded-full mt-1', isSameDay(day, selDate) ? 'bg-white' : 'bg-blue-600')} />}
                     </button>
                   ))}
@@ -2034,7 +2037,7 @@ export default function App() {
                       <>
                         {tasks.map(task => (
                           <div key={task.id}
-                            className="group flex items-center justify-between p-5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 hover:border-blue-200 cursor-pointer"
+                            className="group flex items-center justify-between p-3 md:p-5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 hover:border-blue-200 cursor-pointer"
                             onClick={() => toggleTask(task.id, selDate)}>
                             <div className="flex items-center gap-4">
                               <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: task.color }} />
@@ -2058,7 +2061,7 @@ export default function App() {
                           </div>
                         ))}
                         {gcalDay.map(ev => (
-                          <div key={ev.id} className="flex items-center justify-between p-5 bg-emerald-50 dark:bg-emerald-900/10 rounded-2xl border border-emerald-100 dark:border-emerald-900/30">
+                          <div key={ev.id} className="flex items-center justify-between p-3 md:p-5 bg-emerald-50 dark:bg-emerald-900/10 rounded-2xl border border-emerald-100 dark:border-emerald-900/30">
                             <div className="flex items-center gap-4">
                               <div className="w-3 h-3 rounded-full bg-emerald-500 shrink-0" />
                               <span className="text-xs font-black text-slate-400 w-16">{gcalTime(ev)}</span>
@@ -2082,10 +2085,10 @@ export default function App() {
             <motion.div key="gym" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-6">
 
               {/* Inner tabs */}
-              <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl w-fit">
+              <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl w-full md:w-fit">
                 {([['entreno', 'Entrenamiento', <Dumbbell className="w-4 h-4" />], ['comida', 'Alimentación', <Utensils className="w-4 h-4" />]] as const).map(([id, label, icon]) => (
                   <button key={id} onClick={() => setGymInnerTab(id as 'entreno' | 'comida')}
-                    className={cn('flex items-center gap-2 px-5 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all',
+                    className={cn('flex flex-1 md:flex-none items-center justify-center gap-2 px-3 md:px-5 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all',
                       gymInnerTab === id ? 'bg-white dark:bg-slate-900 shadow-sm text-blue-600' : 'text-slate-500 hover:text-slate-700')}>
                     {icon}{label}
                   </button>
@@ -2191,7 +2194,7 @@ export default function App() {
 
                     {/* Todas las rutinas */}
                     <section>
-                      <div className="flex items-center justify-between mb-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
                         <h3 className="text-lg font-black uppercase tracking-tight">Mis Rutinas</h3>
                         <div className="flex items-center gap-2">
                           <button onClick={addRutinasFinde}
@@ -3012,7 +3015,7 @@ export default function App() {
                   <button onClick={() => openAddMision('')} className="text-sm text-blue-500 font-bold hover:underline">+ Crear primera misión</button>
                 </div>
               ) : (
-                <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 border border-slate-200 dark:border-slate-800 overflow-x-auto">
+                <div className="bg-white dark:bg-slate-900 rounded-3xl p-4 md:p-8 border border-slate-200 dark:border-slate-800 overflow-x-auto">
                   <div className="flex justify-center min-w-max pb-8">
                     <MissionNodeComp
                       node={buildTree(filteredMisiones)}
@@ -3114,7 +3117,7 @@ export default function App() {
                       {txStats.ordenadas.map(t => {
                         const mon = MONEDA_META[t.moneda ?? 'ARS'] ?? MONEDA_META['ARS'];
                         return (
-                          <div key={t.id} className="flex items-center gap-4 px-6 py-4 hover:bg-slate-50 dark:hover:bg-slate-800/30 group transition-colors">
+                          <div key={t.id} className="flex items-center gap-3 px-4 md:px-6 py-3 md:py-4 hover:bg-slate-50 dark:hover:bg-slate-800/30 group transition-colors">
                             <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0', t.tipo === 'ingreso' ? 'bg-emerald-500' : 'bg-red-500')}>
                               {t.tipo === 'ingreso' ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
                             </div>
@@ -3184,7 +3187,7 @@ export default function App() {
                 ))}
               </div>
 
-              <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 border border-slate-200 dark:border-slate-800 space-y-6 max-w-lg">
+              <div className="bg-white dark:bg-slate-900 rounded-3xl p-4 md:p-8 border border-slate-200 dark:border-slate-800 space-y-6 max-w-lg">
                 <div>
                   <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Hero Name</label>
                   <input type="text" defaultValue={user.displayName ?? ''} disabled className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm font-bold focus:outline-none opacity-60 cursor-not-allowed" />
@@ -3283,7 +3286,7 @@ export default function App() {
             onClick={() => { setModal(null); setEditingHabitId(null); setEditingMisionId(null); setTargetEjercicioId(null); setTargetMateriaId(null); setModalError(null); }}>
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 16 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 16 }}
-              className="bg-white dark:bg-slate-900 rounded-3xl p-8 border border-slate-200 dark:border-slate-800 w-full max-w-md shadow-2xl"
+              className="bg-white dark:bg-slate-900 rounded-3xl p-4 md:p-8 border border-slate-200 dark:border-slate-800 w-full max-w-md shadow-2xl"
               onClick={e => e.stopPropagation()}>
 
               <div className="flex items-center justify-between mb-6">
@@ -3618,7 +3621,7 @@ export default function App() {
                     <input type="text" value={libroForm.autor} onChange={e => setLibroForm(p => ({ ...p, autor: e.target.value }))}
                       placeholder="Ej: James Clear" className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
                   </div>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
                       <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Estado</label>
                       <select value={libroForm.estado} onChange={e => setLibroForm(p => ({ ...p, estado: e.target.value as EstadoLibro }))}

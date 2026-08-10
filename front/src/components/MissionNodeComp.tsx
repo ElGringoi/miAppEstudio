@@ -37,7 +37,7 @@ export const MissionNodeComp = ({
     <div className="flex flex-col items-center">
       {/* ── Nodo ── */}
       <div className={cn(
-        'relative group min-w-[220px] max-w-[280px] rounded-2xl border-2 transition-all select-none',
+        'relative group min-w-[180px] max-w-[240px] rounded-2xl border-2 transition-all select-none',
         isRoot
           ? 'bg-violet-600 border-violet-500 text-white shadow-xl shadow-violet-500/30 p-5'
           : node.type === 'epic'
