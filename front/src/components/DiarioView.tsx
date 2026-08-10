@@ -26,9 +26,50 @@ interface Props {
   onReact:     (artId: string, reaction: DiarioReaction, tags: string[]) => void;
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-function Hr() {
-  return <div style={{ borderTop: `1px solid ${INK}` }} />;
+// ── Reusable components ───────────────────────────────────────────────────────
+function Hr({ thick }: { thick?: boolean }) {
+  return (
+    <div style={{
+      borderTop: thick ? `3px double ${INK}` : `1px solid ${INK}`,
+    }} />
+  );
+}
+
+/** Section header: category label + big headline + optional subtitle */
+function SectionHead({
+  category, title, subtitle,
+}: {
+  category: string;
+  title: string;
+  subtitle?: string;
+}) {
+  return (
+    <div style={{ margin: '0 0 8px' }}>
+      <div style={{
+        fontFamily: SANS, fontSize: '10px', letterSpacing: '0.18em',
+        textTransform: 'uppercase', fontWeight: 700, color: ACC,
+        marginBottom: '10px',
+      }}>
+        {category}
+      </div>
+      <h2 style={{
+        fontFamily: SERIF, fontWeight: 800,
+        fontSize: 'clamp(28px, 4vw, 48px)',
+        lineHeight: 1.05, letterSpacing: '-0.01em',
+        margin: '0 0 10px', color: INK,
+      }}>
+        {title}
+      </h2>
+      {subtitle && (
+        <p style={{
+          fontFamily: SERIF, fontStyle: 'italic',
+          fontSize: '15px', color: INK2, margin: 0,
+        }}>
+          {subtitle}
+        </p>
+      )}
+    </div>
+  );
 }
 
 function TagBadge({ label }: { label: string }) {
@@ -36,7 +77,7 @@ function TagBadge({ label }: { label: string }) {
     <span style={{
       fontFamily: SANS, fontSize: '10px', letterSpacing: '0.08em',
       textTransform: 'uppercase', fontWeight: 700,
-      border: `1px solid ${INK}`, padding: '2px 7px',
+      border: `1px solid ${INK}`, padding: '2px 8px',
     }}>
       {label}
     </span>
@@ -55,9 +96,9 @@ function ReactionBar({ artId, tags, reactions, onReact }: {
       key={r}
       onClick={() => onReact(artId, r, tags)}
       style={{
-        fontFamily: SANS, fontSize: '10px', letterSpacing: '0.06em',
+        fontFamily: SANS, fontSize: '10px', letterSpacing: '0.07em',
         textTransform: 'uppercase', fontWeight: 700,
-        padding: '4px 10px', border: `1px solid ${INK}`,
+        padding: '5px 12px', border: `1px solid ${INK}`,
         background: current === r ? (r === 'like' ? INK : ACC) : 'transparent',
         color: current === r ? BG : INK2,
         cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px',
@@ -80,18 +121,16 @@ export function DiarioView({
   stats, habits: _habits, fsRutinas: _fsRutinas, fsMisiones,
   fsLibros, fsEntradas, userName, diarioPrefs, onReact,
 }: Props) {
-  // Freeze article order on mount
   const [articulos] = useState(() =>
     scoreArticulos(ARTICULOS, diarioPrefs.tagScores, diarioPrefs.reactions)
   );
-
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const totalLevel    = stats.reduce((s, st) => s + st.level, 0);
-  const librosLeyendo = fsLibros.filter(l => l.estado === 'leyendo');
-  const pendingM      = fsMisiones.filter(m => !m.completada).slice(0, 4);
+  const totalLevel     = stats.reduce((s, st) => s + st.level, 0);
+  const librosLeyendo  = fsLibros.filter(l => l.estado === 'leyendo');
+  const pendingM       = fsMisiones.filter(m => !m.completada).slice(0, 5);
 
-  const fechaObj  = new Date(HOY + 'T12:00:00');
+  const fechaObj   = new Date(HOY + 'T12:00:00');
   const fechaLarga = fechaObj.toLocaleDateString('es-AR', {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
   });
@@ -104,297 +143,315 @@ export function DiarioView({
   const leadArt  = articulos[0];
   const lecturas = articulos.slice(1, 9);
 
+  const sec: React.CSSProperties = {
+    padding: '48px 0',
+    borderBottom: `1px solid ${BORDER}`,
+  };
+
   return (
     <div style={{
-      background: BG,
-      fontFamily: SANS,
-      color: INK,
-      padding: '32px 40px 80px',
-      minHeight: '100vh',
+      background: BG, fontFamily: SANS, color: INK,
+      padding: '0 40px 80px', minHeight: '100vh',
     }}>
       <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
 
-        {/* ── MASTHEAD ── */}
-        <header style={{ textAlign: 'center', marginBottom: '24px' }}>
+        {/* ══════════════════════════════════════════
+            § 1  MASTHEAD
+        ══════════════════════════════════════════ */}
+        <header style={{
+          textAlign: 'center',
+          padding: '40px 0 32px',
+          borderBottom: `3px double ${INK}`,
+          marginBottom: '0',
+        }}>
           <div style={{
-            fontFamily: SANS, fontSize: '11px', letterSpacing: '0.15em',
+            fontFamily: SANS, fontSize: '11px', letterSpacing: '0.18em',
             textTransform: 'uppercase', color: INK2, fontWeight: 600,
-            marginBottom: '16px', display: 'flex', gap: '10px',
-            justifyContent: 'center', flexWrap: 'wrap',
+            marginBottom: '20px',
+            display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap',
           }}>
             {['FILOSOFÍA', 'IA', 'CIENCIA', 'HISTORIA', 'PSICOLOGÍA', 'ECONOMÍA'].map((c, i, a) => (
               <React.Fragment key={c}>
                 <span>{c}</span>
-                {i < a.length - 1 && <span style={{ opacity: 0.35 }}>·</span>}
+                {i < a.length - 1 && <span style={{ opacity: 0.3 }}>·</span>}
               </React.Fragment>
             ))}
           </div>
+
+          {/* Mega-headline */}
+          <div style={{
+            fontFamily: SANS, fontSize: '10px', letterSpacing: '0.18em',
+            textTransform: 'uppercase', color: ACC, fontWeight: 700,
+            marginBottom: '12px',
+          }}>
+            Edición personal · El Questflow
+          </div>
           <h1 style={{
             fontFamily: SERIF, fontWeight: 800,
-            fontSize: 'clamp(32px, 6vw, 72px)',
-            lineHeight: 1, letterSpacing: '-0.02em',
-            margin: '0 0 16px',
+            fontSize: 'clamp(40px, 7vw, 88px)',
+            lineHeight: 0.95, letterSpacing: '-0.025em',
+            margin: '0 0 20px',
           }}>
-            {saludo}, {userName}
+            {saludo},<br />{userName}
           </h1>
           <p style={{
             fontFamily: SERIF, fontStyle: 'italic',
-            fontSize: '17px', color: INK2, margin: 0,
+            fontSize: '18px', color: INK2, margin: '0 0 24px',
           }}>
             "El conocimiento es el único recurso que crece al compartirse"
           </p>
+
+          <div style={{
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            borderTop: `1px solid ${INK}`, paddingTop: '12px',
+            fontFamily: SANS, fontSize: '10.5px', letterSpacing: '0.08em',
+            textTransform: 'uppercase', fontWeight: 600, color: INK2,
+            flexWrap: 'wrap', gap: '8px',
+          }}>
+            <span>{fechaCap}</span>
+            <span>Edición N.º {edicion}</span>
+            <span>@{userName} · Level {totalLevel}</span>
+          </div>
         </header>
 
-        <Hr />
-        <div style={{
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          padding: '8px 0',
-          fontFamily: SANS, fontSize: '10.5px', letterSpacing: '0.08em',
-          textTransform: 'uppercase', fontWeight: 600, color: INK2,
-          flexWrap: 'wrap', gap: '8px',
-        }}>
-          <span>{fechaCap}</span>
-          <span>Edición N.º {edicion}</span>
-          <span>@{userName} · Level {totalLevel}</span>
-        </div>
-        <Hr />
+        {/* ══════════════════════════════════════════
+            § 2  IDEA DEL DÍA  (lead + sidebar)
+        ══════════════════════════════════════════ */}
+        <section style={sec}>
+          <SectionHead
+            category="Idea del día"
+            title={leadArt?.titulo ?? ''}
+            subtitle="El pensamiento más relevante para empezar la jornada"
+          />
+          <Hr />
 
-        {/* ── LEAD + SIDEBAR ── */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'minmax(0,7fr) minmax(220px,3fr)',
-          gap: '48px',
-          margin: '40px 0 56px',
-        }}>
-          {/* Lead article */}
-          {leadArt && (
-            <article>
-              <div style={{
-                fontFamily: SANS, fontSize: '10px', letterSpacing: '0.12em',
-                textTransform: 'uppercase', fontWeight: 700, color: ACC,
-                marginBottom: '12px',
-              }}>
-                Idea del día
-              </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '16px' }}>
-                {leadArt.tags.map(t => <TagBadge key={t} label={t} />)}
-              </div>
-              <h2 style={{
-                fontFamily: SERIF, fontWeight: 700, fontSize: '32px',
-                lineHeight: 1.2, margin: '0 0 20px',
-              }}>
-                {leadArt.titulo}
-              </h2>
-              <div>
-                {leadArt.contenido.split('\n\n').map((p, i) => (
-                  i === 0 ? (
-                    <p key={i} style={{
-                      fontFamily: SERIF, fontSize: '15px', lineHeight: 1.7,
-                      color: INK, margin: '0 0 14px',
-                    }}>
-                      <span style={{
-                        float: 'left', fontFamily: SERIF, fontWeight: 800,
-                        fontSize: '56px', lineHeight: 0.8,
-                        paddingRight: '8px', paddingTop: '4px', color: ACC,
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'minmax(0,7fr) minmax(220px,3fr)',
+            gap: '48px',
+            marginTop: '32px',
+          }}>
+            {/* Lead article body */}
+            {leadArt && (
+              <article>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '20px' }}>
+                  {leadArt.tags.map(t => <TagBadge key={t} label={t} />)}
+                </div>
+                <div>
+                  {leadArt.contenido.split('\n\n').map((p, i) => (
+                    i === 0 ? (
+                      <p key={i} style={{
+                        fontFamily: SERIF, fontSize: '16px', lineHeight: 1.75,
+                        color: INK, margin: '0 0 16px',
                       }}>
-                        {p.charAt(0)}
-                      </span>
-                      {p.slice(1)}
-                    </p>
-                  ) : (
-                    <p key={i} style={{
-                      fontFamily: SERIF, fontSize: '15px', lineHeight: 1.7,
-                      color: INK, margin: '0 0 14px',
-                    }}>
-                      {p}
-                    </p>
-                  )
-                ))}
-                {leadArt.fuente && (
-                  <p style={{
-                    fontFamily: SANS, fontSize: '10px', letterSpacing: '0.07em',
-                    textTransform: 'uppercase', color: INK2, margin: '12px 0 0',
-                  }}>
-                    Fuente: {leadArt.fuente}
-                  </p>
-                )}
-              </div>
-              <div style={{ marginTop: '16px' }}>
-                <ReactionBar
-                  artId={leadArt.id} tags={leadArt.tags}
-                  reactions={diarioPrefs.reactions} onReact={onReact}
-                />
-              </div>
-            </article>
-          )}
-
-          {/* Sidebar */}
-          <aside style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
-            {/* TODAY'S FOCUS */}
-            <div>
-              <h3 style={{
-                fontFamily: SERIF, fontWeight: 700, fontSize: '18px',
-                borderBottom: `1px solid ${INK}`, paddingBottom: '8px',
-                margin: '0 0 16px',
-              }}>
-                TODAY'S FOCUS
-              </h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {pendingM.length === 0 ? (
-                  <p style={{
-                    fontFamily: SERIF, fontStyle: 'italic',
-                    fontSize: '13px', color: INK2,
-                  }}>
-                    Sin misiones pendientes.
-                  </p>
-                ) : pendingM.map(m => (
-                  <div key={m.id} style={{
-                    border: `1px solid ${BORDER}`, background: BG_ALT,
-                    padding: '12px', display: 'flex',
-                    alignItems: 'flex-start', gap: '10px',
-                  }}>
-                    <div style={{
-                      width: '16px', height: '16px', borderRadius: '50%',
-                      border: `1px solid ${INK}`, flexShrink: 0, marginTop: '3px',
-                    }} />
-                    <div>
-                      <p style={{
-                        fontFamily: SERIF, fontSize: '15px', fontWeight: 600,
-                        color: INK, margin: 0, lineHeight: 1.3,
-                      }}>
-                        {m.titulo}
-                      </p>
-                      {m.prioridad && (
-                        <p style={{
-                          fontFamily: SANS, fontSize: '10px', textTransform: 'uppercase',
-                          letterSpacing: '0.07em', fontWeight: 700, margin: '4px 0 0',
-                          color: m.prioridad === 'urgente' ? ACC : INK2,
+                        <span style={{
+                          float: 'left', fontFamily: SERIF, fontWeight: 800,
+                          fontSize: '64px', lineHeight: 0.8,
+                          paddingRight: '10px', paddingTop: '6px', color: ACC,
                         }}>
-                          {m.prioridad}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+                          {p.charAt(0)}
+                        </span>
+                        {p.slice(1)}
+                      </p>
+                    ) : (
+                      <p key={i} style={{
+                        fontFamily: SERIF, fontSize: '16px', lineHeight: 1.75,
+                        color: INK, margin: '0 0 16px',
+                      }}>
+                        {p}
+                      </p>
+                    )
+                  ))}
+                  {leadArt.fuente && (
+                    <p style={{
+                      fontFamily: SANS, fontSize: '10px', letterSpacing: '0.07em',
+                      textTransform: 'uppercase', color: INK2, margin: '16px 0 0',
+                    }}>
+                      Fuente: {leadArt.fuente}
+                    </p>
+                  )}
+                </div>
+                <div style={{ marginTop: '20px' }}>
+                  <ReactionBar
+                    artId={leadArt.id} tags={leadArt.tags}
+                    reactions={diarioPrefs.reactions} onReact={onReact}
+                  />
+                </div>
+              </article>
+            )}
 
-            {/* EN LECTURA */}
-            {librosLeyendo.length > 0 && (
+            {/* Sidebar column */}
+            <aside style={{ display: 'flex', flexDirection: 'column', gap: '40px' }}>
+
+              {/* TODAY'S FOCUS */}
               <div>
-                <h3 style={{
-                  fontFamily: SERIF, fontWeight: 700, fontSize: '18px',
-                  borderBottom: `1px solid ${INK}`, paddingBottom: '8px',
-                  margin: '0 0 16px',
+                <div style={{
+                  fontFamily: SANS, fontSize: '10px', letterSpacing: '0.18em',
+                  textTransform: 'uppercase', color: ACC, fontWeight: 700,
+                  marginBottom: '8px',
                 }}>
-                  EN LECTURA
+                  Misiones activas
+                </div>
+                <h3 style={{
+                  fontFamily: SERIF, fontWeight: 700, fontSize: '26px',
+                  lineHeight: 1.1, margin: '0 0 6px',
+                }}>
+                  TODAY'S FOCUS
                 </h3>
-                {librosLeyendo.slice(0, 3).map(l => {
-                  const leidos = l.capitulos.filter(c => c.leido).length;
-                  const total  = l.capitulos.length;
-                  const pct    = total > 0 ? Math.round((leidos / total) * 100) : 0;
-                  return (
-                    <div key={l.id} style={{
-                      borderBottom: `1px solid ${BORDER}`,
-                      paddingBottom: '14px', marginBottom: '14px',
+                <p style={{
+                  fontFamily: SERIF, fontStyle: 'italic',
+                  fontSize: '13px', color: INK2, margin: '0 0 16px',
+                }}>
+                  Tus prioridades para hoy
+                </p>
+                <Hr />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '14px' }}>
+                  {pendingM.length === 0 ? (
+                    <p style={{
+                      fontFamily: SERIF, fontStyle: 'italic',
+                      fontSize: '13px', color: INK2,
                     }}>
-                      <h4 style={{
-                        fontFamily: SERIF, fontWeight: 700, fontSize: '16px',
-                        margin: '0 0 4px', lineHeight: 1.25,
-                      }}>
-                        {l.titulo}
-                      </h4>
-                      {l.autor && (
-                        <p style={{
-                          fontFamily: SANS, fontSize: '12px',
-                          color: INK2, margin: '0 0 6px',
-                        }}>
-                          {l.autor}
-                        </p>
-                      )}
-                      <p style={{ fontFamily: SANS, fontSize: '11px', color: INK2, margin: '0 0 6px' }}>
-                        {pct}% completado
-                      </p>
+                      Sin misiones pendientes.
+                    </p>
+                  ) : pendingM.map(m => (
+                    <div key={m.id} style={{
+                      border: `1px solid ${BORDER}`, background: BG_ALT,
+                      padding: '12px 14px',
+                      display: 'flex', alignItems: 'flex-start', gap: '12px',
+                    }}>
                       <div style={{
-                        height: '3px', background: BORDER,
-                        borderRadius: '2px', overflow: 'hidden',
-                      }}>
-                        <div style={{
-                          height: '100%', width: `${pct}%`,
-                          background: '#a5793a', transition: 'width 0.3s',
-                        }} />
+                        width: '14px', height: '14px', borderRadius: '50%',
+                        border: `1.5px solid ${INK}`, flexShrink: 0, marginTop: '4px',
+                      }} />
+                      <div>
+                        <p style={{
+                          fontFamily: SERIF, fontSize: '15px', fontWeight: 600,
+                          color: INK, margin: 0, lineHeight: 1.3,
+                        }}>
+                          {m.titulo}
+                        </p>
+                        {m.prioridad && (
+                          <p style={{
+                            fontFamily: SANS, fontSize: '9.5px', textTransform: 'uppercase',
+                            letterSpacing: '0.08em', fontWeight: 700, margin: '4px 0 0',
+                            color: m.prioridad === 'urgente' ? ACC : INK2,
+                          }}>
+                            {m.prioridad}
+                          </p>
+                        )}
                       </div>
                     </div>
-                  );
-                })}
+                  ))}
+                </div>
               </div>
-            )}
-          </aside>
-        </div>
 
-        {/* ── LECTURAS DEL DÍA ── */}
-        <Hr />
-        <div style={{ padding: '20px 0 16px' }}>
-          <h2 style={{
-            fontFamily: SERIF, fontWeight: 700, fontSize: '26px',
-            margin: '0 0 4px',
-          }}>
-            Lecturas del día
-          </h2>
-          <p style={{
-            fontFamily: SERIF, fontStyle: 'italic',
-            fontSize: '13px', color: INK2, margin: 0,
-          }}>
-            Usá ▲ y ▼ para enseñarle qué te interesa. El orden se adapta con el tiempo.
-          </p>
-        </div>
-        <Hr />
+              {/* EN LECTURA */}
+              {librosLeyendo.length > 0 && (
+                <div>
+                  <div style={{
+                    fontFamily: SANS, fontSize: '10px', letterSpacing: '0.18em',
+                    textTransform: 'uppercase', color: ACC, fontWeight: 700,
+                    marginBottom: '8px',
+                  }}>
+                    Biblioteca
+                  </div>
+                  <h3 style={{
+                    fontFamily: SERIF, fontWeight: 700, fontSize: '26px',
+                    lineHeight: 1.1, margin: '0 0 6px',
+                  }}>
+                    En Lectura
+                  </h3>
+                  <p style={{
+                    fontFamily: SERIF, fontStyle: 'italic',
+                    fontSize: '13px', color: INK2, margin: '0 0 16px',
+                  }}>
+                    Lo que estás leyendo ahora
+                  </p>
+                  <Hr />
+                  <div style={{ marginTop: '14px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    {librosLeyendo.slice(0, 3).map(l => {
+                      const leidos = l.capitulos.filter(c => c.leido).length;
+                      const total  = l.capitulos.length;
+                      const pct    = total > 0 ? Math.round((leidos / total) * 100) : 0;
+                      return (
+                        <div key={l.id} style={{
+                          borderBottom: `1px solid ${BORDER}`,
+                          paddingBottom: '14px',
+                        }}>
+                          <h4 style={{
+                            fontFamily: SERIF, fontWeight: 700, fontSize: '17px',
+                            margin: '0 0 3px', lineHeight: 1.25,
+                          }}>
+                            {l.titulo}
+                          </h4>
+                          {l.autor && (
+                            <p style={{ fontFamily: SANS, fontSize: '12px', color: INK2, margin: '0 0 8px' }}>
+                              {l.autor}
+                            </p>
+                          )}
+                          <p style={{ fontFamily: SANS, fontSize: '11px', color: INK2, margin: '0 0 6px' }}>
+                            {pct}% completado
+                          </p>
+                          <div style={{ height: '3px', background: BORDER, borderRadius: '2px', overflow: 'hidden' }}>
+                            <div style={{
+                              height: '100%', width: `${pct}%`,
+                              background: '#a5793a', transition: 'width 0.3s',
+                            }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </aside>
+          </div>
+        </section>
 
-        {/* ── Mensajes y Diario ── */}
+        {/* ══════════════════════════════════════════
+            § 3  MENSAJES Y DIARIO
+        ══════════════════════════════════════════ */}
         {fsEntradas.length > 0 && (
-          <article style={{
-            borderBottom: `1px solid ${BORDER}`,
-            paddingBottom: '40px', marginBottom: '40px', marginTop: '32px',
-          }}>
-            <h4 style={{
-              fontFamily: SERIF, fontWeight: 700, fontSize: '18px',
-              borderBottom: `1px solid ${INK}`, paddingBottom: '8px',
-              marginBottom: '20px', textTransform: 'uppercase',
-              letterSpacing: '0.04em', margin: '0 0 20px',
-            }}>
-              Mensajes y Diario
-            </h4>
+          <section style={sec}>
+            <SectionHead
+              category="Diario personal"
+              title="Mensajes y Diario"
+              subtitle="Tus últimas entradas, leídas como conversación"
+            />
+            <Hr />
+
             <div style={{
               display: 'grid',
               gridTemplateColumns: 'minmax(0,3fr) minmax(160px,1fr)',
-              gap: '24px',
+              gap: '32px',
+              marginTop: '32px',
             }}>
               <div>
-                <h5 style={{
-                  fontFamily: SERIF, fontWeight: 700, fontSize: '26px',
-                  margin: '0 0 20px', lineHeight: 1.2,
+                <h3 style={{
+                  fontFamily: SERIF, fontWeight: 700, fontSize: '28px',
+                  margin: '0 0 24px', lineHeight: 1.2,
                 }}>
                   {fsEntradas[0].titulo ?? 'Notas Personales'}
-                </h5>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                </h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
                   {fsEntradas.slice(0, 3).map((entrada, i) => {
                     const isRight = i % 2 === 1;
                     const personas = ['Gym Bro', 'Yo', 'Coach'];
                     const persona = personas[i % personas.length];
                     const fechaE = new Date(entrada.fecha + 'T12:00:00')
                       .toLocaleDateString('es-AR', { day: '2-digit', month: 'short' });
-                    const snippet = entrada.contenido.split('\n')[0].slice(0, 200);
+                    const snippet = entrada.contenido.split('\n')[0].slice(0, 220);
                     return (
                       <div key={entrada.id} style={{
-                        display: 'flex', gap: '12px',
+                        display: 'flex', gap: '14px',
                         flexDirection: isRight ? 'row-reverse' : 'row',
                       }}>
                         <div style={{
-                          width: '36px', height: '36px', borderRadius: '50%',
+                          width: '38px', height: '38px', borderRadius: '50%',
                           background: isRight ? '#1e40af' : BORDER,
                           flexShrink: 0, display: 'flex',
                           alignItems: 'center', justifyContent: 'center',
-                          fontSize: '12px', fontWeight: 700,
+                          fontSize: '13px', fontWeight: 700,
                           color: isRight ? '#fff' : INK, fontFamily: SANS,
                         }}>
                           {userName.charAt(0).toUpperCase()}
@@ -403,17 +460,17 @@ export function DiarioView({
                           flex: 1, background: isRight ? INK : BG_ALT,
                           border: `1px solid ${isRight ? INK : BORDER}`,
                           borderRadius: isRight
-                            ? '12px 0 12px 12px'
-                            : '0 12px 12px 12px',
-                          padding: '12px',
+                            ? '14px 0 14px 14px'
+                            : '0 14px 14px 14px',
+                          padding: '14px',
                         }}>
                           <div style={{
                             display: 'flex', justifyContent: 'space-between',
-                            marginBottom: '6px',
+                            marginBottom: '8px',
                           }}>
                             <span style={{
                               fontFamily: SANS, fontSize: '10px', fontWeight: 700,
-                              textTransform: 'uppercase', letterSpacing: '0.07em',
+                              textTransform: 'uppercase', letterSpacing: '0.08em',
                               color: isRight ? '#93c5fd' : INK2,
                             }}>
                               {persona}
@@ -426,11 +483,11 @@ export function DiarioView({
                             </span>
                           </div>
                           <p style={{
-                            fontFamily: SERIF, fontSize: '14px', lineHeight: 1.65,
+                            fontFamily: SERIF, fontSize: '15px', lineHeight: 1.65,
                             color: isRight ? BG : INK, margin: 0,
                           }}>
                             {snippet}
-                            {entrada.contenido.length > 200 ? '…' : ''}
+                            {entrada.contenido.length > 220 ? '…' : ''}
                           </p>
                         </div>
                       </div>
@@ -438,22 +495,30 @@ export function DiarioView({
                   })}
                 </div>
               </div>
+
               {/* Mini sidebar */}
               <div style={{
                 background: BG_ALT, border: `1px solid ${BORDER}`,
-                padding: '16px', alignSelf: 'start',
+                padding: '20px', alignSelf: 'start',
               }}>
-                <h6 style={{
-                  fontFamily: SANS, fontWeight: 700, fontSize: '10px',
-                  textTransform: 'uppercase', letterSpacing: '0.08em',
-                  borderBottom: `1px solid ${BORDER}`,
-                  paddingBottom: '8px', margin: '0 0 12px',
+                <div style={{
+                  fontFamily: SANS, fontSize: '10px', letterSpacing: '0.12em',
+                  textTransform: 'uppercase', fontWeight: 700, color: ACC,
+                  marginBottom: '6px',
+                }}>
+                  Stats
+                </div>
+                <h5 style={{
+                  fontFamily: SERIF, fontWeight: 700, fontSize: '20px',
+                  margin: '0 0 12px', lineHeight: 1.2,
                 }}>
                   Resumen Diario
-                </h6>
+                </h5>
+                <Hr />
                 <div style={{
-                  display: 'flex', flexDirection: 'column', gap: '8px',
-                  fontFamily: SERIF, fontSize: '13px', color: INK2,
+                  marginTop: '12px',
+                  display: 'flex', flexDirection: 'column', gap: '10px',
+                  fontFamily: SERIF, fontSize: '14px', color: INK2,
                 }}>
                   <div>
                     <strong style={{ color: INK }}>Entradas:</strong>{' '}
@@ -468,101 +533,142 @@ export function DiarioView({
                   <div>
                     <strong style={{ color: INK }}>Fecha:</strong>{' '}
                     {new Date((fsEntradas[0]?.fecha ?? HOY) + 'T12:00:00')
-                      .toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })}
+                      .toLocaleDateString('es-AR', { day: 'numeric', month: 'long' })}
                   </div>
                 </div>
               </div>
             </div>
-          </article>
+          </section>
         )}
 
-        {/* ── Article grid ── */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '40px' }}>
-          {lecturas.map(art => {
-            const isExpanded = expandedId === art.id;
-            const paragraphs = art.contenido.split('\n\n');
-            const faded = diarioPrefs.reactions[art.id] === 'dislike';
-            return (
-              <article key={art.id} style={{
-                borderBottom: `1px solid ${BORDER}`,
-                paddingBottom: '36px',
-                opacity: faded ? 0.5 : 1,
-              }}>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '10px' }}>
-                  {art.tags.map(t => <TagBadge key={t} label={t} />)}
-                </div>
-                <h4
-                  style={{
-                    fontFamily: SERIF, fontWeight: 700, fontSize: '22px',
-                    lineHeight: 1.25, margin: '0 0 12px', cursor: 'pointer',
-                  }}
-                  onClick={() => setExpandedId(isExpanded ? null : art.id)}
-                >
-                  {art.titulo}
-                </h4>
-                {isExpanded ? (
-                  <>
-                    {paragraphs.map((p, i) => (
-                      <p key={i} style={{
-                        fontFamily: SERIF, fontSize: '14.5px', lineHeight: 1.7,
-                        color: INK2, margin: '0 0 12px',
-                      }}>
-                        {p}
-                      </p>
-                    ))}
-                    {art.fuente && (
-                      <p style={{
-                        fontFamily: SANS, fontSize: '10px', letterSpacing: '0.07em',
-                        textTransform: 'uppercase', color: INK2, margin: '8px 0 0',
-                      }}>
-                        Fuente: {art.fuente}
-                      </p>
-                    )}
-                  </>
-                ) : (
-                  <p style={{
-                    fontFamily: SERIF, fontSize: '14.5px', lineHeight: 1.65,
-                    color: INK2, margin: '0 0 12px',
-                    display: '-webkit-box',
-                    WebkitLineClamp: 2,
-                    WebkitBoxOrient: 'vertical',
-                    overflow: 'hidden',
-                  } as React.CSSProperties}>
-                    {paragraphs[0]}
-                  </p>
-                )}
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  <ReactionBar
-                    artId={art.id} tags={art.tags}
-                    reactions={diarioPrefs.reactions} onReact={onReact}
-                  />
-                  <button
-                    onClick={() => setExpandedId(isExpanded ? null : art.id)}
-                    style={{
-                      fontFamily: SANS, fontSize: '10px', letterSpacing: '0.06em',
-                      textTransform: 'uppercase', background: 'none', border: 'none',
-                      color: INK2, cursor: 'pointer', padding: '4px 4px',
-                      fontWeight: 700,
-                    }}
-                  >
-                    {isExpanded ? '▲ cerrar' : '▼ leer más'}
-                  </button>
-                </div>
-              </article>
-            );
-          })}
-        </div>
+        {/* ══════════════════════════════════════════
+            § 4  LECTURAS DEL DÍA
+        ══════════════════════════════════════════ */}
+        <section style={{ ...sec, borderBottom: 'none' }}>
+          <SectionHead
+            category="Inteligencia adaptativa"
+            title="Lecturas del día"
+            subtitle="Artículos seleccionados según tus intereses. Usá ▲ ÚTIL y ▼ PASAR para afinar el algoritmo."
+          />
+          <Hr />
 
-        {/* ── FOOTER ── */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0', marginTop: '8px' }}>
+            {lecturas.map((art, idx) => {
+              const isExpanded = expandedId === art.id;
+              const paragraphs = art.contenido.split('\n\n');
+              const faded = diarioPrefs.reactions[art.id] === 'dislike';
+              const primaryTag = art.tags[0] ?? '';
+
+              return (
+                <article key={art.id} style={{
+                  padding: '40px 0',
+                  borderBottom: idx < lecturas.length - 1 ? `1px solid ${BORDER}` : 'none',
+                  opacity: faded ? 0.45 : 1,
+                }}>
+                  {/* Article section label + headline */}
+                  <div style={{
+                    fontFamily: SANS, fontSize: '10px', letterSpacing: '0.18em',
+                    textTransform: 'uppercase', fontWeight: 700, color: ACC,
+                    marginBottom: '8px',
+                  }}>
+                    {primaryTag}
+                  </div>
+                  <h3
+                    style={{
+                      fontFamily: SERIF, fontWeight: 700,
+                      fontSize: 'clamp(22px, 3vw, 34px)',
+                      lineHeight: 1.15, margin: '0 0 10px',
+                      cursor: 'pointer', color: INK,
+                    }}
+                    onClick={() => setExpandedId(isExpanded ? null : art.id)}
+                  >
+                    {art.titulo}
+                  </h3>
+
+                  {/* Tags row */}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '14px' }}>
+                    {art.tags.map(t => <TagBadge key={t} label={t} />)}
+                  </div>
+
+                  {/* Subtitle = first sentence of article (collapsed) or full (expanded) */}
+                  {isExpanded ? (
+                    <>
+                      {paragraphs.map((p, i) => (
+                        <p key={i} style={{
+                          fontFamily: SERIF, fontSize: '15px', lineHeight: 1.75,
+                          color: INK2, margin: '0 0 14px',
+                        }}>
+                          {p}
+                        </p>
+                      ))}
+                      {art.fuente && (
+                        <p style={{
+                          fontFamily: SANS, fontSize: '10px', letterSpacing: '0.07em',
+                          textTransform: 'uppercase', color: INK2, margin: '8px 0 0',
+                        }}>
+                          Fuente: {art.fuente}
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      {/* Subtitle: first sentence as italic lead */}
+                      <p style={{
+                        fontFamily: SERIF, fontStyle: 'italic',
+                        fontSize: '16px', lineHeight: 1.6,
+                        color: INK2, margin: '0 0 6px',
+                      }}>
+                        {paragraphs[0].split('.')[0]}.
+                      </p>
+                      {/* Rest clipped */}
+                      <p style={{
+                        fontFamily: SERIF, fontSize: '14.5px', lineHeight: 1.65,
+                        color: INK2, margin: '0 0 14px',
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden',
+                      } as React.CSSProperties}>
+                        {paragraphs[0].split('.').slice(1).join('.').trim()}
+                      </p>
+                    </>
+                  )}
+
+                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                    <ReactionBar
+                      artId={art.id} tags={art.tags}
+                      reactions={diarioPrefs.reactions} onReact={onReact}
+                    />
+                    <button
+                      onClick={() => setExpandedId(isExpanded ? null : art.id)}
+                      style={{
+                        fontFamily: SANS, fontSize: '10px', letterSpacing: '0.07em',
+                        textTransform: 'uppercase', background: 'none', border: 'none',
+                        color: INK2, cursor: 'pointer', padding: '5px 4px',
+                        fontWeight: 700,
+                      }}
+                    >
+                      {isExpanded ? '▲ cerrar' : '▼ leer más'}
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* ══════════════════════════════════════════
+            FOOTER
+        ══════════════════════════════════════════ */}
         <footer style={{
-          marginTop: '48px', paddingTop: '20px',
+          marginTop: '16px', paddingTop: '24px',
           borderTop: `3px double ${INK}`,
           textAlign: 'center', fontFamily: SANS, fontSize: '10px',
           letterSpacing: '0.06em', color: INK2, textTransform: 'uppercase',
         }}>
           El Questflow — Edición personal · {userName}
           <div style={{
-            marginTop: '8px', fontSize: '9.5px', opacity: 0.7,
+            marginTop: '8px', fontSize: '9.5px', opacity: 0.65,
             textTransform: 'none', letterSpacing: '0.02em',
           }}>
             {Object.keys(diarioPrefs.reactions).length} artículos valorados · Sistema adaptativo · {fechaCap}
