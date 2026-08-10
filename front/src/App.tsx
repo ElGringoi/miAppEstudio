@@ -150,6 +150,7 @@ export default function App() {
   const [fsDiarioPrefs,     setFsDiarioPrefs]     = useState<FSDiarioPrefs>({ reactions: {}, tagScores: {} });
 
   // ── Nuevas mejoras ────────────────────────────────────────────────────────
+  const [showNotifications, setShowNotifications] = useState(false);
   const [levelUpEvent,     setLevelUpEvent]     = useState<LevelUpEvent | null>(null);
   const prevMainLevel = useRef<number | null>(null);
   const pendingOps    = useRef<Set<string>>(new Set());
@@ -1480,14 +1481,85 @@ export default function App() {
             <button onClick={toggleDark} aria-label="Cambiar tema" className="p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-600 dark:text-slate-400 hover:text-blue-500 transition-colors">
               {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
             </button>
-            <button aria-label="Notificaciones" className="relative p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
-              <Bell className="w-5 h-5 text-slate-600 dark:text-slate-400" />
-              {(habitsToday.length - done) > 0 && (
-                <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center">
-                  {habitsToday.length - done}
-                </span>
+            <div className="relative">
+              <button onClick={() => setShowNotifications(v => !v)} aria-label="Notificaciones" className="relative p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl hover:border-blue-400 transition-colors">
+                <Bell className="w-5 h-5 text-slate-600 dark:text-slate-400" />
+                {(habitsToday.length - done) > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center">
+                    {habitsToday.length - done}
+                  </span>
+                )}
+              </button>
+              {showNotifications && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)} />
+                  <div className="absolute right-0 top-full mt-2 w-80 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl z-50 overflow-hidden">
+                    <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                      <h3 className="font-bold text-sm text-slate-800 dark:text-slate-100">Notificaciones</h3>
+                      <button onClick={() => setShowNotifications(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-lg leading-none">×</button>
+                    </div>
+                    <div className="max-h-96 overflow-y-auto">
+                      {/* Hábitos pendientes */}
+                      {(() => {
+                        const pendientes = habitsToday.filter(h => !h.completed);
+                        if (pendientes.length === 0) return null;
+                        return (
+                          <div className="p-3">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2">
+                              Quests pendientes — {pendientes.length}
+                            </p>
+                            <div className="space-y-1.5">
+                              {pendientes.map(h => (
+                                <div key={h.id} onClick={() => { setShowNotifications(false); setTab('habits'); }} className="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-900/20 cursor-pointer group transition-colors">
+                                  <span className="text-base shrink-0">{h.icon}</span>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 truncate">{h.name}</p>
+                                    <p className="text-[10px] text-slate-400 dark:text-slate-500">{h.attribute} · +{h.xpValue} XP</p>
+                                  </div>
+                                  <span className="text-[10px] text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">→</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()}
+                      {/* Tareas pendientes de hoy */}
+                      {(() => {
+                        const tareasHoy = filterTasks(new Date()).filter(t => !t.completed);
+                        if (tareasHoy.length === 0) return null;
+                        return (
+                          <div className="p-3 border-t border-slate-100 dark:border-slate-800">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2">
+                              Tareas de hoy — {tareasHoy.length}
+                            </p>
+                            <div className="space-y-1.5">
+                              {tareasHoy.map(t => (
+                                <div key={t.id} onClick={() => { setShowNotifications(false); setTab('calendar'); }} className="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-900/20 cursor-pointer group transition-colors">
+                                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: t.color }} />
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 truncate">{t.title}</p>
+                                    {t.time && <p className="text-[10px] text-slate-400 dark:text-slate-500">{t.time}</p>}
+                                  </div>
+                                  <span className="text-[10px] text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">→</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()}
+                      {/* Estado vacío */}
+                      {habitsToday.filter(h => !h.completed).length === 0 && filterTasks(new Date()).filter(t => !t.completed).length === 0 && (
+                        <div className="py-10 flex flex-col items-center gap-2 text-slate-400">
+                          <span className="text-3xl">✓</span>
+                          <p className="text-sm font-semibold">Todo al día</p>
+                          <p className="text-xs">No tenés pendientes por hoy.</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </>
               )}
-            </button>
+            </div>
           </div>
         </header>
 
