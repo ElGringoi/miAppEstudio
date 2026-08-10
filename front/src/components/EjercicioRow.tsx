@@ -1,5 +1,5 @@
 import React from 'react';
-import { CheckCircle2, Trash2, Pencil, PlayCircle, ChevronDown } from 'lucide-react';
+import { CheckCircle2, Trash2, Pencil, PlayCircle, ChevronDown, X } from 'lucide-react';
 import { cn } from '../lib/utils';
 import type { FSEjercicio, SetLog } from '../types';
 import { getToday } from '../utils/constants';
@@ -16,7 +16,33 @@ export const EjercicioRow = ({ ejercicio, onToggle, onDelete, onEdit, onUpdateSe
 }) => {
   const [showMedia, setShowMedia] = React.useState(false);
   const [showSets, setShowSets]   = React.useState(false);
+  const [restSecsLeft, setRestSecsLeft] = React.useState<number | null>(null);
+  const timerRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
   const done     = ejercicio.lastCompletedDate === getToday();
+
+  const restTotal = ejercicio.restTimerSecs ?? 120;
+
+  function startTimer() {
+    if (timerRef.current) clearInterval(timerRef.current);
+    setRestSecsLeft(restTotal);
+    timerRef.current = setInterval(() => {
+      setRestSecsLeft(s => {
+        if (s === null || s <= 1) {
+          clearInterval(timerRef.current!);
+          timerRef.current = null;
+          return null;
+        }
+        return s - 1;
+      });
+    }, 1000);
+  }
+
+  function stopTimer() {
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+    setRestSecsLeft(null);
+  }
+
+  React.useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
   const embedUrl = ejercicio.mediaUrl ? youtubeEmbedUrl(ejercicio.mediaUrl) : null;
   const isImg    = ejercicio.mediaUrl ? isImageUrl(ejercicio.mediaUrl) : false;
 
@@ -45,6 +71,11 @@ export const EjercicioRow = ({ ejercicio, onToggle, onDelete, onEdit, onUpdateSe
     const next = sets.map((s, j) => j === i ? { ...s, [field]: value } : s);
     setSets(next);
     onUpdateSets?.(next);
+    if (field === 'done' && value === true) {
+      const allDone = next.every(s => s.done);
+      if (!allDone) startTimer();
+      else stopTimer();
+    }
   }
 
   const doneSets  = sets.filter(s => s.done).length;
@@ -200,6 +231,33 @@ export const EjercicioRow = ({ ejercicio, onToggle, onDelete, onEdit, onUpdateSe
               ))}
             </tbody>
           </table>
+
+          {/* Rest timer */}
+          {restSecsLeft !== null && (() => {
+            const mins = Math.floor(restSecsLeft / 60);
+            const secs = restSecsLeft % 60;
+            const pct  = restSecsLeft / restTotal;
+            const r = 20, circ = 2 * Math.PI * r;
+            return (
+              <div className="mt-3 flex items-center gap-3 px-3 py-2.5 rounded-xl bg-blue-950/60 border border-blue-800/40">
+                <svg width="52" height="52" className="shrink-0 -rotate-90">
+                  <circle cx="26" cy="26" r={r} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="4" />
+                  <circle cx="26" cy="26" r={r} fill="none" stroke={pct > 0.4 ? '#3b82f6' : pct > 0.2 ? '#f59e0b' : '#ef4444'} strokeWidth="4"
+                    strokeDasharray={circ} strokeDashoffset={circ * (1 - pct)} strokeLinecap="round"
+                    style={{ transition: 'stroke-dashoffset 1s linear, stroke 0.5s' }} />
+                </svg>
+                <div className="flex-1">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-blue-400 mb-0.5">Descanso</p>
+                  <p className="text-2xl font-black text-white tabular-nums leading-none">
+                    {mins}:{String(secs).padStart(2, '0')}
+                  </p>
+                </div>
+                <button onClick={stopTimer} className="p-1.5 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            );
+          })()}
 
           {/* Add set button */}
           <button
