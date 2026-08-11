@@ -30,7 +30,17 @@ export type FSMaterial  = { id: string; tipo: TipoMaterial; titulo: string; cont
 export type FSTareaFac  = { id: string; titulo: string; fecha?: string; completada: boolean };
 export type FSExamen    = { id: string; titulo: string; fecha?: string; nota?: number; notaMax: number };
 export type FSMateria   = { id: string; nombre: string; color: string; materiales: FSMaterial[]; tareas: FSTareaFac[]; examenes: FSExamen[] };
-export type FSEntradaDiario = { id: string; fecha: string; titulo?: string; contenido: string };
+export type EntradaArea = 'projects' | 'areas' | 'resources' | 'archive';
+export type FSEntradaDiario = {
+  id:         string;
+  fecha:      string;
+  titulo?:    string;
+  contenido:  string;
+  tags?:      string[];
+  area?:      EntradaArea;
+  links?:     string[];
+  updatedAt?: string;
+};
 export type FSObjetivoCHA   = { id: string; titulo: string; completado: boolean; orden: number };
 export type Moneda = 'ARS' | 'USD' | 'EUR' | 'BRL' | 'CLP' | 'UYU';
 export type FSTransaccion   = { id: string; descripcion: string; monto: number; tipo: 'ingreso' | 'gasto'; categoria: string; fecha: string; moneda?: Moneda };

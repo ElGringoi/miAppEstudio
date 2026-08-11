@@ -44,6 +44,18 @@ const RESPONSIVE_CSS = `
     padding-right: 10px;
     padding-top: 6px;
   }
+  .diario-articles-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 32px;
+    margin-top: 24px;
+  }
+  .diario-subtab-pills {
+    display: flex;
+    gap: 8px;
+    margin: 18px 0 0;
+    flex-wrap: wrap;
+  }
   @media (max-width: 680px) {
     .diario-root { padding: 0 16px 60px !important; }
     .diario-section { padding: 28px 0 !important; }
@@ -51,6 +63,7 @@ const RESPONSIVE_CSS = `
     .diario-diary-grid { grid-template-columns: 1fr !important; gap: 20px !important; }
     .diario-drop-cap { font-size: 46px !important; padding-right: 8px !important; }
     .diario-meta-row { flex-direction: column !important; align-items: flex-start !important; gap: 4px !important; }
+    .diario-articles-grid { grid-template-columns: 1fr !important; }
   }
 `;
 
@@ -208,6 +221,65 @@ function LeadReactions({ artId, tags, reactions, onReact }: {
   );
 }
 
+// ── ArticleCard — usado en secciones Deporte y Entretenimiento ───────────────
+function ArticleCard({ art, reactions, onReact, dismiss, dismissedIds }: {
+  art: import('../utils/diarioSeed').DiarioArticulo;
+  reactions: Record<string, DiarioReaction>;
+  onReact: (id: string, r: DiarioReaction, t: string[]) => void;
+  dismiss: (id: string) => void;
+  dismissedIds: Set<string>;
+}) {
+  const isDismissed = dismissedIds.has(art.id);
+  const paragraphs  = art.contenido.split('\n\n');
+
+  if (isDismissed) return (
+    <div style={{
+      border: `1px solid ${BORDER}`, padding: '16px',
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      background: BG_ALT, gap: '12px',
+    }}>
+      <span style={{ fontFamily: SANS, fontSize: '12px', color: INK2 }}>
+        ✕ Descartado
+      </span>
+    </div>
+  );
+
+  return (
+    <article style={{ border: `1px solid ${BORDER}`, background: BG_ALT, padding: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      {art.subseccion && (
+        <div style={{
+          fontFamily: SANS, fontSize: '10px', letterSpacing: '0.18em',
+          textTransform: 'uppercase', fontWeight: 700, color: ACC,
+        }}>
+          {art.subseccion}
+        </div>
+      )}
+      <h3 style={{
+        fontFamily: SERIF, fontWeight: 800,
+        fontSize: 'clamp(18px, 2.5vw, 24px)',
+        lineHeight: 1.15, margin: 0, color: INK,
+      }}>
+        {art.titulo}
+      </h3>
+      <p style={{ fontFamily: SERIF, fontSize: '14px', lineHeight: 1.7, color: INK2, margin: 0 }}>
+        {paragraphs[0]?.slice(0, 260)}{paragraphs[0] && paragraphs[0].length > 260 ? '…' : ''}
+      </p>
+      {art.fuente && (
+        <p style={{ fontFamily: SANS, fontSize: '10px', letterSpacing: '0.06em', textTransform: 'uppercase', color: INK2, margin: 0 }}>
+          {art.fuente}
+        </p>
+      )}
+      <div style={{ marginTop: '4px' }}>
+        <ArticleReactions
+          artId={art.id} tags={art.tags}
+          reactions={reactions} onReact={onReact}
+          onDismiss={dismiss}
+        />
+      </div>
+    </article>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 export function DiarioView({
   stats, habits: _habits, fsRutinas: _fsRutinas, fsMisiones,
@@ -219,11 +291,19 @@ export function DiarioView({
 
   const [expandedId,  setExpandedId]  = useState<string | null>(null);
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(() => new Set());
+  const [deporteSub,  setDeporteSub]  = useState<string>('Todos');
+  const [entSub,      setEntSub]      = useState<string>('Todos');
 
   const dismiss   = useCallback((id: string) => setDismissedIds(p => new Set([...p, id])), []);
   const undismiss = useCallback((id: string) => setDismissedIds(p => {
     const n = new Set(p); n.delete(id); return n;
   }), []);
+
+  const deporteArticulos = ARTICULOS.filter(a => a.seccion === 'deporte');
+  const entArticulos     = ARTICULOS.filter(a => a.seccion === 'entretenimiento');
+
+  const DEPORTE_SUBS      = ['Todos', 'futbol', 'hockey', 'mma', 'jiujitsu', 'padel', 'tenis'];
+  const ENT_SUBS          = ['Todos', 'anime', 'netflix', 'disney', 'crunchyroll', 'videojuegos', 'consolas'];
 
   const totalLevel    = stats.reduce((s, st) => s + st.level, 0);
   const librosLeyendo = fsLibros.filter(l => l.estado === 'leyendo');
@@ -261,7 +341,7 @@ export function DiarioView({
               marginBottom: '20px', display: 'flex', gap: '10px',
               justifyContent: 'center', flexWrap: 'wrap',
             }}>
-              {['FILOSOFÍA', 'IA', 'CIENCIA', 'HISTORIA', 'PSICOLOGÍA', 'ECONOMÍA'].map((c, i, a) => (
+              {['FILOSOFÍA', 'IA', 'CIENCIA', 'DEPORTE', 'ENTRETENIMIENTO', 'HISTORIA', 'PSICOLOGÍA', 'ECONOMÍA'].map((c, i, a) => (
                 <React.Fragment key={c}>
                   <span>{c}</span>
                   {i < a.length - 1 && <span style={{ opacity: 0.3 }}>·</span>}
@@ -301,12 +381,22 @@ export function DiarioView({
             </div>
           </header>
 
-          {/* ══ § 2  IDEA DEL DÍA ══ */}
+          {/* ══ § 2  NOTICIA PRINCIPAL ══ */}
           <section className="diario-section" style={sectionBorder}>
+            {/* Breaking news banner */}
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: '8px',
+              background: ACC, color: BG,
+              fontFamily: SANS, fontSize: '10px', fontWeight: 800,
+              letterSpacing: '0.18em', textTransform: 'uppercase',
+              padding: '4px 14px', marginBottom: '14px',
+            }}>
+              ▶ EDICIÓN DEL DÍA
+            </div>
             <SectionHead
-              category="Idea del día"
-              title={leadArt?.titulo ?? ''}
-              subtitle="El pensamiento más relevante para empezar la jornada"
+              category="Noticia principal"
+              title={leadArt?.titulo?.toUpperCase() ?? ''}
+              subtitle="El artículo más relevante según tus intereses"
             />
             <Hr />
             <div className="diario-lead-grid">
@@ -538,6 +628,90 @@ export function DiarioView({
               </div>
             </section>
           )}
+
+          {/* ══ § DEPORTE ══ */}
+          <section className="diario-section" style={sectionBorder}>
+            <SectionHead
+              category="Sección Deporte"
+              title="DEPORTE"
+              subtitle="Hockey · MMA · Fútbol · Jiujitsu · Pádel · Tenis"
+            />
+            <Hr thick />
+            <div className="diario-subtab-pills">
+              {DEPORTE_SUBS.map(sub => (
+                <button
+                  key={sub}
+                  onClick={() => setDeporteSub(sub)}
+                  style={{
+                    fontFamily: SANS, fontSize: '11px', fontWeight: 700,
+                    letterSpacing: '0.08em', textTransform: 'uppercase',
+                    padding: '5px 14px', border: `1px solid ${BORDER}`,
+                    background: deporteSub === sub ? ACC : 'transparent',
+                    color: deporteSub === sub ? '#fff' : INK2,
+                    cursor: 'pointer', transition: 'all 0.2s ease',
+                  }}
+                >
+                  {sub === 'Todos' ? 'Todos' : sub.toUpperCase()}
+                </button>
+              ))}
+            </div>
+            <div className="diario-articles-grid">
+              {deporteArticulos
+                .filter(a => deporteSub === 'Todos' || a.subseccion === deporteSub)
+                .map(art => (
+                  <ArticleCard
+                    key={art.id}
+                    art={art}
+                    reactions={diarioPrefs.reactions}
+                    onReact={onReact}
+                    dismiss={dismiss}
+                    dismissedIds={dismissedIds}
+                  />
+                ))}
+            </div>
+          </section>
+
+          {/* ══ § ENTRETENIMIENTO ══ */}
+          <section className="diario-section" style={sectionBorder}>
+            <SectionHead
+              category="Sección Entretenimiento"
+              title="ENTRETENIMIENTO"
+              subtitle="Anime · Netflix · Disney · Crunchyroll · Videojuegos · Consolas"
+            />
+            <Hr thick />
+            <div className="diario-subtab-pills">
+              {ENT_SUBS.map(sub => (
+                <button
+                  key={sub}
+                  onClick={() => setEntSub(sub)}
+                  style={{
+                    fontFamily: SANS, fontSize: '11px', fontWeight: 700,
+                    letterSpacing: '0.08em', textTransform: 'uppercase',
+                    padding: '5px 14px', border: `1px solid ${BORDER}`,
+                    background: entSub === sub ? ACC : 'transparent',
+                    color: entSub === sub ? '#fff' : INK2,
+                    cursor: 'pointer', transition: 'all 0.2s ease',
+                  }}
+                >
+                  {sub === 'Todos' ? 'Todos' : sub.charAt(0).toUpperCase() + sub.slice(1)}
+                </button>
+              ))}
+            </div>
+            <div className="diario-articles-grid">
+              {entArticulos
+                .filter(a => entSub === 'Todos' || a.subseccion === entSub)
+                .map(art => (
+                  <ArticleCard
+                    key={art.id}
+                    art={art}
+                    reactions={diarioPrefs.reactions}
+                    onReact={onReact}
+                    dismiss={dismiss}
+                    dismissedIds={dismissedIds}
+                  />
+                ))}
+            </div>
+          </section>
 
           {/* ══ § 4  LECTURAS DEL DÍA ══ */}
           <section className="diario-section" style={{ borderBottom: 'none' }}>
