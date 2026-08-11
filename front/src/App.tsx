@@ -35,6 +35,7 @@ import type {
   FSEntradaDiario, FSObjetivoCHA, FSTransaccion, Habit, Task, HabitRecurrence, TabId, Moneda, LevelUpEvent, MisionPrioridad, SetLog,
   DiarioReaction, FSDiarioPrefs, FSSueldoMeta, FSPresupuesto, FSMetaAhorro,
 } from './types';
+import { SegundoCerebro } from './components/SegundoCerebro';
 import { BodyMap } from './components/BodyMap';
 import type { MuscleId } from './components/BodyMap';
 import { getMuscles } from './utils/muscleMap';
@@ -168,8 +169,9 @@ export default function App() {
   const [evolucionMoneda,  setEvolucionMoneda]  = useState<Moneda>('ARS');
   const [evolucionMeses,   setEvolucionMeses]   = useState<6 | 12>(6);
 
-  // Carisma — Diario + Objetivos (pendiente de implementar UI)
-  const [_fsDiario,         setFsDiario]          = useState<FSEntradaDiario[]>([]);
+  // Carisma — Diario + Objetivos
+  const [fsDiario,          setFsDiario]          = useState<FSEntradaDiario[]>([]);
+  const [diarioSubTab,      setDiarioSubTab]      = useState<'questflow' | 'cerebro'>('questflow');
   const [_fsObjetivosCHA,   setFsObjetivosCHA]    = useState<FSObjetivoCHA[]>([]);
   const [fsDiarioPrefs,     setFsDiarioPrefs]     = useState<FSDiarioPrefs>({ reactions: {}, tagScores: {} });
 
@@ -190,8 +192,6 @@ export default function App() {
   const [missionSearch,     setMissionSearch]     = useState('');
   // Settings
   const [discordWebhookUrl, setDiscordWebhookUrl] = useState<string>('');
-  const [_expandedEntrada,  _setExpandedEntrada]  = useState<string | null>(null);
-  const [_nuevaObjetivoTxt, _setNuevaObjetivoTxt] = useState('');
 
   // Confirm modal
   const [confirmModal, setConfirmModal] = useState<{ msg: string; onOk: () => void } | null>(null);
@@ -224,7 +224,6 @@ export default function App() {
   const [materialForm,  setMaterialForm]  = useState({ tipo: 'nota' as TipoMaterial, titulo: '', contenido: '', url: '' });
   const [tareaFacForm,  setTareaFacForm]  = useState({ titulo: '', fecha: '' });
   const [examenForm,        setExamenForm]        = useState({ titulo: '', fecha: '', nota: '', notaMax: '10' });
-  const [_entradaDiarioForm, _setEntradaDiarioForm] = useState({ titulo: '', contenido: '' });
   const [modalError,    setModalError]    = useState<string | null>(null);
 
   function showToast(msg: string, ok = false) {
@@ -1301,6 +1300,28 @@ export default function App() {
       console.error(e);
       setFsDiarioPrefs(prev);
     }
+  }
+
+  async function saveEntradaDiario(data: Omit<FSEntradaDiario, 'id'>, id?: string) {
+    if (!user?.uid) return;
+    try {
+      const col = collection(db, 'usuarios', user.uid, 'diario');
+      if (id) {
+        await updateDoc(doc(col, id), { ...data, updatedAt: HOY });
+        showToast('Nota actualizada', true);
+      } else {
+        await addDoc(col, { ...data, fecha: HOY, updatedAt: HOY });
+        showToast('Nota guardada', true);
+      }
+    } catch (e) { console.error(e); showToast('Error al guardar la nota'); }
+  }
+
+  async function deleteEntradaDiario(id: string) {
+    if (!user?.uid) return;
+    try {
+      await deleteDoc(doc(db, 'usuarios', user.uid, 'diario', id));
+      showToast('Nota eliminada');
+    } catch (e) { console.error(e); showToast('Error al eliminar la nota'); }
   }
 
   async function connectGCal() {
@@ -3607,20 +3628,44 @@ export default function App() {
 
           {/* ══ DIARIO ══ */}
           {tab === 'diario' && (
-            <motion.div key="diario" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="-mx-4 -mt-4 md:-mx-8 md:-mt-8"
-            >
-              <DiarioView
-                stats={stats}
-                habits={habits}
-                fsRutinas={fsRutinas}
-                fsMisiones={fsMisiones}
-                fsLibros={fsLibros}
-                fsEntradas={_fsDiario}
-                userName={user?.displayName?.split(' ')[0] ?? 'Hero'}
-                diarioPrefs={fsDiarioPrefs}
-                onReact={reactArticulo}
-              />
+            <motion.div key="diario" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              {/* Sub-tab switcher */}
+              <div className="flex gap-1 mb-6 bg-slate-100 dark:bg-slate-800 rounded-xl p-1 w-fit">
+                {([
+                  { id: 'questflow', label: '📰 Questflow'       },
+                  { id: 'cerebro',   label: '🧠 Segundo Cerebro' },
+                ] as const).map(st => (
+                  <button key={st.id} onClick={() => setDiarioSubTab(st.id)}
+                    className={cn('px-4 py-2 rounded-lg text-sm font-bold transition-all',
+                      diarioSubTab === st.id
+                        ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                    )}
+                  >{st.label}</button>
+                ))}
+              </div>
+
+              {diarioSubTab === 'questflow' ? (
+                <div className="-mx-4 -mt-4 md:-mx-8 md:-mt-8">
+                  <DiarioView
+                    stats={stats}
+                    habits={habits}
+                    fsRutinas={fsRutinas}
+                    fsMisiones={fsMisiones}
+                    fsLibros={fsLibros}
+                    fsEntradas={fsDiario}
+                    userName={user?.displayName?.split(' ')[0] ?? 'Hero'}
+                    diarioPrefs={fsDiarioPrefs}
+                    onReact={reactArticulo}
+                  />
+                </div>
+              ) : (
+                <SegundoCerebro
+                  entradas={fsDiario}
+                  onSave={saveEntradaDiario}
+                  onDelete={deleteEntradaDiario}
+                />
+              )}
             </motion.div>
           )}
 
