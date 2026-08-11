@@ -4,6 +4,8 @@ export interface DiarioArticulo {
   contenido: string;
   tags: string[];
   fuente?: string;
+  seccion?: 'deporte' | 'entretenimiento';
+  subseccion?: string;
 }
 
 export const ARTICULOS: DiarioArticulo[] = [
@@ -322,6 +324,136 @@ export const ARTICULOS: DiarioArticulo[] = [
     tags: ['psicología', 'productividad', 'bienestar', 'filosofía', 'hábitos'],
     fuente: 'Mihaly Csikszentmihalyi — Flow; Bertrand Russell — El elogio de la ociosidad',
   },
+
+  // ── DEPORTE ────────────────────────────────────────────────────────────────
+  {
+    id: 'dep-01',
+    titulo: 'La evolución táctica del fútbol moderno: presión alta y posesión',
+    contenido: 'El fútbol moderno es irreconocible comparado con el de hace 30 años. La revolución táctica de Guardiola en el Barcelona 2008-2012 cambió el paradigma global: la posesión no como fin sino como herramienta de control. Cada pase fuerza al rival a moverse; el movimiento del rival crea espacios. El objetivo real no es el balón sino la fatiga y el desorden del oponente.\n\nLa presión alta de Klopp, el "gegenpressing", propone lo contrario pero llega al mismo lugar: recuperar el balón a 10 segundos de perderlo, cuando el rival todavía no organizó su estructura. Los equipos que presionan bien hoy necesitan futbolistas con una capacidad física y cognitiva que hace 20 años era inimaginable en un mediocampista de recuperación.\n\nEl resultado es que el fútbol moderno requiere jugadores completos: técnicos, físicos y con alta inteligencia táctica. La especialización extrema —el "stopper" que solo defiende, el "9" que solo finaliza— está en extinción. El juego se aceleró, los espacios se achicaron, y adaptarse o quedarse afuera es la realidad de cualquier futbolista que quiera competir en la élite.',
+    tags: ['deporte', 'futbol', 'táctica', 'rendimiento'],
+    fuente: 'Juego de posición — Pep Guardiola; Gegenpressing — Jürgen Klopp',
+    seccion: 'deporte',
+    subseccion: 'futbol',
+  },
+  {
+    id: 'dep-02',
+    titulo: 'Hockey argentino: la máquina que produce campeones olímpicos',
+    contenido: 'Argentina es una potencia mundial en hockey sobre césped que la mayoría de los argentinos ignora. Los Leones (masculino) y Las Leonas (femenino) acumulan medallas olímpicas, mundiales y champions trophies con una consistencia asombrosa. El secreto es estructural: una red de clubes en el Gran Buenos Aires que desarrolla talento desde los 6 años con una metodología consolidada durante décadas.\n\nLo que hace diferente al hockey argentino es la intensidad de la competencia interna. Los torneos interasociaciones y el torneo metropolitano son tan competitivos que muchos jugadores que no llegan a la Selección Nacional tendrían nivel para jugar en ligas europeas de primer nivel. La presión de ese entorno forja mentalidades de élite desde muy joven.\n\nEl desafío actual: la profesionalización. El hockey argentino sigue siendo mayoritariamente amateur en términos económicos para la mayoría de sus jugadores. Los mejores se van a Europa (especialmente España, Bélgica y Países Bajos) donde pueden vivir del deporte. El riesgo es la fuga de talento; la oportunidad es la exposición internacional que los hace mejores cuando vuelven a representar al país.',
+    tags: ['deporte', 'hockey', 'argentina', 'élite'],
+    fuente: 'Confederación Argentina de Hockey',
+    seccion: 'deporte',
+    subseccion: 'hockey',
+  },
+  {
+    id: 'dep-03',
+    titulo: 'MMA: el deporte más completo del mundo y la mentalidad que requiere',
+    contenido: 'Las artes marciales mixtas exigen una versatilidad que ningún otro deporte de combate requiere. Un luchador de élite necesita dominar el striking de pie (boxeo, kickboxing, muay thai), el clinch (lucha grecorromana, judo), el suelo (jiujitsu brasileño, wrestling) y las transiciones entre esos mundos. La especialización extrema en uno solo es una debilidad explotable.\n\nLo que diferencia al MMA de otros deportes es la exposición total al fracaso. En el boxeo, un nocaut es devastador pero tiene su dignidad. En el MMA, podés ser sometido, estrangulado hasta dormir, o controlado en el suelo sin poder levantarte durante tres rondas. Esa vulnerabilidad construye o destruye la mentalidad de los competidores.\n\nLos mejores peleadores de MMA comparten una característica: la capacidad de mantener compostura y tomar decisiones racionales bajo estrés extremo. Conor McGregor lo llamó "precision beats power, timing beats speed". La mente calma en el caos es el atributo más difícil de entrenar y el más determinante en los momentos decisivos.',
+    tags: ['deporte', 'mma', 'artes marciales', 'mentalidad'],
+    fuente: 'UFC Performance Institute; Firas Zahabi — Coaching MMA',
+    seccion: 'deporte',
+    subseccion: 'mma',
+  },
+  {
+    id: 'dep-04',
+    titulo: 'Jiu-Jitsu Brasileño: el ajedrez del suelo',
+    contenido: 'El jiujitsu brasileño (BJJ) es un arte marcial que parte de una premisa contraintuitiva: en el suelo, la técnica vence al tamaño. Un practicante con buena técnica puede neutralizar y someter a un oponente más grande y fuerte. Esa promesa lo hace único entre los deportes de combate y explica su explosivo crecimiento global.\n\nEl BJJ tiene una profundidad técnica que lo asemeja al ajedrez. Cada posición tiene sus variantes, sus contraataques y sus respuestas. La guardia, el montado, el half guard, la espalda: cada una es un juego de posición en sí misma con décadas de desarrollo técnico acumulado. Los jugadores de alto nivel piensan tres o cuatro movimientos hacia adelante, igual que un ajedrecista.\n\nMás allá del aspecto marcial, la comunidad del BJJ tiene algo peculiar: el ego se somete rápidamente a la realidad del mat. Podés ser el más exitoso del mundo fuera del tatami; si no entrenás y tu técnica es mala, alguien más pequeño te va a dominar. Esa humildad forzada es parte de lo que atrae a profesionales exitosos al deporte.',
+    tags: ['deporte', 'jiujitsu', 'artes marciales', 'técnica'],
+    fuente: 'Gracie Academy; Gordon Ryan Technique Library',
+    seccion: 'deporte',
+    subseccion: 'jiujitsu',
+  },
+  {
+    id: 'dep-05',
+    titulo: 'El boom del pádel: por qué Argentina lidera el crecimiento global',
+    contenido: 'El pádel es el deporte de mayor crecimiento en Argentina (y en el mundo) en la última década. Las razones son claras: es social (siempre se juega en dobles), técnicamente accesible (la curva de aprendizaje es mucho más corta que el tenis), físicamente intenso (un partido de una hora equivale en gasto calórico a una sesión de fútbol) y más barato de practicar que el tenis por el costo de las raquetas y el mantenimiento de canchas.\n\nArgentina produce algunos de los mejores jugadores del mundo. El circuito World Padel Tour tiene representación argentina consistente, y el clima competitivo de los clubes porteños y del interior es un semillero natural. La cultura del club social argentino, donde el deporte siempre fue parte de la identidad, facilitó la adopción masiva del pádel en los últimos años.\n\nTécnicamente, el pádel premia la paciencia, la consistencia y la capacidad de construir el punto. Los jugadores de tenis que se pasan suelen subestimar la importancia del juego por arriba (bandeja, víbora, smash) y el posicionamiento. Aprender a usar las paredes como aliados —no como obstáculos— es el salto cognitivo que define el progreso en el deporte.',
+    tags: ['deporte', 'padel', 'argentina', 'tendencias'],
+    fuente: 'Asociación Argentina de Pádel; World Padel Tour',
+    seccion: 'deporte',
+    subseccion: 'padel',
+  },
+  {
+    id: 'dep-06',
+    titulo: 'Psicología del tenis: el punto entre puntos',
+    contenido: 'El tenis es quizás el deporte mental por excelencia. A diferencia de los deportes de equipo donde la responsabilidad se distribuye, en el tenis cada punto es exclusivamente tuyo. No hay compañero al que culpar, no hay entrenador que entre al campo durante el partido. Esa soledad es parte de lo que lo hace psicológicamente tan desafiante.\n\nTim Gallwey, en "El juego interior del tenis", identificó que el mayor enemigo del jugador es su propio diálogo interno. El "yo 1" (la mente consciente crítica) interfiere con el "yo 2" (el cuerpo entrenado). Cuando la mente crítica está activa durante la ejecución, el rendimiento baja. Las instrucciones mentales —"codo arriba", "mirar la pelota"— fragmentan el movimiento que debería ser fluido.\n\nLo que separa a los grandes tenistas no es tanto la técnica (en el top 100 es notablemente pareja) sino la gestión emocional entre puntos. Federer tenía un ritual de 20 segundos entre cada punto. Djokovic hace ejercicios de respiración. Ese tiempo —que reglamentariamente existe— es donde se ganan o pierden los sets. Cómo llegás al siguiente punto define cuánto pesan los anteriores.',
+    tags: ['deporte', 'tenis', 'psicología', 'mentalidad', 'rendimiento'],
+    fuente: 'Tim Gallwey — El juego interior del tenis; Brad Gilbert — Winning Ugly',
+    seccion: 'deporte',
+    subseccion: 'tenis',
+  },
+  {
+    id: 'dep-07',
+    titulo: 'Nutrición del artista marcial: corte de peso y recuperación',
+    contenido: 'El corte de peso es una de las prácticas más controvertidas y peligrosas del deporte de combate. Los peleadores bajan 5 a 10 kg en los días previos al pesaje mediante restricción de fluidos y carbohidratos, luego intentan recuperarlos en las horas siguientes. El resultado: entran a la jaula deshidratados, con depósitos de glucógeno incompletos y cognitivamente comprometidos.\n\nLa evidencia científica es clara: los cortes extremos perjudican el rendimiento y son un riesgo de salud serio. Sin embargo, la presión competitiva hace que pocos los abandonen unilateralmente. Las organizaciones más serias —como el UFC— implementaron controles de hidratación y en algunos casos eliminaron los pesajes el día anterior para reducir los incentivos del corte.\n\nLa nutrición óptima para el artista marcial fuera del periodo de corte prioriza: proteína alta para preservar masa muscular en déficit calórico, carbohidratos estratégicamente ubicados alrededor del entrenamiento, y grasas de calidad para la síntesis hormonal. La hidratación constante y el sueño son tan importantes como la alimentación. El atleta que llega al campamento en su peso natural y bien nutrido tiene una ventaja sobre quien hace el corte extremo, independientemente del nivel técnico.',
+    tags: ['deporte', 'mma', 'nutrición', 'salud', 'rendimiento'],
+    fuente: 'George Lockhart — Nutrition for Combat Sports; UFC Performance Institute',
+    seccion: 'deporte',
+    subseccion: 'mma',
+  },
+
+  // ── ENTRETENIMIENTO ────────────────────────────────────────────────────────
+  {
+    id: 'ent-01',
+    titulo: 'Por qué el anime captura narrativas que el cine occidental evita',
+    contenido: 'El anime japonés lleva décadas explorando temas que Hollywood evita sistemáticamente: la ambigüedad moral de los protagonistas, el peso del trauma generacional, el sacrificio sin redención, la muerte de personajes queridos sin que el arco narrativo lo exija. Fullmetal Alchemist, Attack on Titan o Vinland Saga no sería posibles como producciones de estudio americano para la misma audiencia.\n\nParte de la razón es estructural. El anime deriva del manga —la historieta japonesa— donde un autor tiene control creativo total durante años. El resultado es narrativas con coherencia de visión que las producciones por comité raramente alcanzan. Cuando Hayao Miyazaki dice que nunca escribe pensando en la audiencia sino en lo que quiere contar, no es arrogancia; es el modelo de producción que el Studio Ghibli protege celosamente.\n\nOtra diferencia: el anime acepta la melancolía y la impermanencia (mono no aware en japonés) como valores estéticos. La idea de que las cosas bellas son más bellas porque son efímeras impregna muchas obras. Es una sensibilidad profundamente budista que contrasta con el optimismo resolutivo que el entretenimiento occidental casi siempre exige.',
+    tags: ['entretenimiento', 'anime', 'cultura', 'narrativa'],
+    fuente: 'Hayao Miyazaki — Starting Point; Susan Napier — Anime from Akira to Princess Mononoke',
+    seccion: 'entretenimiento',
+    subseccion: 'anime',
+  },
+  {
+    id: 'ent-02',
+    titulo: 'El algoritmo de Netflix y cómo decide qué vas a ver',
+    contenido: 'Netflix no tiene una lista de los "más populares" en el sentido en que la mayoría lo imagina. Tiene decenas de filas personalizadas para cada usuario, generadas por un sistema de recomendación que combina filtrado colaborativo (usuarios similares a vos vieron esto), filtrado basado en contenido (porque te gustó X serie te puede gustar Y) y señales de comportamiento en tiempo real (hasta dónde viste, a qué velocidad, si pausaste y volviste).\n\nEl thumbnail que ve cada usuario para la misma película puede ser diferente: Netflix hace A/B testing de imágenes para maximizar el click-through rate. Si sos fan de un actor específico que tiene un rol secundario, es probable que veas ese actor en el thumbnail aunque no sea el protagonista. El objetivo declarado del sistema es "maximizar la satisfacción a largo plazo", pero el proxy que realmente se optimiza es la retención y el tiempo de visualización.\n\nLo que el algoritmo no puede hacer bien: generar serendipia real. La recomendación por similitud crea burbujas de gusto: te lleva hacia lo que ya te gusta, no hacia lo que podría expandir tus horizontes. Los espectadores que más disfrutan del catálogo son los que fuerzan la salida de sus algoritmos: buscan activamente países, directores o géneros que no consumen habitualmente.',
+    tags: ['entretenimiento', 'netflix', 'tecnología', 'algoritmos'],
+    fuente: "Netflix Research — How Netflix's Recommendations System Works; Sven Charleer 2019",
+    seccion: 'entretenimiento',
+    subseccion: 'netflix',
+  },
+  {
+    id: 'ent-03',
+    titulo: 'Pixar y la regla de los 3 actos: cómo construir emoción duradera',
+    contenido: 'Pixar ha producido algunas de las películas más emocionalmente poderosas de las últimas décadas con animación para toda la familia. El secreto no es la tecnología sino la estructura narrativa y la profundidad de los personajes. Cada película de Pixar sigue una variación del esquema "pero/por lo tanto" en lugar del "y entonces": los eventos no simplemente ocurren; cada uno surge del anterior como consecuencia causal.\n\nLa apertura de Up —los primeros diez minutos sin diálogo que cuentan toda una vida— es un estudio magistral de economía narrativa y construcción emocional. Disney Classic hubiera mostrado ese montaje con canciones y diálogos explicativos. Pixar confió en que las imágenes y la música de Michael Giacchino podían hacer el trabajo sin palabras. Esa confianza en el espectador es lo que distingue su approach.\n\nBrenda Chapman, Pete Docter, Andrew Stanton —los directores históricos de Pixar— comparten una filosofía: las mejores historias empiezan con una pregunta emocional verdadera, no con una premisa de concepto. "¿Qué pasa si los juguetes tienen vida?" es concepto. "¿Qué significa crecer y desprenderse de lo que fuiste?" es la pregunta que hace que Toy Story 3 funcione para adultos que eran niños cuando salió la primera.',
+    tags: ['entretenimiento', 'disney', 'narrativa', 'creatividad', 'cine'],
+    fuente: 'Ed Catmull — Creativity Inc.; Pixar Storytelling Rules',
+    seccion: 'entretenimiento',
+    subseccion: 'disney',
+  },
+  {
+    id: 'ent-04',
+    titulo: 'Game design y flujo: por qué los buenos juegos enganchan',
+    contenido: 'Los videojuegos son la única forma de entretenimiento que requiere participación activa para existir. Una película ocurre sin vos; un videojuego se construye en la intersección entre el sistema del diseñador y las decisiones del jugador. Esa participación es lo que los hace psicológicamente potentes: el cerebro procesa la experiencia de juego como si fuera real en formas que la observación pasiva no alcanza.\n\nEl diseño de progresión en los mejores juegos implementa el concepto de flujo de Csikszentmihalyi con precisión milimétrica. Dark Souls calibra la dificultad de forma que cada derrota enseña algo; el jugador que muere ante un jefe 15 veces aprende los patrones del jefe hasta que la victoria llega como una revelación. Ese ciclo de fracaso → aprendizaje → maestría es idéntico al que produce satisfacción en la vida real.\n\nLo que hace que un juego sea "bueno" en sentido profundo es si deja algo en el jugador después de terminarlo. Hades usa la repetición roguelite para explorar el duelo y la aceptación. Disco Elysium es básicamente una novela interactiva sobre el colapso de las ideologías políticas y la búsqueda de identidad. Los juegos que trascienden el entretenimiento son los que tienen algo que decir y encuentran la mecánica adecuada para decirlo.',
+    tags: ['entretenimiento', 'videojuegos', 'diseño', 'psicología'],
+    fuente: 'Raph Koster — A Theory of Fun for Game Design; Mark Brown — Game Maker\'s Toolkit',
+    seccion: 'entretenimiento',
+    subseccion: 'videojuegos',
+  },
+  {
+    id: 'ent-05',
+    titulo: 'Shonen vs. Seinen: diferencias narrativas y de audiencia en el anime',
+    contenido: 'El manga y el anime japonés se publican en revistas segmentadas por audiencia, y esa segmentación define las convenciones narrativas. Shonen (para varones jóvenes) prioriza la amistad, el crecimiento a través de la adversidad y la superación de límites: Naruto, Dragon Ball, Demon Slayer. Seinen (para adultos) permite mayor complejidad moral, violencia, ambigüedad y temas existenciales: Berserk, Vinland Saga, Vagabond.\n\nLa distinción no es solo de contenido sino de estructura narrativa. El shonen casi siempre tiene un arco de progresión ascendente: el protagonista empieza débil y se hace más fuerte, los amigos son leales, los valores centrales se confirman. El seinen puede terminar con el protagonista destruido, con preguntas sin respuesta o con conclusiones moralmente incómodas. Esa diferencia de expectativas es lo que confunde a los espectadores que entran al anime por shonen y luego leen Berserk.\n\nAlgunos de los animes más populares globalmente son técnicamente shonen pero incorporan complejidad seinen: Attack on Titan empieza como shonen de acción y evoluciona hacia un análisis de ciclos de violencia, colonialismo y la naturaleza del mal que trasciende la audiencia original. Esa capacidad de crecer con el lector es lo que crea fandoms multigeneracionales.',
+    tags: ['entretenimiento', 'anime', 'manga', 'cultura japonesa', 'narrativa'],
+    fuente: 'Susan Napier — Anime from Akira to Princess Mononoke; Kentaro Miura — Berserk',
+    seccion: 'entretenimiento',
+    subseccion: 'anime',
+  },
+  {
+    id: 'ent-06',
+    titulo: 'La guerra de consolas: PlayStation, Xbox y el futuro de la nube',
+    contenido: 'La competencia entre Sony y Microsoft por el mercado de consolas es uno de los duopolios más analizados de la industria del entretenimiento. PlayStation domina en ventas de hardware en casi todos los mercados (excepto Estados Unidos donde Xbox tiene más presencia), pero Microsoft está ejecutando una estrategia diferente: no ganar la guerra de las cajas sino hacer irrelevante esa guerra.\n\nGame Pass es la apuesta de Microsoft: un servicio de suscripción que incluye cientos de juegos (incluyendo sus propios first-party desde el día uno) por una tarifa mensual. La compra de Activision Blizzard (Call of Duty, Warcraft, Diablo) y Bethesda (Skyrim, Fallout, Starfield) sumó las franquicias más poderosas del medio al catálogo. El objetivo es que el ecosistema Xbox —PC, consola, móvil, cloud— sea tan valioso que la plataforma física importa menos.\n\nEl futuro del gaming en la nube (jugar directamente desde servidores sin hardware dedicado) sigue siendo promesa más que realidad por los problemas de latencia en conexiones promedio. Pero la dirección estratégica es clara: el hardware es commodity, el contenido y el servicio son el moat. En ese juego, Microsoft tiene más recursos y paciencia que Sony.',
+    tags: ['entretenimiento', 'consolas', 'videojuegos', 'tecnología', 'industria'],
+    fuente: 'Nikkei Asia — Microsoft Gaming Strategy; GamesIndustry.biz Annual Report',
+    seccion: 'entretenimiento',
+    subseccion: 'consolas',
+  },
+  {
+    id: 'ent-07',
+    titulo: 'Crunchyroll y la globalización del anime',
+    contenido: 'Crunchyroll es el mayor servicio de streaming de anime del mundo con más de 100 millones de usuarios registrados. Su modelo —subtitulado simultáneo en múltiples idiomas en horas del estreno japonés, con doblaje añadido semanas después— democratizó el acceso global al anime que antes llegaba con años de retraso o no llegaba nunca fuera de Japón.\n\nLa globalización del anime tiene efectos en ambas direcciones. Hacia Japón: los estudios ahora consideran la audiencia global en sus decisiones de producción y marketing. Hacia el resto del mundo: los fandoms de anime crecieron exponencialmente en América Latina, Europa y el sudeste asiático. El español es el segundo idioma más usado en la plataforma después del japonés.\n\nLo que Crunchyroll no pudo resolver por años —la piratería— se redujo no por medidas legales sino por la conveniencia del acceso legal simultáneo. El mismo principio que aprendió la industria musical con Spotify: el usuario prefiere pagar por conveniencia si la oferta legal es buena. El anime dejó de ser nicho para convertirse en mainstream global, y Crunchyroll (ahora propiedad de Sony) está en el centro de esa transformación.',
+    tags: ['entretenimiento', 'crunchyroll', 'anime', 'streaming', 'industria'],
+    fuente: 'Crunchyroll Annual Report; Anime Industry Report 2024',
+    seccion: 'entretenimiento',
+    subseccion: 'crunchyroll',
+  },
 ];
 
 export function scoreArticulos(
@@ -329,7 +461,8 @@ export function scoreArticulos(
   tagScores: Record<string, number>,
   reactions: Record<string, string>,
 ): DiarioArticulo[] {
-  const scored = articulos.map(a => {
+  const general = articulos.filter(a => !a.seccion);
+  const scored = general.map(a => {
     const score = a.tags.reduce((s, t) => s + (tagScores[t] ?? 0), 0);
     return { a, score };
   });
