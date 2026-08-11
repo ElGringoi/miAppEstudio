@@ -19,7 +19,7 @@ import {
   isSameDay, isToday, getDay,
 } from 'date-fns';
 import {
-  onAuthStateChanged, signInWithRedirect, getRedirectResult, signOut, GoogleAuthProvider,
+  onAuthStateChanged, signInWithPopup, signOut, GoogleAuthProvider,
   reauthenticateWithPopup,
 } from 'firebase/auth';
 import type { User } from 'firebase/auth';
@@ -236,8 +236,6 @@ export default function App() {
 
   // Auth listener
   useEffect(() => onAuthStateChanged(auth, u => { setUser(u); setAuthLoading(false); }), []);
-  // Captura el resultado del redirect de Google al volver de la autenticación
-  useEffect(() => { getRedirectResult(auth).catch(console.error); }, []);
 
   // Persistir dark mode en localStorage
   useEffect(() => {
@@ -1490,7 +1488,7 @@ export default function App() {
     </div>
   );
 
-  if (!user) return <LoginScreen onLogin={() => signInWithRedirect(auth, new GoogleAuthProvider())} />;
+  if (!user) return <LoginScreen onLogin={() => signInWithPopup(auth, new GoogleAuthProvider())} />;
 
   if (!dataReady) return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center gap-3">
