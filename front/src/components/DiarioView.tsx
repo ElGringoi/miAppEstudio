@@ -229,6 +229,7 @@ function ArticleCard({ art, reactions, onReact, dismiss, dismissedIds }: {
   dismiss: (id: string) => void;
   dismissedIds: Set<string>;
 }) {
+  const [isExpanded, setIsExpanded] = useState(false);
   const isDismissed = dismissedIds.has(art.id);
   const paragraphs  = art.contenido.split('\n\n');
 
@@ -254,27 +255,53 @@ function ArticleCard({ art, reactions, onReact, dismiss, dismissedIds }: {
           {art.subseccion}
         </div>
       )}
-      <h3 style={{
-        fontFamily: SERIF, fontWeight: 800,
-        fontSize: 'clamp(18px, 2.5vw, 24px)',
-        lineHeight: 1.15, margin: 0, color: INK,
-      }}>
+      <h3
+        onClick={() => setIsExpanded(e => !e)}
+        style={{
+          fontFamily: SERIF, fontWeight: 800,
+          fontSize: 'clamp(18px, 2.5vw, 24px)',
+          lineHeight: 1.15, margin: 0, color: INK, cursor: 'pointer',
+        }}
+      >
         {art.titulo}
       </h3>
-      <p style={{ fontFamily: SERIF, fontSize: '14px', lineHeight: 1.7, color: INK2, margin: 0 }}>
-        {paragraphs[0]?.slice(0, 260)}{paragraphs[0] && paragraphs[0].length > 260 ? '…' : ''}
-      </p>
-      {art.fuente && (
-        <p style={{ fontFamily: SANS, fontSize: '10px', letterSpacing: '0.06em', textTransform: 'uppercase', color: INK2, margin: 0 }}>
-          {art.fuente}
+
+      {isExpanded
+        ? paragraphs.map((p, i) => (
+            <p key={i} style={{ fontFamily: SERIF, fontSize: '14px', lineHeight: 1.7, color: INK2, margin: 0 }}>
+              {p}
+            </p>
+          ))
+        : (
+          <p style={{ fontFamily: SERIF, fontSize: '14px', lineHeight: 1.7, color: INK2, margin: 0 }}>
+            {paragraphs[0]?.slice(0, 260)}{paragraphs[0] && paragraphs[0].length > 260 ? '…' : ''}
+          </p>
+        )
+      }
+
+      {isExpanded && art.fuente && (
+        <p style={{ fontFamily: SANS, fontSize: '10px', letterSpacing: '0.06em', textTransform: 'uppercase', color: INK2, margin: 0, fontStyle: 'italic' }}>
+          Fuente: {art.fuente}
         </p>
       )}
-      <div style={{ marginTop: '4px' }}>
+
+      <div style={{ marginTop: '4px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
         <ArticleReactions
           artId={art.id} tags={art.tags}
           reactions={reactions} onReact={onReact}
           onDismiss={dismiss}
         />
+        <button
+          onClick={() => setIsExpanded(e => !e)}
+          style={{
+            fontFamily: SANS, fontSize: '11px', letterSpacing: '0.07em',
+            textTransform: 'uppercase', background: 'none',
+            border: `1px solid ${BORDER}`, color: INK2,
+            cursor: 'pointer', padding: '6px 14px', fontWeight: 700,
+          }}
+        >
+          {isExpanded ? '▲ Cerrar' : '▼ Leer más'}
+        </button>
       </div>
     </article>
   );
