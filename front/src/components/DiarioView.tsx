@@ -233,17 +233,7 @@ function ArticleCard({ art, reactions, onReact, dismiss, dismissedIds }: {
   const isDismissed = dismissedIds.has(art.id);
   const paragraphs  = art.contenido.split('\n\n');
 
-  if (isDismissed) return (
-    <div style={{
-      border: `1px solid ${BORDER}`, padding: '16px',
-      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      background: BG_ALT, gap: '12px',
-    }}>
-      <span style={{ fontFamily: SANS, fontSize: '12px', color: INK2 }}>
-        ✕ Descartado
-      </span>
-    </div>
-  );
+  if (isDismissed) return null;
 
   return (
     <article style={{ border: `1px solid ${BORDER}`, background: BG_ALT, padding: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -682,20 +672,29 @@ export function DiarioView({
                 </button>
               ))}
             </div>
-            <div className="diario-articles-grid">
-              {deporteArticulos
+            {(() => {
+              const visibles = deporteArticulos
                 .filter(a => deporteSub === 'Todos' || a.subseccion === deporteSub)
-                .map(art => (
-                  <ArticleCard
-                    key={art.id}
-                    art={art}
-                    reactions={diarioPrefs.reactions}
-                    onReact={onReact}
-                    dismiss={dismiss}
-                    dismissedIds={dismissedIds}
-                  />
-                ))}
-            </div>
+                .filter(a => !dismissedIds.has(a.id));
+              return visibles.length === 0 ? (
+                <p style={{ fontFamily: SANS, fontSize: '13px', color: INK2, marginTop: '24px', textAlign: 'center' }}>
+                  Sin artículos disponibles{deporteSub !== 'Todos' ? ` en ${deporteSub.toUpperCase()}` : ''}.
+                </p>
+              ) : (
+                <div className="diario-articles-grid">
+                  {visibles.map(art => (
+                    <ArticleCard
+                      key={art.id}
+                      art={art}
+                      reactions={diarioPrefs.reactions}
+                      onReact={onReact}
+                      dismiss={dismiss}
+                      dismissedIds={dismissedIds}
+                    />
+                  ))}
+                </div>
+              );
+            })()}
           </section>
 
           {/* ══ § ENTRETENIMIENTO ══ */}
@@ -724,20 +723,29 @@ export function DiarioView({
                 </button>
               ))}
             </div>
-            <div className="diario-articles-grid">
-              {entArticulos
+            {(() => {
+              const visibles = entArticulos
                 .filter(a => entSub === 'Todos' || a.subseccion === entSub)
-                .map(art => (
-                  <ArticleCard
-                    key={art.id}
-                    art={art}
-                    reactions={diarioPrefs.reactions}
-                    onReact={onReact}
-                    dismiss={dismiss}
-                    dismissedIds={dismissedIds}
-                  />
-                ))}
-            </div>
+                .filter(a => !dismissedIds.has(a.id));
+              return visibles.length === 0 ? (
+                <p style={{ fontFamily: SANS, fontSize: '13px', color: INK2, marginTop: '24px', textAlign: 'center' }}>
+                  Sin artículos disponibles{entSub !== 'Todos' ? ` en ${entSub.charAt(0).toUpperCase() + entSub.slice(1)}` : ''}.
+                </p>
+              ) : (
+                <div className="diario-articles-grid">
+                  {visibles.map(art => (
+                    <ArticleCard
+                      key={art.id}
+                      art={art}
+                      reactions={diarioPrefs.reactions}
+                      onReact={onReact}
+                      dismiss={dismiss}
+                      dismissedIds={dismissedIds}
+                    />
+                  ))}
+                </div>
+              );
+            })()}
           </section>
 
           {/* ══ § 4  LECTURAS DEL DÍA ══ */}
