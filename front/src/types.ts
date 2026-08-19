@@ -41,6 +41,68 @@ export type FSEntradaDiario = {
   links?:     string[];
   updatedAt?: string;
 };
+
+// ─── Segundo Cerebro: personas y grupos ──────────────────────────────────────
+
+export type PendienteDireccion = 'le_debo' | 'me_debe';
+export type FSPendiente = {
+  id:          string;
+  descripcion: string;
+  direccion:   PendienteDireccion;
+  monto?:      number;      // opcional: puede ser un favor, no plata
+  moneda?:     Moneda;
+  fecha?:      string;      // YYYY-MM-DD
+  saldado:     boolean;
+  saldadoEn?:  string;
+};
+
+export type TipoFechaClave = 'cumple' | 'aniversario' | 'otro';
+export type FSFechaClave = {
+  id:     string;
+  titulo: string;
+  tipo:   TipoFechaClave;
+  fecha:  string;           // YYYY-MM-DD
+  anual:  boolean;          // se repite todos los años
+};
+
+export type FSPersona = {
+  id:              string;
+  nombre:          string;
+  apodo?:          string;
+  avatar?:         string;  // emoji — no hay storage de imágenes
+  relacion?:       string;  // sugerido por RELACION_META, texto libre
+  comoLaConoci?:   string;
+  dondeLaConoci?:  string;
+  telefono?:       string;
+  email?:          string;
+  notas?:          string;  // markdown libre
+  tags?:           string[];
+  pendientes?:     FSPendiente[];
+  fechasClave?:    FSFechaClave[];
+  links?:          string[];  // ids de FSEntradaDiario
+  grupos?:         string[];  // ids de FSGrupo — FUENTE DE VERDAD de la membresía
+  ultimoContacto?: string;    // gancho XP Carisma — todavía sin usar
+  xpOtorgado?:     number;    // gancho XP Carisma — anti doble-conteo
+  createdAt?:      string;
+  updatedAt?:      string;
+};
+
+export type FSGrupo = {
+  id:               string;
+  nombre:           string;
+  icono?:           string;   // emoji
+  color?:           string;   // hex, como FSTarea.color
+  descripcion?:     string;
+  notas?:           string;   // markdown propio del grupo
+  tags?:            string[];
+  pendientes?:      FSPendiente[];
+  fechasClave?:     FSFechaClave[];
+  links?:           string[];
+  ultimoEncuentro?: string;   // gancho XP Carisma
+  xpOtorgado?:      number;
+  createdAt?:       string;
+  updatedAt?:       string;
+};
 export type FSObjetivoCHA   = { id: string; titulo: string; completado: boolean; orden: number };
 export type Moneda = 'ARS' | 'USD' | 'EUR' | 'BRL' | 'CLP' | 'UYU';
 export type FSTransaccion   = { id: string; descripcion: string; monto: number; tipo: 'ingreso' | 'gasto'; categoria: string; fecha: string; moneda?: Moneda };
