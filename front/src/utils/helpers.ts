@@ -257,3 +257,51 @@ export function calcXpPerDay(
   }
   return result;
 }
+
+// ─── Segundo Cerebro ──────────────────────────────────────────────────────────
+
+export function shortDate(iso?: string): string {
+  if (!iso) return '';
+  return new Date(iso).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' });
+}
+
+/** Días desde hoy hasta una fecha ISO. Negativo si ya pasó. */
+export function diasHasta(iso: string): number {
+  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+  const target = new Date(iso + 'T00:00:00');
+  return Math.round((target.getTime() - hoy.getTime()) / 86400000);
+}
+
+/**
+ * Próxima ocurrencia de una fecha clave.
+ * Si es anual, salta al año que viene cuando ya pasó este año.
+ * Devuelve la fecha ISO y cuántos días faltan (null si no es anual y ya pasó).
+ */
+export function proximaOcurrencia(fecha: string, anual: boolean): { iso: string; dias: number } | null {
+  if (!anual) {
+    const dias = diasHasta(fecha);
+    return dias >= 0 ? { iso: fecha, dias } : null;
+  }
+  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+  const [, mes, dia] = fecha.split('-');
+  let año = hoy.getFullYear();
+  let iso = `${año}-${mes}-${dia}`;
+  if (diasHasta(iso) < 0) { año += 1; iso = `${año}-${mes}-${dia}`; }
+  return { iso, dias: diasHasta(iso) };
+}
+
+/**
+ * Saldo de pendientes agrupado por moneda. Ignora los saldados y los que no
+ * tienen monto (favores). Positivo = me deben, negativo = le debo.
+ */
+export function saldoPendientes(
+  pendientes: { direccion: 'le_debo' | 'me_debe'; monto?: number; moneda?: string; saldado: boolean }[]
+): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const p of pendientes) {
+    if (p.saldado || !Number.isFinite(p.monto)) continue;
+    const m = p.moneda ?? 'ARS';
+    out[m] = (out[m] ?? 0) + (p.direccion === 'me_debe' ? p.monto! : -p.monto!);
+  }
+  return out;
+}

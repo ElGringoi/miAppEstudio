@@ -69,3 +69,41 @@ export const RANK_META: Record<string, { color: string; label: string; next: num
   'SS':      { color: 'text-red-500',     label: 'SS-Rank', next: 70 },
   'Monarch': { color: 'text-violet-400',  label: 'Monarch', next: Infinity },
 };
+
+// ─── Segundo Cerebro ──────────────────────────────────────────────────────────
+
+// Carpetas PARA. El id 'projects' se muestra como "Ideas" porque es la sección
+// Ideas del Segundo Cerebro — el id no cambia, así que la DB queda intacta.
+export const AREA_META = [
+  { id: 'all'       as const, label: 'Todas',     icon: '📋', color: 'bg-slate-500'   },
+  { id: 'projects'  as const, label: 'Ideas',     icon: '💡', color: 'bg-blue-500'    },
+  { id: 'areas'     as const, label: 'Areas',     icon: '🗂️', color: 'bg-purple-500'  },
+  { id: 'resources' as const, label: 'Resources', icon: '📚', color: 'bg-emerald-500' },
+  { id: 'archive'   as const, label: 'Archive',   icon: '📦', color: 'bg-slate-400'   },
+];
+
+export const CEREBRO_SECCIONES = [
+  { id: 'notas'    as const, label: 'Notas',    icon: '📝' },
+  { id: 'ideas'    as const, label: 'Ideas',    icon: '💡' },
+  { id: 'personas' as const, label: 'Personas', icon: '👤' },
+  { id: 'grupos'   as const, label: 'Grupos',   icon: '👥' },
+  { id: 'chat'     as const, label: 'Chat',     icon: '💬' },
+];
+
+// Sugerencias para el campo `relacion` de una persona. Es texto libre: estas
+// son atajos, el usuario puede escribir cualquier cosa.
+export const RELACION_META = [
+  { id: 'familia',  label: 'Familia',  icon: '👨‍👩‍👧', color: 'bg-rose-500'    },
+  { id: 'amigo',    label: 'Amigo',    icon: '🤝',      color: 'bg-blue-500'    },
+  { id: 'pareja',   label: 'Pareja',   icon: '❤️',      color: 'bg-pink-500'    },
+  { id: 'trabajo',  label: 'Trabajo',  icon: '💼',      color: 'bg-slate-600'   },
+  { id: 'facultad', label: 'Facultad', icon: '🎓',      color: 'bg-indigo-500'  },
+  { id: 'gym',      label: 'Gym',      icon: '🏋️',      color: 'bg-emerald-500' },
+  { id: 'conocido', label: 'Conocido', icon: '👋',      color: 'bg-slate-400'   },
+];
+
+export const TIPO_FECHA_META = [
+  { id: 'cumple'      as const, label: 'Cumpleaños',  icon: '🎂' },
+  { id: 'aniversario' as const, label: 'Aniversario', icon: '🎉' },
+  { id: 'otro'        as const, label: 'Otro',        icon: '📅' },
+];

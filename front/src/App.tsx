@@ -25,14 +25,14 @@ import {
 import type { User } from 'firebase/auth';
 import {
   collection, doc, increment, onSnapshot, setDoc,
-  updateDoc, addDoc, deleteDoc, writeBatch, runTransaction,
+  updateDoc, addDoc, deleteDoc, writeBatch, runTransaction, deleteField,
 } from 'firebase/firestore';
 import { auth, db } from './lib/firebase';
 import type {
   FSStatKey, FSStatsDoc, FSHabito, FSEvento, FSMision, FSTarea,
   GCalEvent, FSEjercicio, FSRutina, EstadoLibro, FSCapitulo, FSLibro,
   TipoMaterial, FSMaterial, FSTareaFac, FSExamen, FSMateria,
-  FSEntradaDiario, FSObjetivoCHA, FSTransaccion, Habit, Task, HabitRecurrence, TabId, Moneda, LevelUpEvent, MisionPrioridad, SetLog,
+  FSEntradaDiario, FSObjetivoCHA, FSPersona, FSGrupo, FSTransaccion, Habit, Task, HabitRecurrence, TabId, Moneda, LevelUpEvent, MisionPrioridad, SetLog,
   DiarioReaction, FSDiarioPrefs, FSSueldoMeta, FSPresupuesto, FSMetaAhorro,
 } from './types';
 import { SegundoCerebro } from './components/SegundoCerebro';
@@ -87,7 +87,7 @@ function getPageSub(firstName: string): Record<string, string> {
     missions: 'Track your objectives',
     billetera: 'Controlá tus ingresos y gastos',
     diario: 'Tu diario personal de progreso',
-    cerebro: 'Notas, ideas y conocimiento',
+    cerebro: 'Notas, ideas, personas y grupos',
     settings: 'Configure your hero',
   };
 }
@@ -175,6 +175,8 @@ export default function App() {
   const [fsDiario,          setFsDiario]          = useState<FSEntradaDiario[]>([]);
   const [_fsObjetivosCHA,   setFsObjetivosCHA]    = useState<FSObjetivoCHA[]>([]);
   const [fsDiarioPrefs,     setFsDiarioPrefs]     = useState<FSDiarioPrefs>({ reactions: {}, tagScores: {} });
+  const [fsPersonas,        setFsPersonas]        = useState<FSPersona[]>([]);
+  const [fsGrupos,          setFsGrupos]          = useState<FSGrupo[]>([]);
 
   // ── Nuevas mejoras ────────────────────────────────────────────────────────
   const [showNotifications, setShowNotifications] = useState(false);
@@ -292,7 +294,7 @@ export default function App() {
     setDataReady(false);
     const uid = user.uid;
     let loaded = 0;
-    const markLoaded = () => { if (++loaded === 15) setDataReady(true); };
+    const markLoaded = () => { if (++loaded === 17) setDataReady(true); };
     const unsubStats = onSnapshot(doc(db, 'usuarios', uid, 'stats', 'main'), snap => {
       setFsStats(snap.data() as FSStatsDoc ?? null);
       markLoaded();
@@ -314,7 +316,9 @@ export default function App() {
     const u13 = onSnapshot(collection(db, 'usuarios', uid, 'sueldos_meta'),  s => { setFsSueldosMeta(s.docs.map(d => ({ id: d.id, ...d.data() } as FSSueldoMeta))); markLoaded(); });
     const u14 = onSnapshot(collection(db, 'usuarios', uid, 'presupuestos'),  s => { setFsPresupuestos(s.docs.map(d => ({ id: d.id, ...d.data() } as FSPresupuesto))); markLoaded(); });
     const u15 = onSnapshot(collection(db, 'usuarios', uid, 'metas_ahorro'), s => { setFsMetas(s.docs.map(d => ({ id: d.id, ...d.data() } as FSMetaAhorro))); markLoaded(); });
-    return () => { unsubStats(); u2(); u3(); u4(); u5(); u6(); u7(); u8(); u9(); u10(); u11(); u12(); u13(); u14(); u15(); };
+    const u16 = onSnapshot(collection(db, 'usuarios', uid, 'personas'),     s => { setFsPersonas(s.docs.map(d => ({ id: d.id, ...d.data() } as FSPersona))); markLoaded(); });
+    const u17 = onSnapshot(collection(db, 'usuarios', uid, 'grupos'),       s => { setFsGrupos(s.docs.map(d => ({ id: d.id, ...d.data() } as FSGrupo))); markLoaded(); });
+    return () => { unsubStats(); u2(); u3(); u4(); u5(); u6(); u7(); u8(); u9(); u10(); u11(); u12(); u13(); u14(); u15(); u16(); u17(); };
   }, [user?.uid]);
 
   // ── Derived ───────────────────────────────────────────────────────────────
@@ -1308,7 +1312,7 @@ export default function App() {
     try {
       const col = collection(db, 'usuarios', user.uid, 'diario');
       if (id) {
-        await updateDoc(doc(col, id), { ...data, updatedAt: HOY });
+        await updateDoc(doc(col, id), { ...data, titulo: data.titulo || deleteField(), area: data.area ?? deleteField(), updatedAt: HOY });
         showToast('Nota actualizada', true);
       } else {
         await addDoc(col, { ...data, fecha: HOY, updatedAt: HOY });
@@ -1323,6 +1327,99 @@ export default function App() {
       await deleteDoc(doc(db, 'usuarios', user.uid, 'diario', id));
       showToast('Nota eliminada');
     } catch (e) { console.error(e); showToast('Error al eliminar la nota'); }
+  }
+
+  // ── Segundo Cerebro: personas y grupos ────────────────────────────────────
+
+  // updateDoc no toca las keys ausentes, asi que un campo omitido nunca se
+  // vacia. Los formularios mandan '' para "borrame esto"; aca lo traducimos a
+  // deleteField(). Los arrays vienen siempre presentes, con [] cuando estan
+  // vacios, asi que no necesitan este tratamiento.
+  function conBorrados<T extends object>(data: T) {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(data)) out[k] = v === '' ? deleteField() : v;
+    return out;
+  }
+  // Ojo: usamos updateDoc, no setDoc. Los formularios no cargan xpOtorgado /
+  // ultimoContacto / createdAt, y con updateDoc las keys ausentes no se tocan.
+  // Si esto migra a setDoc, esos campos se borran.
+
+  async function savePersona(data: Omit<FSPersona, 'id'>, id?: string) {
+    if (!user?.uid) return;
+    try {
+      const col = collection(db, 'usuarios', user.uid, 'personas');
+      if (id) {
+        await updateDoc(doc(col, id), { ...conBorrados(data), updatedAt: HOY });
+        showToast('Persona actualizada', true);
+      } else {
+        await addDoc(col, { ...data, createdAt: HOY, updatedAt: HOY });
+        showToast('Persona guardada', true);
+      }
+    } catch (e) { console.error(e); showToast('Error al guardar la persona'); }
+  }
+
+  async function deletePersona(id: string) {
+    if (!user?.uid) return;
+    try {
+      await deleteDoc(doc(db, 'usuarios', user.uid, 'personas', id));
+      showToast('Persona eliminada');
+    } catch (e) { console.error(e); showToast('Error al eliminar la persona'); }
+  }
+
+  async function saveGrupo(data: Omit<FSGrupo, 'id'>, id?: string) {
+    if (!user?.uid) return;
+    try {
+      const col = collection(db, 'usuarios', user.uid, 'grupos');
+      if (id) {
+        await updateDoc(doc(col, id), { ...conBorrados(data), updatedAt: HOY });
+        showToast('Grupo actualizado', true);
+      } else {
+        await addDoc(col, { ...data, createdAt: HOY, updatedAt: HOY });
+        showToast('Grupo guardado', true);
+      }
+    } catch (e) { console.error(e); showToast('Error al guardar el grupo'); }
+  }
+
+  // La membresia vive solo en persona.grupos, asi que borrar un grupo obliga a
+  // limpiarle el id a cada persona que lo referencia, o quedan ids colgados.
+  async function deleteGrupo(id: string) {
+    if (!user?.uid) return;
+    const uid = user.uid;
+    try {
+      const batch = writeBatch(db);
+      batch.delete(doc(db, 'usuarios', uid, 'grupos', id));
+      for (const p of fsPersonas.filter(p => p.grupos?.includes(id))) {
+        batch.update(doc(db, 'usuarios', uid, 'personas', p.id), {
+          grupos: (p.grupos ?? []).filter(g => g !== id),
+        });
+      }
+      await batch.commit();
+      showToast('Grupo eliminado');
+    } catch (e) { console.error(e); showToast('Error al eliminar el grupo'); }
+  }
+
+  // Escribe solo el diff: las personas que entran y las que salen del grupo.
+  async function setMiembrosGrupo(grupoId: string, personaIds: string[]) {
+    if (!user?.uid) return;
+    const uid = user.uid;
+    try {
+      const deseados = new Set(personaIds);
+      const batch = writeBatch(db);
+      let cambios = 0;
+      for (const p of fsPersonas) {
+        const estaba = p.grupos?.includes(grupoId) ?? false;
+        const deberia = deseados.has(p.id);
+        if (estaba === deberia) continue;
+        const grupos = deberia
+          ? [...(p.grupos ?? []), grupoId]
+          : (p.grupos ?? []).filter(g => g !== grupoId);
+        batch.update(doc(db, 'usuarios', uid, 'personas', p.id), { grupos });
+        cambios++;
+      }
+      if (cambios === 0) return;
+      await batch.commit();
+      showToast('Miembros actualizados', true);
+    } catch (e) { console.error(e); showToast('Error al actualizar los miembros'); }
   }
 
   async function connectGCal() {
@@ -3653,6 +3750,13 @@ export default function App() {
                 entradas={fsDiario}
                 onSave={saveEntradaDiario}
                 onDelete={deleteEntradaDiario}
+                personas={fsPersonas}
+                grupos={fsGrupos}
+                onSavePersona={savePersona}
+                onDeletePersona={deletePersona}
+                onSaveGrupo={saveGrupo}
+                onDeleteGrupo={deleteGrupo}
+                onSetMiembros={setMiembrosGrupo}
               />
             </motion.div>
           )}
