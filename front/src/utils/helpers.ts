@@ -305,3 +305,13 @@ export function saldoPendientes(
   }
   return out;
 }
+
+// ─── Billetera ────────────────────────────────────────────────────────────────
+
+/** 'YYYY-MM' → el mes anterior, cruzando bien el cambio de año. */
+export function mesAnterior(mes: string): string {
+  const [a, m] = mes.split('-').map(Number);
+  return m === 1
+    ? `${a - 1}-12`
+    : `${a}-${String(m - 1).padStart(2, '0')}`;
+}

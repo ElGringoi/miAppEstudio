@@ -70,7 +70,7 @@ export const MissionNodeComp = ({
 
           {/* Acciones (visible en hover o para root) */}
           {!isRoot && (
-            <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+            <div className="flex items-center gap-0.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity shrink-0">
               <button
                 onClick={e => { e.stopPropagation(); onEdit(node.id); }}
                 className={cn('p-1 rounded-lg transition-colors', isRoot || node.type === 'epic' ? 'hover:bg-white/20 text-white/70' : 'hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400')}

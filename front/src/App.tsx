@@ -45,7 +45,7 @@ import confetti from 'canvas-confetti';
 
 const DEFAULT_TASK_COLOR = '#3b82f6';
 import { HOY, getToday, FS_KEYS, STAT_META, DIAS_CORTO, DIAS_LETRA, ESTADO_LIBRO_META, MATERIAL_ICON, CATEGORIAS_GASTO, CATEGORIAS_INGRESO, CLASS_META, RANK_META, MONEDA_META, PRIORIDAD_META, APP_VERSION } from './utils/constants';
-import { xpLevel, statsFromDoc, buildTree, youtubeEmbedUrl, isHabitActiveToday, isHabitDoneToday, isDateInCurrentWeek, habitRecurrenceLabel, calcStreak, calcMainLevel, rankFromLevel, assignClass, calcXpPerDay, streakMultiplier, calcXpBySource } from './utils/helpers';
+import { xpLevel, statsFromDoc, buildTree, youtubeEmbedUrl, isHabitActiveToday, isHabitDoneToday, isDateInCurrentWeek, habitRecurrenceLabel, calcStreak, calcMainLevel, rankFromLevel, assignClass, calcXpPerDay, streakMultiplier, calcXpBySource, mesAnterior } from './utils/helpers';
 import { ProgressBar } from './components/ProgressBar';
 import { StatCard } from './components/StatCard';
 import { CapituloRow } from './components/CapituloRow';
@@ -157,6 +157,7 @@ export default function App() {
   const [showPresupModal,  setShowPresupModal]  = useState(false);
   const [editingPresupId,  setEditingPresupId]  = useState<string | null>(null);
   const [presupForm,       setPresupForm]       = useState({ categoria: '', monto: '', moneda: 'ARS' as Moneda });
+  const [copiandoPresup,   setCopiandoPresup]   = useState(false);
 
   // Metas de ahorro
   const [fsMetas,          setFsMetas]          = useState<FSMetaAhorro[]>([]);
@@ -399,6 +400,12 @@ export default function App() {
         return { ...p, gastado, pct, sobra };
       });
   }, [fsPresupuestos, fsTransacciones, txMesFilter]);
+
+  // Para ofrecer "copiar del mes anterior" cuando el mes actual arranca vacío.
+  const presupuestosMesPrevio = useMemo(
+    () => fsPresupuestos.filter(p => p.mes === mesAnterior(txMesFilter)),
+    [fsPresupuestos, txMesFilter]
+  );
 
   const evolucionData = useMemo(() => {
     const now = new Date();
@@ -1546,6 +1553,27 @@ export default function App() {
     catch (e) { console.error(e); showToast('Error al eliminar presupuesto'); }
   }
 
+  // Solo se ofrece cuando el mes actual está vacío, así que no puede duplicar
+  // categorías. El flag copiandoPresup evita que dos toques seguidos dupliquen.
+  async function copiarPresupuestosDelMesAnterior() {
+    if (!user?.uid || presupuestosMesPrevio.length === 0 || copiandoPresup) return;
+    setCopiandoPresup(true);
+    try {
+      const col = collection(db, 'usuarios', user.uid, 'presupuestos');
+      const batch = writeBatch(db);
+      for (const p of presupuestosMesPrevio) {
+        // doc(col) sin id devuelve una referencia nueva con id automático
+        batch.set(doc(col), { mes: txMesFilter, categoria: p.categoria, monto: p.monto, moneda: p.moneda });
+      }
+      await batch.commit();
+      showToast(`${presupuestosMesPrevio.length} presupuestos copiados`, true);
+    } catch (e) {
+      console.error(e); showToast('Error al copiar los presupuestos');
+    } finally {
+      setCopiandoPresup(false);
+    }
+  }
+
   async function saveMetaAhorro() {
     if (!user?.uid || !metaForm.nombre.trim() || !metaForm.montoObjetivo) return;
     try {
@@ -1989,7 +2017,7 @@ export default function App() {
                                     <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 truncate">{h.name}</p>
                                     <p className="text-[10px] text-slate-400 dark:text-slate-500">{h.attribute} · +{h.xpValue} XP</p>
                                   </div>
-                                  <span className="text-[10px] text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">→</span>
+                                  <span className="text-[10px] text-blue-400 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity shrink-0">→</span>
                                 </div>
                               ))}
                             </div>
@@ -2013,7 +2041,7 @@ export default function App() {
                                     <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 truncate">{t.title}</p>
                                     {t.time && <p className="text-[10px] text-slate-400 dark:text-slate-500">{t.time}</p>}
                                   </div>
-                                  <span className="text-[10px] text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">→</span>
+                                  <span className="text-[10px] text-blue-400 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity shrink-0">→</span>
                                 </div>
                               ))}
                             </div>
@@ -2421,7 +2449,7 @@ export default function App() {
                             </div>
                             <div className="flex items-center gap-2">
                               <button onClick={e => { e.stopPropagation(); deleteTask(task.id); }}
-                                className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-400 hover:text-red-600 transition-all">
+                                className="opacity-100 md:opacity-0 md:group-hover:opacity-100 p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-400 hover:text-red-600 transition-all">
                                 <Trash2 className="w-4 h-4" />
                               </button>
                               <div className={cn('w-8 h-8 rounded-xl border-2 flex items-center justify-center', task.completed ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-200 dark:border-slate-700')}>
@@ -2725,7 +2753,7 @@ export default function App() {
                               {h.completed && <CheckCircle2 className="w-5 h-5" />}
                             </div>
                             <button onClick={e => { e.stopPropagation(); deleteHabit(h.id); }}
-                              className="opacity-0 group-hover:opacity-100 p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-400 hover:text-red-600 transition-all">
+                              className="opacity-100 md:opacity-0 md:group-hover:opacity-100 p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-400 hover:text-red-600 transition-all">
                               <Trash2 className="w-4 h-4" />
                             </button>
                           </motion.div>
@@ -2894,7 +2922,7 @@ export default function App() {
                         )}
                         {/* delete */}
                         <button onClick={() => deleteHabit(h.id)}
-                          className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-400 transition-all">
+                          className="opacity-100 md:opacity-0 md:group-hover:opacity-100 p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-400 transition-all">
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
@@ -3043,7 +3071,7 @@ export default function App() {
                                   <div className="flex items-center gap-2 shrink-0">
                                     <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-blue-500 transition-colors" />
                                     <button onClick={e => { e.stopPropagation(); deleteMateria(m.id); }}
-                                      className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-400 transition-all">
+                                      className="opacity-100 md:opacity-0 md:group-hover:opacity-100 p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-400 transition-all">
                                       <Trash2 className="w-3.5 h-3.5" />
                                     </button>
                                   </div>
@@ -3100,7 +3128,7 @@ export default function App() {
                                           )}
                                         </div>
                                         <button onClick={() => deleteMaterial(mat.id, mat2.id)}
-                                          className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-400 transition-all shrink-0">
+                                          className="opacity-100 md:opacity-0 md:group-hover:opacity-100 p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-400 transition-all shrink-0">
                                           <Trash2 className="w-3.5 h-3.5" />
                                         </button>
                                       </div>
@@ -3128,7 +3156,7 @@ export default function App() {
                                           {t.fecha && <p className="text-[10px] text-slate-400">Entrega: {t.fecha}</p>}
                                         </div>
                                         <button onClick={() => deleteTareaFac(mat.id, t.id)}
-                                          className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-400 transition-all shrink-0">
+                                          className="opacity-100 md:opacity-0 md:group-hover:opacity-100 p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-400 transition-all shrink-0">
                                           <Trash2 className="w-3.5 h-3.5" />
                                         </button>
                                       </div>
@@ -3156,7 +3184,7 @@ export default function App() {
                                             : <span className="text-xs text-slate-400 italic">Sin nota</span>
                                           }
                                           <button onClick={() => deleteExamen(mat.id, ex.id)}
-                                            className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-400 transition-all shrink-0">
+                                            className="opacity-100 md:opacity-0 md:group-hover:opacity-100 p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-400 transition-all shrink-0">
                                             <Trash2 className="w-3.5 h-3.5" />
                                           </button>
                                         </div>
@@ -3271,11 +3299,11 @@ export default function App() {
                             </div>
                             <div className="flex items-center gap-1 shrink-0">
                               <button onClick={e => { e.stopPropagation(); openEditHabit(h.id); }}
-                                className="opacity-0 group-hover:opacity-100 p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 transition-all">
+                                className="opacity-100 md:opacity-0 md:group-hover:opacity-100 p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 transition-all">
                                 <Pencil className="w-4 h-4" />
                               </button>
                               <button onClick={e => { e.stopPropagation(); deleteHabit(h.id); }}
-                                className="opacity-0 group-hover:opacity-100 p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-400 transition-all">
+                                className="opacity-100 md:opacity-0 md:group-hover:opacity-100 p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-400 transition-all">
                                 <Trash2 className="w-4 h-4" />
                               </button>
                               <div className={cn('w-8 h-8 rounded-xl border-2 flex items-center justify-center', h.completed ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-200 dark:border-slate-700')}>
@@ -3577,7 +3605,15 @@ export default function App() {
                   </button>
                 </div>
                 {presupuestoProgress.length === 0
-                  ? <p className="text-sm text-slate-400 text-center py-2">Sin presupuestos para este mes. Hacé clic en "+ Agregar" para configurar límites por categoría.</p>
+                  ? <div className="text-center py-2 space-y-2.5">
+                      <p className="text-sm text-slate-400">Sin presupuestos para este mes. Tocá "+ Agregar" para configurar límites por categoría.</p>
+                      {presupuestosMesPrevio.length > 0 && (
+                        <button onClick={copiarPresupuestosDelMesAnterior} disabled={copiandoPresup}
+                          className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 transition-colors">
+                          {copiandoPresup ? 'Copiando...' : `📋 Copiar los ${presupuestosMesPrevio.length} del mes anterior`}
+                        </button>
+                      )}
+                    </div>
                   : <div className="space-y-3">
                       {presupuestoProgress.map(pp => {
                         const mon   = MONEDA_META[pp.moneda] ?? MONEDA_META['ARS'];
@@ -3591,7 +3627,7 @@ export default function App() {
                                 <span className={cn('text-[10px] font-black', textColor)}>
                                   {mon.symbol} {pp.gastado.toLocaleString('es-AR', { minimumFractionDigits: 0 })} / {mon.symbol} {pp.monto.toLocaleString('es-AR', { minimumFractionDigits: 0 })}
                                 </span>
-                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                                <div className="flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all">
                                   <button onClick={() => { setEditingPresupId(pp.id); setPresupForm({ categoria: pp.categoria, monto: String(pp.monto), moneda: pp.moneda }); setShowPresupModal(true); }}
                                     className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-blue-500 transition-all"><Pencil className="w-3 h-3" /></button>
                                   <button onClick={() => deletePresupuesto(pp.id)}
@@ -3650,7 +3686,7 @@ export default function App() {
                                     + Aportar
                                   </button>
                                 )}
-                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                                <div className="flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all">
                                   <button onClick={() => { setEditingMetaId(meta.id); setMetaForm({ nombre: meta.nombre, icono: meta.icono ?? '🎯', montoObjetivo: String(meta.montoObjetivo), moneda: meta.moneda, fechaLimite: meta.fechaLimite ?? '' }); setShowMetaModal(true); }}
                                     className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-blue-500 transition-all"><Pencil className="w-3 h-3" /></button>
                                   <button onClick={() => deleteMetaAhorro(meta.id)}
@@ -3705,7 +3741,7 @@ export default function App() {
                             <p className={cn('font-black text-sm shrink-0', t.tipo === 'ingreso' ? 'text-emerald-600' : 'text-red-500')}>
                               {t.tipo === 'ingreso' ? '+' : '-'}{mon.symbol} {t.monto.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
                             </p>
-                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                            <div className="flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all">
                               <button onClick={() => openEditTx(t)}
                                 className="p-1.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 text-slate-300 hover:text-blue-500 transition-all">
                                 <Pencil className="w-3.5 h-3.5" />
