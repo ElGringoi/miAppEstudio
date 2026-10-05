@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import type { FSEntradaDiario, FSPersona, FSGrupo } from '../types';
+import type { FSEntradaDiario, FSPersona, FSGrupo, FSInboxItem, InboxDestino } from '../types';
 import { cn } from '../lib/utils';
 import { CEREBRO_SECCIONES } from '../utils/constants';
 import { CerebroNotas } from './CerebroNotas';
 import { CerebroPersonas } from './CerebroPersonas';
 import { CerebroGrupos } from './CerebroGrupos';
 import { CerebroChat } from './CerebroChat';
+import { CerebroInbox } from './CerebroInbox';
 
 type Seccion = typeof CEREBRO_SECCIONES[number]['id'];
 
@@ -23,6 +24,10 @@ interface SegundoCerebroProps {
   onPatchPersona:  (id: string, campos: Pick<FSPersona, 'pendientes' | 'fechasClave'>) => Promise<void>;
   onPatchGrupo:    (id: string, campos: Pick<FSGrupo, 'pendientes' | 'fechasClave'>) => Promise<void>;
   onRenombrarTag:  (viejo: string, nuevo: string | null) => Promise<void>;
+  inbox:           FSInboxItem[];
+  onCapturarInbox: (texto: string) => Promise<void>;
+  onProcesarInbox: (item: FSInboxItem, destino: InboxDestino, opts: { titulo: string; texto: string; fecha?: string; targetId?: string }) => Promise<void>;
+  onBorrarInbox:   (id: string) => Promise<void>;
 }
 
 /**
@@ -35,6 +40,7 @@ interface SegundoCerebroProps {
  */
 export function SegundoCerebro(props: SegundoCerebroProps) {
   const [seccion, setSeccion] = useState<Seccion>('notas');
+  const inboxPendientes = props.inbox.filter(i => !i.procesado).length;
 
   // La franja va adentro del contenedor de cada sección: la altura de la caja
   // es fija (calc(100vh - 11rem)) y si la franja quedara afuera se pasaría del
@@ -50,7 +56,9 @@ export function SegundoCerebro(props: SegundoCerebroProps) {
               ? 'bg-blue-600 text-white'
               : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
           )}
-        >{s.icon} {s.label}</button>
+        >{s.icon} {s.label}{s.id === 'inbox' && inboxPendientes > 0 && (
+          <span className={cn('ml-1.5 px-1.5 rounded-full text-[10px]', seccion === s.id ? 'bg-white/25' : 'bg-blue-600 text-white')}>{inboxPendientes}</span>
+        )}</button>
       ))}
     </div>
   );
@@ -77,6 +85,18 @@ export function SegundoCerebro(props: SegundoCerebroProps) {
       onDelete={props.onDeleteGrupo}
       onSetMiembros={props.onSetMiembros}
       onPatch={props.onPatchGrupo}
+    />
+  );
+
+  if (seccion === 'inbox') return (
+    <CerebroInbox
+      header={header}
+      inbox={props.inbox}
+      personas={props.personas}
+      grupos={props.grupos}
+      onCapturar={props.onCapturarInbox}
+      onProcesar={props.onProcesarInbox}
+      onBorrar={props.onBorrarInbox}
     />
   );
 

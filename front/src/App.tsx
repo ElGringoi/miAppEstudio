@@ -32,7 +32,7 @@ import type {
   FSStatKey, FSStatsDoc, FSHabito, FSEvento, FSMision, FSTarea,
   GCalEvent, FSEjercicio, FSRutina, EstadoLibro, FSCapitulo, FSLibro,
   TipoMaterial, FSMaterial, FSTareaFac, FSExamen, FSMateria,
-  FSEntradaDiario, FSObjetivoCHA, FSPersona, FSGrupo, FSTransaccion, Habit, Task, HabitRecurrence, TabId, Moneda, LevelUpEvent, MisionPrioridad, SetLog,
+  FSEntradaDiario, FSObjetivoCHA, FSPersona, FSGrupo, FSInboxItem, InboxDestino, FSTransaccion, Habit, Task, HabitRecurrence, TabId, Moneda, LevelUpEvent, MisionPrioridad, SetLog,
   DiarioReaction, FSDiarioPrefs, FSSueldoMeta, FSPresupuesto, FSMetaAhorro,
 } from './types';
 import { SegundoCerebro } from './components/SegundoCerebro';
@@ -178,6 +178,7 @@ export default function App() {
   const [fsDiarioPrefs,     setFsDiarioPrefs]     = useState<FSDiarioPrefs>({ reactions: {}, tagScores: {} });
   const [fsPersonas,        setFsPersonas]        = useState<FSPersona[]>([]);
   const [fsGrupos,          setFsGrupos]          = useState<FSGrupo[]>([]);
+  const [fsInbox,           setFsInbox]           = useState<FSInboxItem[]>([]);
 
   // ── Nuevas mejoras ────────────────────────────────────────────────────────
   const [showNotifications, setShowNotifications] = useState(false);
@@ -295,7 +296,7 @@ export default function App() {
     setDataReady(false);
     const uid = user.uid;
     let loaded = 0;
-    const markLoaded = () => { if (++loaded === 17) setDataReady(true); };
+    const markLoaded = () => { if (++loaded === 18) setDataReady(true); };
     const unsubStats = onSnapshot(doc(db, 'usuarios', uid, 'stats', 'main'), snap => {
       setFsStats(snap.data() as FSStatsDoc ?? null);
       markLoaded();
@@ -319,7 +320,8 @@ export default function App() {
     const u15 = onSnapshot(collection(db, 'usuarios', uid, 'metas_ahorro'), s => { setFsMetas(s.docs.map(d => ({ id: d.id, ...d.data() } as FSMetaAhorro))); markLoaded(); });
     const u16 = onSnapshot(collection(db, 'usuarios', uid, 'personas'),     s => { setFsPersonas(s.docs.map(d => ({ id: d.id, ...d.data() } as FSPersona))); markLoaded(); });
     const u17 = onSnapshot(collection(db, 'usuarios', uid, 'grupos'),       s => { setFsGrupos(s.docs.map(d => ({ id: d.id, ...d.data() } as FSGrupo))); markLoaded(); });
-    return () => { unsubStats(); u2(); u3(); u4(); u5(); u6(); u7(); u8(); u9(); u10(); u11(); u12(); u13(); u14(); u15(); u16(); u17(); };
+    const u18 = onSnapshot(collection(db, 'usuarios', uid, 'inbox'),        s => { setFsInbox(s.docs.map(d => ({ id: d.id, ...d.data() } as FSInboxItem))); markLoaded(); });
+    return () => { unsubStats(); u2(); u3(); u4(); u5(); u6(); u7(); u8(); u9(); u10(); u11(); u12(); u13(); u14(); u15(); u16(); u17(); u18(); };
   }, [user?.uid]);
 
   // ── Derived ───────────────────────────────────────────────────────────────
@@ -1425,6 +1427,84 @@ export default function App() {
       }
       showToast(destino ? `#${viejo} → #${destino} en ${ops.length} lugar${ops.length > 1 ? 'es' : ''}` : `#${viejo} borrado de ${ops.length} lugar${ops.length > 1 ? 'es' : ''}`, true);
     } catch (e) { console.error(e); showToast('Error al actualizar el tag'); }
+  }
+
+  // ── Inbox ─────────────────────────────────────────────────────────────────
+
+  async function capturarInbox(texto: string) {
+    if (!user?.uid || !texto.trim()) return;
+    try {
+      await addDoc(collection(db, 'usuarios', user.uid, 'inbox'), {
+        texto: texto.trim(), origen: 'manual', recibidoEn: new Date().toISOString(), procesado: false,
+      });
+    } catch (e) { console.error(e); showToast('Error al guardar en el inbox'); }
+  }
+
+  async function borrarInbox(id: string) {
+    if (!user?.uid) return;
+    try { await deleteDoc(doc(db, 'usuarios', user.uid, 'inbox', id)); }
+    catch (e) { console.error(e); showToast('Error al borrar del inbox'); }
+  }
+
+  // Convierte un ítem del inbox en otra cosa y lo marca como procesado, todo
+  // en un mismo writeBatch: o se crea el destino y se procesa el ítem, o nada.
+  async function procesarInbox(
+    item: FSInboxItem, destino: InboxDestino,
+    opts: { titulo: string; texto: string; fecha?: string; targetId?: string },
+  ) {
+    if (!user?.uid) return;
+    const uid = user.uid;
+    const titulo = opts.titulo.trim();
+    // Lo que vino de afuera conserva de dónde salió.
+    const pie = [
+      item.remitente ? `— vía ${item.remitente}` : '',
+      item.url ? `[fuente](${item.url})` : '',
+    ].filter(Boolean).join(' · ');
+    const contenido = [opts.texto.trim(), pie].filter(Boolean).join('\n\n');
+    const batch = writeBatch(db);
+    const nuevaNota = () => {
+      const ref = doc(collection(db, 'usuarios', uid, 'diario'));
+      batch.set(ref, {
+        fecha: HOY, updatedAt: HOY, contenido: contenido || titulo,
+        tags: [], links: [],
+        ...(titulo ? { titulo } : {}),
+        ...(destino === 'idea' ? { area: 'projects' } : {}),
+      });
+      return ref.id;
+    };
+    try {
+      if (destino === 'nota' || destino === 'idea') {
+        nuevaNota();
+      } else if (destino === 'tarea') {
+        batch.set(doc(collection(db, 'usuarios', uid, 'tareas')), {
+          titulo: titulo || opts.texto.trim().slice(0, 80), recurrence: 'once',
+          date: opts.fecha || HOY, color: DEFAULT_TASK_COLOR, completedDates: [],
+        });
+      } else if (destino === 'mision') {
+        batch.set(doc(collection(db, 'usuarios', uid, 'misiones')), {
+          titulo: titulo || opts.texto.trim().slice(0, 80), completada: false, parentId: null,
+          orden: fsMisiones.filter(m => m.parentId === null).length,
+          ...(opts.texto.trim() ? { descripcion: opts.texto.trim() } : {}),
+        });
+      } else {
+        // Persona o grupo: se crea una nota y se la linkea, como cualquier nota relacionada.
+        const col = destino === 'persona' ? 'personas' : 'grupos';
+        const target = (destino === 'persona' ? fsPersonas : fsGrupos).find(x => x.id === opts.targetId);
+        if (!target) { showToast(destino === 'persona' ? 'Elegí una persona' : 'Elegí un grupo'); return; }
+        const notaId = nuevaNota();
+        batch.update(doc(db, 'usuarios', uid, col, target.id), {
+          links: [...(target.links ?? []), notaId], updatedAt: HOY,
+        });
+      }
+      batch.update(doc(db, 'usuarios', uid, 'inbox', item.id), {
+        procesado: true, procesadoComo: destino, procesadoEn: new Date().toISOString(),
+      });
+      await batch.commit();
+      const etiqueta: Record<InboxDestino, string> = {
+        nota: 'nota', idea: 'idea', tarea: 'tarea', mision: 'misión', persona: 'nota de la persona', grupo: 'nota del grupo',
+      };
+      showToast(`Guardado como ${etiqueta[destino]}`, true);
+    } catch (e) { console.error(e); showToast('Error al procesar el ítem'); }
   }
 
   async function saveGrupo(data: Omit<FSGrupo, 'id'>, id?: string) {
@@ -3850,6 +3930,10 @@ export default function App() {
                 onPatchPersona={(id, campos) => patchCerebro('personas', id, campos)}
                 onPatchGrupo={(id, campos) => patchCerebro('grupos', id, campos)}
                 onRenombrarTag={renombrarTag}
+                inbox={fsInbox}
+                onCapturarInbox={capturarInbox}
+                onProcesarInbox={procesarInbox}
+                onBorrarInbox={borrarInbox}
               />
             </motion.div>
           )}

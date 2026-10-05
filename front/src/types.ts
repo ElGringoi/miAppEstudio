@@ -103,6 +103,26 @@ export type FSGrupo = {
   createdAt?:       string;
   updatedAt?:       string;
 };
+// ─── Inbox del Segundo Cerebro ───────────────────────────────────────────────
+// Lo que entra sin clasificar: capturas rápidas propias, y lo que escribe el
+// agente externo (mensajes recientes, mails de Gmail). Contrato para el agente
+// en docs/INBOX_AGENTE.md — si cambia este tipo, actualizar ese archivo.
+
+export type InboxOrigen  = 'manual' | 'agente' | 'gmail';
+export type InboxDestino = 'nota' | 'idea' | 'tarea' | 'mision' | 'persona' | 'grupo';
+export type FSInboxItem = {
+  id:             string;
+  texto:          string;
+  titulo?:        string;
+  origen:         InboxOrigen;
+  remitente?:     string;
+  url?:           string;
+  recibidoEn:     string;        // ISO 8601 con hora
+  procesado?:     boolean;
+  procesadoComo?: InboxDestino;
+  procesadoEn?:   string;
+};
+
 export type FSObjetivoCHA   = { id: string; titulo: string; completado: boolean; orden: number };
 export type Moneda = 'ARS' | 'USD' | 'EUR' | 'BRL' | 'CLP' | 'UYU';
 export type FSTransaccion   = { id: string; descripcion: string; monto: number; tipo: 'ingreso' | 'gasto'; categoria: string; fecha: string; moneda?: Moneda };
