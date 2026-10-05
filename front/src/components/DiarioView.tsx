@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import type { Stat, Habit, FSRutina, FSMision, FSLibro, FSEntradaDiario } from '../types';
 import type { FSDiarioPrefs, DiarioReaction } from '../types';
 import { HOY } from '../utils/constants';
@@ -233,17 +233,7 @@ function ArticleCard({ art, reactions, onReact, dismiss, dismissedIds }: {
   const isDismissed = dismissedIds.has(art.id);
   const paragraphs  = art.contenido.split('\n\n');
 
-  if (isDismissed) return (
-    <div style={{
-      border: `1px solid ${BORDER}`, padding: '16px',
-      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      background: BG_ALT, gap: '12px',
-    }}>
-      <span style={{ fontFamily: SANS, fontSize: '12px', color: INK2 }}>
-        ✕ Descartado
-      </span>
-    </div>
-  );
+  if (isDismissed) return null;
 
   return (
     <article style={{ border: `1px solid ${BORDER}`, background: BG_ALT, padding: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -312,8 +302,11 @@ export function DiarioView({
   stats, habits: _habits, fsRutinas: _fsRutinas, fsMisiones,
   fsLibros, fsEntradas, userName, diarioPrefs, onReact,
 }: Props) {
-  const [articulos] = useState(() =>
-    scoreArticulos(ARTICULOS, diarioPrefs.tagScores, diarioPrefs.reactions)
+  // useMemo, no useState: con el initializer el orden se congelaba al montar y
+  // no se reacomodaba por más que reaccionaras hasta recargar la página.
+  const articulos = useMemo(
+    () => scoreArticulos(ARTICULOS, diarioPrefs.tagScores, diarioPrefs.reactions),
+    [diarioPrefs]
   );
 
   const [expandedId,  setExpandedId]  = useState<string | null>(null);
@@ -347,7 +340,7 @@ export function DiarioView({
   const saludo   = hora < 12 ? 'Buenos días' : hora < 20 ? 'Buenas tardes' : 'Buenas noches';
 
   const leadArt  = articulos[0];
-  const lecturas = articulos.slice(1, 9);
+  const lecturas = articulos.slice(1, 25);
 
   const sectionBorder: React.CSSProperties = { borderBottom: `1px solid ${BORDER}` };
 
@@ -682,20 +675,29 @@ export function DiarioView({
                 </button>
               ))}
             </div>
-            <div className="diario-articles-grid">
-              {deporteArticulos
+            {(() => {
+              const visibles = deporteArticulos
                 .filter(a => deporteSub === 'Todos' || a.subseccion === deporteSub)
-                .map(art => (
-                  <ArticleCard
-                    key={art.id}
-                    art={art}
-                    reactions={diarioPrefs.reactions}
-                    onReact={onReact}
-                    dismiss={dismiss}
-                    dismissedIds={dismissedIds}
-                  />
-                ))}
-            </div>
+                .filter(a => !dismissedIds.has(a.id));
+              return visibles.length === 0 ? (
+                <p style={{ fontFamily: SANS, fontSize: '13px', color: INK2, marginTop: '24px', textAlign: 'center' }}>
+                  Sin artículos disponibles{deporteSub !== 'Todos' ? ` en ${deporteSub.toUpperCase()}` : ''}.
+                </p>
+              ) : (
+                <div className="diario-articles-grid">
+                  {visibles.map(art => (
+                    <ArticleCard
+                      key={art.id}
+                      art={art}
+                      reactions={diarioPrefs.reactions}
+                      onReact={onReact}
+                      dismiss={dismiss}
+                      dismissedIds={dismissedIds}
+                    />
+                  ))}
+                </div>
+              );
+            })()}
           </section>
 
           {/* ══ § ENTRETENIMIENTO ══ */}
@@ -724,20 +726,29 @@ export function DiarioView({
                 </button>
               ))}
             </div>
-            <div className="diario-articles-grid">
-              {entArticulos
+            {(() => {
+              const visibles = entArticulos
                 .filter(a => entSub === 'Todos' || a.subseccion === entSub)
-                .map(art => (
-                  <ArticleCard
-                    key={art.id}
-                    art={art}
-                    reactions={diarioPrefs.reactions}
-                    onReact={onReact}
-                    dismiss={dismiss}
-                    dismissedIds={dismissedIds}
-                  />
-                ))}
-            </div>
+                .filter(a => !dismissedIds.has(a.id));
+              return visibles.length === 0 ? (
+                <p style={{ fontFamily: SANS, fontSize: '13px', color: INK2, marginTop: '24px', textAlign: 'center' }}>
+                  Sin artículos disponibles{entSub !== 'Todos' ? ` en ${entSub.charAt(0).toUpperCase() + entSub.slice(1)}` : ''}.
+                </p>
+              ) : (
+                <div className="diario-articles-grid">
+                  {visibles.map(art => (
+                    <ArticleCard
+                      key={art.id}
+                      art={art}
+                      reactions={diarioPrefs.reactions}
+                      onReact={onReact}
+                      dismiss={dismiss}
+                      dismissedIds={dismissedIds}
+                    />
+                  ))}
+                </div>
+              );
+            })()}
           </section>
 
           {/* ══ § 4  LECTURAS DEL DÍA ══ */}
