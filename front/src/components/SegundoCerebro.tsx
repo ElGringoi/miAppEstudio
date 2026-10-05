@@ -20,6 +20,9 @@ interface SegundoCerebroProps {
   onSaveGrupo:     (data: Omit<FSGrupo, 'id'>, id?: string) => Promise<void>;
   onDeleteGrupo:   (id: string) => Promise<void>;
   onSetMiembros:   (grupoId: string, personaIds: string[]) => Promise<void>;
+  onPatchPersona:  (id: string, campos: Pick<FSPersona, 'pendientes' | 'fechasClave'>) => Promise<void>;
+  onPatchGrupo:    (id: string, campos: Pick<FSGrupo, 'pendientes' | 'fechasClave'>) => Promise<void>;
+  onRenombrarTag:  (viejo: string, nuevo: string | null) => Promise<void>;
 }
 
 /**
@@ -60,6 +63,7 @@ export function SegundoCerebro(props: SegundoCerebroProps) {
       entradas={props.entradas}
       onSave={props.onSavePersona}
       onDelete={props.onDeletePersona}
+      onPatch={props.onPatchPersona}
     />
   );
 
@@ -72,6 +76,7 @@ export function SegundoCerebro(props: SegundoCerebroProps) {
       onSave={props.onSaveGrupo}
       onDelete={props.onDeleteGrupo}
       onSetMiembros={props.onSetMiembros}
+      onPatch={props.onPatchGrupo}
     />
   );
 
@@ -84,8 +89,10 @@ export function SegundoCerebro(props: SegundoCerebroProps) {
       header={header}
       entradas={props.entradas}
       personas={props.personas}
+      grupos={props.grupos}
       onSave={props.onSave}
       onDelete={props.onDelete}
+      onRenombrarTag={props.onRenombrarTag}
     />
   );
 }

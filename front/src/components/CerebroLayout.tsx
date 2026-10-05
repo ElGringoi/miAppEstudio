@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Search, ChevronLeft } from 'lucide-react';
+import { Search, ChevronLeft, Pencil, Trash2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 /**
@@ -114,6 +114,32 @@ export function NuevoButton({ onClick, label, icon }: {
         className="w-full flex items-center justify-center gap-2 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold transition-colors"
       >
         {icon} {label}
+      </button>
+    </div>
+  );
+}
+
+/**
+ * Editar y borrar en una fila de lista, sin abrir la ficha. La fila contenedora
+ * tiene que llevar `className="group"`. Mismo criterio de visibilidad que el
+ * resto de la app: siempre visibles en celular (no hay hover), al pasar el
+ * mouse o con foco de teclado en desktop.
+ */
+export function FilaAcciones({ onEdit, onDelete }: {
+  onEdit:   () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <div className="flex gap-0.5 shrink-0 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 transition-opacity">
+      <button onClick={e => { e.stopPropagation(); onEdit(); }} title="Editar"
+        className="p-1.5 rounded-md text-slate-400 hover:text-blue-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+      >
+        <Pencil className="w-3.5 h-3.5" />
+      </button>
+      <button onClick={e => { e.stopPropagation(); onDelete(); }} title="Borrar"
+        className="p-1.5 rounded-md text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+      >
+        <Trash2 className="w-3.5 h-3.5" />
       </button>
     </div>
   );

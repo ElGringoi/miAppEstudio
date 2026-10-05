@@ -4,7 +4,7 @@ import type { FSGrupo, FSPersona, FSEntradaDiario, FSPendiente, FSFechaClave } f
 import { cn } from '../lib/utils';
 import { Plus, Trash2, Pencil, Link2, Users } from 'lucide-react';
 import { renderMarkdown } from '../utils/markdown';
-import { CerebroLayout, CerebroSearch, PanelActions, CerebroVacio, NuevoButton } from './CerebroLayout';
+import { CerebroLayout, CerebroSearch, PanelActions, CerebroVacio, NuevoButton, FilaAcciones } from './CerebroLayout';
 import { PendientesEditor, PendientesList, FechasClaveEditor, FechasClaveList } from './CerebroPendientes';
 
 type FormState = {
@@ -25,9 +25,11 @@ interface Props {
   onSave:        (data: Omit<FSGrupo, 'id'>, id?: string) => Promise<void>;
   onDelete:      (id: string) => Promise<void>;
   onSetMiembros: (grupoId: string, personaIds: string[]) => Promise<void>;
+  /** Guarda solo los pendientes o las fechas, desde la ficha, sin pasar por el formulario. */
+  onPatch:       (id: string, campos: Pick<FSGrupo, 'pendientes' | 'fechasClave'>) => Promise<void>;
 }
 
-export function CerebroGrupos({ header, grupos, personas, entradas, onSave, onDelete, onSetMiembros }: Props) {
+export function CerebroGrupos({ header, grupos, personas, entradas, onSave, onDelete, onSetMiembros, onPatch }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isEditing,  setIsEditing]  = useState(false);
   const [showRight,  setShowRight]  = useState(false);
@@ -158,12 +160,13 @@ export function CerebroGrupos({ header, grupos, personas, entradas, onSave, onDe
           const n = contarMiembros(g.id);
           const debe = (g.pendientes ?? []).filter(x => !x.saldado).length;
           return (
-            <button key={g.id} onClick={() => openGrupo(g.id)}
+            <div key={g.id}
               className={cn(
-                'w-full text-left px-4 py-3 border-b border-slate-100 dark:border-slate-800 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50',
+                'group flex items-start gap-1 pr-2 border-b border-slate-100 dark:border-slate-800 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50',
                 selectedId === g.id && 'bg-blue-50 dark:bg-blue-900/20 border-l-[3px] border-l-blue-500'
               )}
             >
+            <button onClick={() => openGrupo(g.id)} className="flex-1 min-w-0 text-left pl-4 py-3">
               <div className="flex items-center gap-2">
                 <span className="text-lg shrink-0">{g.icono || '👥'}</span>
                 <span className="font-semibold text-sm text-slate-800 dark:text-slate-100 truncate flex-1">
@@ -181,6 +184,13 @@ export function CerebroGrupos({ header, grupos, personas, entradas, onSave, onDe
                 )}
               </div>
             </button>
+            <div className="pt-2.5">
+              <FilaAcciones
+                onEdit={() => { setSelectedId(g.id); setShowRight(true); openEditar(g); }}
+                onDelete={() => handleDelete(g.id)}
+              />
+            </div>
+            </div>
           );
         })}
       </div>
@@ -275,13 +285,15 @@ export function CerebroGrupos({ header, grupos, personas, entradas, onSave, onDe
 
             {(selected.pendientes ?? []).length > 0 && (
               <Bloque titulo="Pendientes del grupo">
-                <PendientesList pendientes={selected.pendientes ?? []} />
+                <PendientesList pendientes={selected.pendientes ?? []}
+                  onChange={next => onPatch(selected.id, { pendientes: next })} />
               </Bloque>
             )}
 
             {(selected.fechasClave ?? []).length > 0 && (
               <Bloque titulo="Fechas clave">
-                <FechasClaveList fechas={selected.fechasClave ?? []} />
+                <FechasClaveList fechas={selected.fechasClave ?? []}
+                  onChange={next => onPatch(selected.id, { fechasClave: next })} />
               </Bloque>
             )}
 
