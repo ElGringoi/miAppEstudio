@@ -590,22 +590,33 @@ export default function App() {
   async function saveMision() {
     if (!user?.uid || !misionForm.titulo.trim()) return;
     const realParent = misionForm.parentId === 'root' || !misionForm.parentId ? null : misionForm.parentId;
-    const data: Partial<FSMision> = {
-      titulo: misionForm.titulo.trim(),
-      descripcion: misionForm.descripcion.trim() || undefined,
-      parentId: realParent,
-      prioridad: misionForm.prioridad || undefined,
-      prerequisitos: misionForm.prerequisitos.length ? misionForm.prerequisitos : undefined,
-      costoMonto: misionForm.costoMonto ? parseFloat(misionForm.costoMonto) : undefined,
-      costoMoneda: misionForm.costoMonto ? misionForm.costoMoneda : undefined,
+    const base = { titulo: misionForm.titulo.trim(), parentId: realParent };
+    // Firestore rechaza la escritura entera si algún campo vale undefined, así que
+    // los opcionales vacíos van como null y se resuelven según el caso: al crear
+    // se omiten, al editar se borran con deleteField() (si se omitieran, updateDoc
+    // dejaría el valor viejo y no habría forma de vaciar un campo).
+    const costo = parseFloat(misionForm.costoMonto);
+    const tieneCosto = Number.isFinite(costo) && costo > 0;
+    const opcionales = {
+      descripcion:   misionForm.descripcion.trim() || null,
+      prioridad:     misionForm.prioridad || null,
+      prerequisitos: misionForm.prerequisitos.length ? misionForm.prerequisitos : null,
+      costoMonto:    tieneCosto ? costo : null,
+      costoMoneda:   tieneCosto ? misionForm.costoMoneda : null,
     };
     try {
       if (editingMisionId) {
-        await updateDoc(doc(db, 'usuarios', user.uid, 'misiones', editingMisionId), data);
+        const cambios = Object.fromEntries(
+          Object.entries(opcionales).map(([k, v]) => [k, v ?? deleteField()])
+        );
+        await updateDoc(doc(db, 'usuarios', user.uid, 'misiones', editingMisionId), { ...base, ...cambios });
         showToast('Misión actualizada', true);
       } else {
+        const presentes = Object.fromEntries(
+          Object.entries(opcionales).filter(([, v]) => v !== null)
+        );
         await addDoc(collection(db, 'usuarios', user.uid, 'misiones'), {
-          ...data, completada: false,
+          ...base, ...presentes, completada: false,
           orden: fsMisiones.filter(m => m.parentId === realParent).length,
         });
         showToast('Misión agregada', true);
