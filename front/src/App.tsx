@@ -1384,6 +1384,49 @@ export default function App() {
     } catch (e) { console.error(e); showToast('Error al eliminar la persona'); }
   }
 
+  // Edición rápida desde la ficha (tildar un pendiente, corregir una fecha):
+  // escribe solo esos arrays, completos, sin pasar por el formulario entero.
+  async function patchCerebro(
+    col: 'personas' | 'grupos', id: string,
+    campos: Pick<FSPersona, 'pendientes' | 'fechasClave'>,
+  ) {
+    if (!user?.uid) return;
+    try {
+      await updateDoc(doc(db, 'usuarios', user.uid, col, id), { ...campos, updatedAt: HOY });
+    } catch (e) { console.error(e); showToast('Error al guardar el cambio'); }
+  }
+
+  // Renombra un tag (o lo borra, con `nuevo` = null) en todas las notas,
+  // personas y grupos que lo tienen. Renombrar a un tag que ya existe los
+  // fusiona sin dejar duplicados. Solo escribe los documentos afectados.
+  async function renombrarTag(viejo: string, nuevo: string | null) {
+    if (!user?.uid) return;
+    const uid = user.uid;
+    const destino = nuevo?.trim() || null;
+    if (destino === viejo) return;
+    const remap = (tags: string[]) => {
+      const out = tags.flatMap(t => t === viejo ? (destino ? [destino] : []) : [t]);
+      return [...new Set(out)];
+    };
+    const ops: { col: string; id: string; tags: string[] }[] = [
+      ...fsDiario.filter(e => e.tags?.includes(viejo)).map(e => ({ col: 'diario', id: e.id, tags: remap(e.tags!) })),
+      ...fsPersonas.filter(p => p.tags?.includes(viejo)).map(p => ({ col: 'personas', id: p.id, tags: remap(p.tags!) })),
+      ...fsGrupos.filter(g => g.tags?.includes(viejo)).map(g => ({ col: 'grupos', id: g.id, tags: remap(g.tags!) })),
+    ];
+    if (ops.length === 0) return;
+    try {
+      // Un writeBatch admite hasta 500 operaciones: se parte de a 450.
+      for (let i = 0; i < ops.length; i += 450) {
+        const batch = writeBatch(db);
+        for (const o of ops.slice(i, i + 450)) {
+          batch.update(doc(db, 'usuarios', uid, o.col, o.id), { tags: o.tags });
+        }
+        await batch.commit();
+      }
+      showToast(destino ? `#${viejo} → #${destino} en ${ops.length} lugar${ops.length > 1 ? 'es' : ''}` : `#${viejo} borrado de ${ops.length} lugar${ops.length > 1 ? 'es' : ''}`, true);
+    } catch (e) { console.error(e); showToast('Error al actualizar el tag'); }
+  }
+
   async function saveGrupo(data: Omit<FSGrupo, 'id'>, id?: string) {
     if (!user?.uid) return;
     try {
@@ -3804,6 +3847,9 @@ export default function App() {
                 onSaveGrupo={saveGrupo}
                 onDeleteGrupo={deleteGrupo}
                 onSetMiembros={setMiembrosGrupo}
+                onPatchPersona={(id, campos) => patchCerebro('personas', id, campos)}
+                onPatchGrupo={(id, campos) => patchCerebro('grupos', id, campos)}
+                onRenombrarTag={renombrarTag}
               />
             </motion.div>
           )}

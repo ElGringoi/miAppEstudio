@@ -1,11 +1,12 @@
 import { useState, useMemo } from 'react';
-import type { FSEntradaDiario, EntradaArea, FSPersona } from '../types';
+import type { FSEntradaDiario, EntradaArea, FSPersona, FSGrupo } from '../types';
 import { cn } from '../lib/utils';
-import { Plus, Trash2, Pencil, Link2, X } from 'lucide-react';
+import { Plus, Trash2, Pencil, Link2, X, Settings2 } from 'lucide-react';
+import { GestorTags } from './GestorTags';
 import { AREA_META } from '../utils/constants';
 import { renderMarkdown } from '../utils/markdown';
 import { shortDate } from '../utils/helpers';
-import { CerebroLayout, CerebroSearch, PanelActions, CerebroVacio, NuevoButton } from './CerebroLayout';
+import { CerebroLayout, CerebroSearch, PanelActions, CerebroVacio, NuevoButton, FilaAcciones } from './CerebroLayout';
 
 const areaMeta  = (area?: EntradaArea) => AREA_META.find(a => a.id === area);
 const areaColor = (area?: EntradaArea) => areaMeta(area)?.color ?? 'bg-slate-400';
@@ -17,12 +18,15 @@ interface CerebroNotasProps {
   header:   React.ReactNode;
   entradas: FSEntradaDiario[];
   personas: FSPersona[];
+  grupos:   FSGrupo[];
   onSave:   (data: Omit<FSEntradaDiario, 'id'>, id?: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
+  onRenombrarTag: (viejo: string, nuevo: string | null) => Promise<void>;
 }
 
-export function CerebroNotas({ modo, header, entradas, personas, onSave, onDelete }: CerebroNotasProps) {
+export function CerebroNotas({ modo, header, entradas, personas, grupos, onSave, onDelete, onRenombrarTag }: CerebroNotasProps) {
   const esIdeas = modo === 'ideas';
+  const [gestorTags, setGestorTags] = useState(false);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isEditing,  setIsEditing]  = useState(false);
@@ -186,7 +190,12 @@ export function CerebroNotas({ modo, header, entradas, personas, onSave, onDelet
 
       {/* Tags */}
       {allTags.length > 0 && (
-        <div className="flex flex-wrap gap-1 px-3 py-2 border-b border-slate-100 dark:border-slate-800">
+        <div className="flex flex-wrap items-center gap-1 px-3 py-2 border-b border-slate-100 dark:border-slate-800">
+          <button onClick={() => setGestorTags(true)} title="Renombrar o borrar tags"
+            className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold text-slate-500 dark:text-slate-400 border border-dashed border-slate-300 dark:border-slate-600 hover:text-blue-600 hover:border-blue-400 transition-colors"
+          >
+            <Settings2 className="w-3 h-3" /> Editar tags
+          </button>
           {allTags.map(tag => (
             <button key={tag}
               onClick={() => setTagFilter(tagFilter === tag ? null : tag)}
@@ -212,7 +221,7 @@ export function CerebroNotas({ modo, header, entradas, personas, onSave, onDelet
         ) : filtered.map(note => (
           <div key={note.id}
             className={cn(
-              'border-b border-slate-100 dark:border-slate-800 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50',
+              'group border-b border-slate-100 dark:border-slate-800 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50',
               selectedId === note.id && 'bg-blue-50 dark:bg-blue-900/20 border-l-[3px] border-l-blue-500'
             )}
           >
@@ -225,7 +234,8 @@ export function CerebroNotas({ modo, header, entradas, personas, onSave, onDelet
               </div>
               <p className="text-xs text-slate-400 mt-0.5 truncate">{note.contenido.slice(0, 70)}</p>
             </button>
-            <div className="px-4 pb-3 pt-1">
+            <div className="flex items-center justify-between gap-2 pl-4 pr-2 pb-2 pt-1 min-h-[34px]">
+              <div>
               {note.area && !esIdeas && (
                 <button
                   onClick={() => setAreaFilter(note.area!)}
@@ -235,6 +245,11 @@ export function CerebroNotas({ modo, header, entradas, personas, onSave, onDelet
                   {areaIcon(note.area)} {areaLabel(note.area)}
                 </button>
               )}
+              </div>
+              <FilaAcciones
+                onEdit={() => { openNote(note.id); openEditNote(note); }}
+                onDelete={() => handleDelete(note.id)}
+              />
             </div>
           </div>
         ))}
@@ -447,5 +462,21 @@ export function CerebroNotas({ modo, header, entradas, personas, onSave, onDelet
     </>
   );
 
-  return <CerebroLayout header={header} showRight={showRight} left={left} right={right} />;
+  return (
+    <>
+      <CerebroLayout header={header} showRight={showRight} left={left} right={right} />
+      <GestorTags
+        open={gestorTags}
+        onClose={() => setGestorTags(false)}
+        entradas={entradas}
+        personas={personas}
+        grupos={grupos}
+        onRenombrar={async (viejo, nuevo) => {
+          await onRenombrarTag(viejo, nuevo);
+          // Si estaba filtrando por ese tag, el filtro sigue al nombre nuevo.
+          if (tagFilter === viejo) setTagFilter(nuevo);
+        }}
+      />
+    </>
+  );
 }

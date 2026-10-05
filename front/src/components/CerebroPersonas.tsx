@@ -6,7 +6,7 @@ import { Plus, Trash2, Pencil, Link2, Phone, Mail } from 'lucide-react';
 import { RELACION_META } from '../utils/constants';
 import { renderMarkdown } from '../utils/markdown';
 import { proximaOcurrencia } from '../utils/helpers';
-import { CerebroLayout, CerebroSearch, PanelActions, CerebroVacio, NuevoButton } from './CerebroLayout';
+import { CerebroLayout, CerebroSearch, PanelActions, CerebroVacio, NuevoButton, FilaAcciones } from './CerebroLayout';
 import { PendientesEditor, PendientesList, FechasClaveEditor, FechasClaveList } from './CerebroPendientes';
 
 const relMeta = (r?: string) => RELACION_META.find(x => x.id === r);
@@ -32,9 +32,11 @@ interface Props {
   entradas: FSEntradaDiario[];
   onSave:   (data: Omit<FSPersona, 'id'>, id?: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
+  /** Guarda solo los pendientes o las fechas, desde la ficha, sin pasar por el formulario. */
+  onPatch:  (id: string, campos: Pick<FSPersona, 'pendientes' | 'fechasClave'>) => Promise<void>;
 }
 
-export function CerebroPersonas({ header, personas, grupos, entradas, onSave, onDelete }: Props) {
+export function CerebroPersonas({ header, personas, grupos, entradas, onSave, onDelete, onPatch }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isEditing,  setIsEditing]  = useState(false);
   const [showRight,  setShowRight]  = useState(false);
@@ -197,12 +199,13 @@ export function CerebroPersonas({ header, personas, grupos, entradas, onSave, on
           const debe = (p.pendientes ?? []).filter(x => !x.saldado).length;
 
           return (
-            <button key={p.id} onClick={() => openPersona(p.id)}
+            <div key={p.id}
               className={cn(
-                'w-full text-left px-4 py-3 border-b border-slate-100 dark:border-slate-800 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50',
+                'group flex items-start gap-1 pr-2 border-b border-slate-100 dark:border-slate-800 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50',
                 selectedId === p.id && 'bg-blue-50 dark:bg-blue-900/20 border-l-[3px] border-l-blue-500'
               )}
             >
+            <button onClick={() => openPersona(p.id)} className="flex-1 min-w-0 text-left pl-4 py-3">
               <div className="flex items-center gap-2">
                 <span className="text-lg shrink-0">{p.avatar || '👤'}</span>
                 <span className="font-semibold text-sm text-slate-800 dark:text-slate-100 truncate flex-1">
@@ -227,6 +230,13 @@ export function CerebroPersonas({ header, personas, grupos, entradas, onSave, on
                 )}
               </div>
             </button>
+            <div className="pt-2.5">
+              <FilaAcciones
+                onEdit={() => { setSelectedId(p.id); setShowRight(true); openEditar(p); }}
+                onDelete={() => handleDelete(p.id)}
+              />
+            </div>
+            </div>
           );
         })}
       </div>
@@ -331,13 +341,15 @@ export function CerebroPersonas({ header, personas, grupos, entradas, onSave, on
 
             {(selected.pendientes ?? []).length > 0 && (
               <Bloque titulo="Pendientes">
-                <PendientesList pendientes={selected.pendientes ?? []} />
+                <PendientesList pendientes={selected.pendientes ?? []}
+                  onChange={next => onPatch(selected.id, { pendientes: next })} />
               </Bloque>
             )}
 
             {(selected.fechasClave ?? []).length > 0 && (
               <Bloque titulo="Fechas clave">
-                <FechasClaveList fechas={selected.fechasClave ?? []} />
+                <FechasClaveList fechas={selected.fechasClave ?? []}
+                  onChange={next => onPatch(selected.id, { fechasClave: next })} />
               </Bloque>
             )}
 
