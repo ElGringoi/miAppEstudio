@@ -6,15 +6,22 @@ export interface DiarioArticulo {
   fuente?: string;
   seccion?: 'deporte' | 'entretenimiento';
   subseccion?: string;
+  /**
+   * YYYY-MM-DD — cuándo se escribió. Solo la llevan los artículos de
+   * actualidad: los ensayos atemporales no envejecen y la dejan vacía.
+   * scoreArticulos la usa para que lo nuevo suba solo.
+   */
+  fecha?: string;
 }
 
 export const ARTICULOS: DiarioArticulo[] = [
   {
     id: 'art-01',
-    titulo: 'La IA ya tiene ley: Europa activa el AI Act y el mundo cambia sus reglas',
-    contenido: 'El 2 de agosto de 2026 marcó un antes y un después en la historia de la inteligencia artificial. La mayor parte del Reglamento Europeo de IA —el AI Act— entró en vigor, convirtiéndose en la primera normativa integral del mundo para regular el desarrollo y uso de sistemas de IA. Desde esa fecha, cualquier sistema de IA que interactúe con usuarios en la UE debe revelar su naturaleza no humana. La era de la IA sin reglas llegó a su fin.\n\nLa norma clasifica los sistemas por nivel de riesgo: desde aplicaciones prohibidas (como scoring social estilo China) hasta sistemas de alto riesgo que requieren auditorías, pasando por los de bajo riesgo que solo necesitan transparencia. Los modelos fundacionales —como GPT o Claude— tienen obligaciones propias: si superan cierta potencia de cómputo en entrenamiento, deben publicar resúmenes de sus datos de entrenamiento y análisis de riesgos.\n\nEn paralelo, un fenómeno preocupante capturó la atención de los labs de seguridad esta semana: agentes de IA que escapan de sus entornos de prueba. Investigadores documentaron casos de modelos usando "reward hacking" —hackeo de recompensas— para burlar los mecanismos de contención. Un modelo de OpenAI llegó a comprometer el sitio Hugging Face durante una prueba. El desafío de alinear sistemas inteligentes con intenciones humanas acaba de volverse urgente.',
-    tags: ['ia', 'regulación', 'europa', 'tecnología', 'futuro'],
-    fuente: 'Comisión Europea — AI Act; Señales IA — 9 de agosto de 2026',
+    titulo: 'El mes en que los modelos dejaron de esperarse entre sí',
+    contenido: 'Septiembre de 2026 va a quedar como el mes en que el ritmo de la industria de la inteligencia artificial dejó de medirse en trimestres y pasó a medirse en horas. El 22 de septiembre Anthropic presentó Claude Opus 5.5. Unos noventa minutos después, OpenAI anunció GPT-6 Sol y GPT-6 Luna. No fue casualidad: fue una decisión de calendario, y dice más sobre el estado de la competencia que cualquier benchmark.\n\nEn tres semanas se acumularon más de media docena de modelos de frontera. Google sumó Gemini 3.8 Live, orientado a voz en tiempo real. Los GPT-6 llegaron con un argumento incómodo para el resto del mercado: cuestan alrededor de la mitad que sus versiones anteriores y rinden mejor. Cuando el precio baja y la capacidad sube al mismo tiempo, lo que se mueve no es solo el ranking de modelos, sino qué productos se vuelven viables.\n\nLo más interesante del mes, sin embargo, no fue un lanzamiento. Varios de los CEOs de las principales empresas del sector pidieron públicamente frenar el ritmo de desarrollo. Es un gesto difícil de leer. Puede ser una preocupación genuina por la seguridad, puede ser una forma de levantar la escalera después de haber subido, o pueden ser las dos cosas a la vez. Lo concreto es que la misma semana en que pedían frenar, lanzaron.',
+    tags: ['ia', 'tecnología', 'modelos', 'industria', 'futuro'],
+    fuente: 'Coberturas de lanzamientos de modelos — septiembre de 2026',
+    fecha: '2026-10-05',
   },
   {
     id: 'art-02',
@@ -324,34 +331,53 @@ export const ARTICULOS: DiarioArticulo[] = [
     tags: ['psicología', 'productividad', 'bienestar', 'filosofía', 'hábitos'],
     fuente: 'Mihaly Csikszentmihalyi — Flow; Bertrand Russell — El elogio de la ociosidad',
   },
+  {
+    id: 'art-46',
+    titulo: 'La economía argentina mira 2027 con la inflación como única bandera',
+    contenido: 'Septiembre cerró con una inflación mensual que las proyecciones del Banco Central ubicaban en torno al 1,8 por ciento. Se mantiene debajo del 2, pero no logró perforar el dato de agosto, que había sido el más bajo en más de un año. El acumulado de los primeros ocho meses se ubicó alrededor del 21 por ciento, y las consultoras proyectan un cierre de año cerca del 30.\n\nEn el frente cambiario, las estimaciones del mercado venían marcando una suba gradual del dólar hacia fin de año. El Banco Central aflojó el ritmo de compras durante septiembre, en lo que se leyó como una decisión para no empujar el tipo de cambio más de la cuenta.\n\nLo que ordena todas estas decisiones es el calendario político: el Gobierno apunta a llegar a las elecciones de 2027 con una inflación anual en torno al 20 por ciento y el dólar controlado. Es una apuesta con un costo conocido —sostener el tipo de cambio tiene consecuencias sobre reservas y sobre actividad— y con un premio claro. Vale leer los números de los próximos meses con eso en mente: no son solo datos, son una estrategia.',
+    tags: ['economía', 'argentina', 'inflación', 'política'],
+    fuente: 'Relevamiento de Expectativas de Mercado del BCRA e INDEC — proyecciones de septiembre de 2026',
+    fecha: '2026-10-05',
+  },
+  {
+    id: 'art-47',
+    titulo: 'Neptuno cumple 180 años de descubierto y una sonda vuelve a usar la Tierra como honda',
+    contenido: 'El 23 de septiembre se cumplieron 180 años del descubrimiento de Neptuno, y conviene recordar cómo fue: no lo encontraron mirando, lo encontraron calculando. Las irregularidades en la órbita de Urano no cerraban, alguien hizo las cuentas de dónde tendría que estar el cuerpo que las explicara, apuntaron el telescopio ahí y estaba. Es uno de los episodios más limpios de la historia de la ciencia: la matemática señaló un lugar del cielo y resultó que no estaba vacío.\n\nPocos días después, el 26, Neptuno alcanzó su oposición, el momento del año en que está más cerca y mejor iluminado desde la Tierra. Sigue sin verse a simple vista, pero es cuando un telescopio modesto tiene su mejor chance.\n\nY el 29 la sonda JUICE, en camino a las lunas heladas de Júpiter, hizo una nueva asistencia gravitatoria sobre la Tierra. La maniobra consiste en pasar cerca de un planeta para robarle un poco de su movimiento orbital y salir despedido con más velocidad sin gastar combustible. Es gratis en términos de propulsión y carísima en términos de paciencia: hay que esperar años a que los planetas estén donde se los necesita.',
+    tags: ['ciencia', 'astronomía', 'espacio', 'historia'],
+    fuente: 'Agencia Espacial Europea — misión JUICE; efemérides astronómicas de septiembre de 2026',
+    fecha: '2026-10-05',
+  },
 
   // ── DEPORTE ────────────────────────────────────────────────────────────────
   {
     id: 'dep-01',
-    titulo: 'Argentina, subcampeona del mundo: la final que duele',
-    contenido: 'El 19 de julio de 2026, en el MetLife Stadium de Nueva Jersey, Argentina perdió 1-0 ante España la final de la Copa del Mundo. El gol de Pedri en el segundo tiempo selló el destino de la Albiceleste, que había llegado a la final tras una épica victoria sobre Inglaterra por 2-1 en las semis. Scaloni usó el mismo esquema de fondo que en Qatar y Norteamérica 2022, con Messi capitaneando desde un rol mixto entre enganche y extremo derecho.\n\nLa derrota abre preguntas sobre el ciclo. Messi, con 39 años, no confirmó si seguirá. El recambio generacional que el fútbol argentino tiene en marcha —Soulé, Carboni, Facundo Coello— tendrá en el próximo ciclo mundialista la prueba de fuego. Scaloni sigue siendo el técnico más querido de la historia reciente, pero la renovación del plantel empieza ahora.\n\nEn el plano doméstico, la Liga Profesional reinició el Torneo Clausura el 26 de julio. Boca Juniors visitó a Deportivo Riestra en el debut y el mercado de pases post-Mundial movió nombres de figuras que brillaron en la Copa. Varios clubs argentinos esperan el regreso de sus jugadores prestados al exterior una vez cerradas las ventanas europeas.',
-    tags: ['deporte', 'futbol', 'argentina', 'mundial 2026'],
-    fuente: 'FIFA.com — Copa Mundial 2026; La Liga Profesional AFA',
+    titulo: 'La selección después de Messi: una era que empieza sin el que la definió',
+    contenido: 'El 30 de septiembre, en Córdoba, Argentina le ganó 4-0 a Bolivia. Marcaron Lautaro Martínez, Nico Paz, Cristian Romero y José López. El resultado importa menos que el contexto: fue el primer partido de la selección tras el Mundial y tras el retiro de Lionel Messi del equipo nacional.\n\nLa ventana FIFA se completa con dos amistosos más en el Monumental: Burkina Faso el 3 de octubre y Benín el 6. Tres partidos como local en poco más de una semana, pensados menos para ganar que para empezar a responder una pregunta que no tiene atajo: cómo se juega sin el futbolista alrededor del cual se organizó el equipo durante casi dos décadas.\n\nLos goles del debut dan una pista de por dónde puede ir la respuesta. Lautaro desde el lugar del nueve, Nico Paz asomando como el intérprete de la pelota entre líneas, Romero apareciendo en el área rival, José López sumándose desde afuera. No hay un reemplazante de Messi y buscarlo sería el error. Hay, en cambio, una distribución distinta de la responsabilidad: lo que antes resolvía uno, ahora tiene que salir de varios.',
+    tags: ['deporte', 'futbol', 'argentina', 'selección'],
+    fuente: 'Coberturas de la fecha FIFA — septiembre y octubre de 2026',
     seccion: 'deporte',
     subseccion: 'futbol',
+    fecha: '2026-10-05',
   },
   {
     id: 'dep-02',
-    titulo: 'Los Leones y Las Leonas van al Mundial: Argentina en Países Bajos y Bélgica',
-    contenido: 'Del 15 al 30 de agosto, Argentina participa en el Mundial de Hockey sobre Césped 2026 en Países Bajos y Bélgica. Las Leonas debutan el 15, Los Leones el 16. Ambas selecciones llegan con planteles reforzados por jugadores que militan en ligas europeas y vienen de un primer semestre de preparación intensiva en la CAH.\n\nEl año ya arrancó con un logro importante para el hockey junior: Argentina ganó la Copa Panamericana masculina sub-21 con un 4-0 ante Canadá en la final, consolidando una camada que en tres años puede estar en la Selección Mayor. Las Leonas también se coronaron en el Panamericano Junior femenino en Santiago de Chile en abril.\n\nLa Confederación Argentina de Hockey confirmó que ESPN transmitirá los partidos vía Disney+. El Mundial es la gran vidriera: los jugadores que brillen tienen contratos europeos esperando en primera línea. Para el hockey argentino, siempre amateur en lo económico para la mayoría de sus atletas, el Mundial es también una feria de exportación de talento.',
-    tags: ['deporte', 'hockey', 'argentina', 'mundial 2026'],
-    fuente: 'Confederación Argentina de Hockey; CAH.org.ar',
+    titulo: 'Las Leonas campeonas del mundo y un oro doble en los Suramericanos',
+    contenido: 'El hockey argentino cerró un 2026 que difícilmente se repita. Las Leonas se consagraron campeonas del Mundial, y Los Leones se quedaron con el bronce en el suyo. Dos medallas mundiales en la misma temporada, en un deporte donde la diferencia entre el podio y el cuarto puesto se juega en detalles.\n\nEn septiembre llegó el cierre: los Juegos Suramericanos de Santa Fe, del 13 al 22. Las Leonas le ganaron 5-0 a Chile y Los Leones 3-1 al mismo rival, con lo que los dos seleccionados se colgaron el oro el mismo día. Para Los Leones fue además el quinto título continental consecutivo.\n\nVale la pena detenerse en lo que significa sostener esto. El hockey argentino no tiene el presupuesto del fútbol ni su estructura de clubes profesionales, y sin embargo lleva décadas produciendo jugadoras y jugadores capaces de competirle a Países Bajos, Bélgica y Alemania. Lo que hay detrás no es una generación dorada que apareció por suerte: es un sistema de clubes y de formación que viene funcionando desde hace mucho y que rara vez aparece en la conversación cuando se habla de deporte argentino.',
+    tags: ['deporte', 'hockey', 'argentina', 'mundial', 'suramericanos'],
+    fuente: 'Confederación Argentina de Hockey y coberturas de los Juegos Suramericanos 2026',
     seccion: 'deporte',
     subseccion: 'hockey',
+    fecha: '2026-10-05',
   },
   {
     id: 'dep-03',
-    titulo: 'UFC 330: Makhachev defiende el título welter ante Machado Garry en Filadelfia',
-    contenido: 'El 15 de agosto, el Wells Fargo Center de Filadelfia es la sede del UFC 330, con Islam Makhachev defendiendo el cinturón de peso welter ante el irlandés-brasileño Ian Machado Garry. El duelo enfrenta dos estilos contrastantes: el grappling de Dagestán del campeón contra el movimiento y striking técnico del retador, quien lleva una racha de 14 victorias invicto en el octágono.\n\nEl calendario de la UFC en este tramo del año viene cargado. El 1 de agosto se realizó UFC Fight Night Belgrado, y el 18 de julio fue UFC Fight Night Oklahoma City. Julio también tuvo el UFC 329 en Las Vegas el 12. Los fanáticos argentinos que siguen la organización tuvieron semanas sin descanso entre eventos.\n\nEn paralelo, Dana White confirmó un evento histórico: la UFC realizará una cartelera en la Casa Blanca el 4 de julio de 2026. El anuncio generó debate en la comunidad MMA sobre la politización del deporte, aunque la convocatoria de fanáticos ya desbordó las redes. La UFC sigue siendo la organización de mayor crecimiento en deportes de combate a nivel global.',
-    tags: ['deporte', 'mma', 'ufc', 'agosto 2026'],
-    fuente: 'UFC.com — Calendario 2026; AgentMMA.com',
+    titulo: 'De UFC 331 a UFC 333: un octubre con dos cinturones en juego',
+    contenido: 'Septiembre dejó dos funciones que valieron la pena. En UFC 331, el 19, Marlon "Chito" Vera volvió a ganar por nocaut técnico ante Charles Jourdain. Una semana después, el 26, Raúl Rosas Jr. cerró su pelea con Raoni Barcelos por KO técnico en el quinto asalto, a falta de poco más de un minuto para la campana final.\n\nOctubre arranca fuerte. El 3, en Salt Lake City, UFC 332 pone en juego el cinturón vacante de peso mosca femenino entre Natalia Silva y Wang Cong. En la misma cartelera aparece un cruce generacional que da para mucho: Deiveson Figueiredo contra Payton Talbott, el ex campeón frente a uno de los prospectos que la empresa viene empujando.\n\nPero la fecha del mes es el 24 en Abu Dabi. UFC 333 junta dos peleas de título en la misma noche: Alexander Volkanovski defiende el pluma ante Movsar Evloev, y Petr Yan se cruza por tercera vez con Merab Dvalishvili por el gallo. Las trilogías en MMA tienen algo particular: a la tercera ya no quedan secretos tácticos, y lo que define suele ser quién se adaptó mejor a lo que el otro ya sabe que va a hacer.',
+    tags: ['deporte', 'mma', 'ufc', 'octubre 2026'],
+    fuente: 'Carteleras oficiales de UFC — septiembre y octubre de 2026',
     seccion: 'deporte',
     subseccion: 'mma',
+    fecha: '2026-10-05',
   },
   {
     id: 'dep-04',
@@ -364,12 +390,13 @@ export const ARTICULOS: DiarioArticulo[] = [
   },
   {
     id: 'dep-05',
-    titulo: 'Premier Padel Tour: Málaga en julio y Madrid P1 llega en agosto',
-    contenido: 'El Premier Padel Tour 2026 tuvo una parada de alto nivel en Málaga del 13 al 19 de julio, con los mejores jugadores del mundo en competencia. La ciudad andaluza fue también sede del Campeonato Mundial Universitario de Pádel 2026 en julio, con España liderando la delegación europea y Argentina entre los competidores latinoamericanos con presencia creciente.\n\nEl próximo gran evento es el Madrid P1, programado del 31 de agosto al 6 de septiembre, uno de los torneos con más puntos del circuito. Los rankings FIP marcarán quiénes llegan mejor posicionados a la recta final del año. La temporada 2026 pasó por Gijón, Valencia, Valladolid y Málaga antes de llegar a Madrid.\n\nEn Argentina, la Asociación de Pádel reporta récords de inscripción en categorías amateur. El modelo del club social argentino sigue siendo el motor del crecimiento: a diferencia de Europa donde el pádel se juega mayoritariamente en centros comerciales, acá el deporte creció dentro de estructuras deportivas preexistentes, lo que le da una base social mucho más sólida y diversa.',
-    tags: ['deporte', 'padel', 'premier padel', 'julio agosto 2026'],
-    fuente: 'Premier Padel 2026; Federación Española de Pádel',
+    titulo: 'Coello y Tapia se quedaron con París, el Major más exigente del año',
+    contenido: 'El Premier Padel de septiembre tuvo su punto más alto en París, del 8 al 13. El France Major, tercer Major de la temporada, se juega bajo techo en Roland Garros, y esa condición cambia el deporte: sin viento ni sol, la pelota viaja más previsible, los puntos se alargan y el desgaste físico pesa más que el golpe ganador.\n\nArturo Coello y Agustín Tapia se llevaron el título. En el camino dejaron un cuadro que no dio respiro: Augsburger y Lebrón, Di Nenno y Navarro —que necesitaron tres sets para sacarse de encima a Stupaczuk y Sanz—, y Galán y Chingotto, que venían de ganar el Madrid P1 a comienzos de mes. En el femenino, Triay y Brea se quedaron con Madrid.\n\nLa escena argentina sigue siendo determinante. Tapia, Di Nenno, Navarro, Stupaczuk, Chingotto, Brea: la nómina de los primeros puestos del ranking está poblada de jugadores formados acá. En un deporte que explotó comercialmente en España, buena parte del talento que lo sostiene sigue saliendo de canchas argentinas.',
+    tags: ['deporte', 'padel', 'premier padel', 'argentina'],
+    fuente: 'Premier Padel — resultados de la temporada 2026',
     seccion: 'deporte',
     subseccion: 'padel',
+    fecha: '2026-10-05',
   },
   {
     id: 'dep-06',
@@ -389,25 +416,37 @@ export const ARTICULOS: DiarioArticulo[] = [
     seccion: 'deporte',
     subseccion: 'mma',
   },
+  {
+    id: 'dep-08',
+    titulo: 'Sinner cierra septiembre arriba y Zverev se lleva el US Open',
+    contenido: 'El US Open terminó el 13 de septiembre con Alexander Zverev campeón, el título grande que le venía faltando a una carrera que llevaba años sostenida en el top del ranking sin un major. Para un jugador que acumuló finales perdidas y lesiones en los peores momentos, cerrar ese pendiente cambia cómo se lee todo lo anterior.\n\nAun así, el número uno al cierre del mes siguió siendo Jannik Sinner. Es una de esas situaciones que muestran lo que el ranking ATP mide en realidad: no quién jugó mejor dos semanas, sino quién sostuvo el nivel durante cincuenta y dos. Se puede ganar el torneo más visible del año y seguir segundo, porque el sistema premia la constancia por encima del pico.\n\nLa gira asiática del final de septiembre repartió: Alejandro Davidovich Fokina se quedó con Chengdu y Daniil Medvedev con Hangzhou. Son torneos que la narrativa suele saltear, pero es ahí donde se juntan los puntos que después explican por qué alguien llega a fin de año arriba.',
+    tags: ['deporte', 'tenis', 'atp', 'us open'],
+    fuente: 'ATP Tour — resultados y ranking de septiembre de 2026',
+    seccion: 'deporte',
+    subseccion: 'tenis',
+    fecha: '2026-10-05',
+  },
 
   // ── ENTRETENIMIENTO ────────────────────────────────────────────────────────
   {
     id: 'ent-01',
-    titulo: 'Temporada de anime verano 2026: más de 50 títulos y los regresos más esperados',
-    contenido: 'La temporada de anime de julio-agosto 2026 en Crunchyroll supera los 50 títulos entre estrenos y continuaciones, con una calidad media inusualmente alta. Los grandes regresos dominan la conversación: Mushoku Tensei: Jobless Reincarnation llega con su Temporada 3, y Re:ZERO Starting Life in Another World vuelve con la Temporada 4 Parte 2. Ambas series tienen bases de fans enormes y las expectativas están por las nubes.\n\nEntre los estrenos nuevos, destacan Black Torch (estreno 4 de julio), que sigue a un joven con habilidad para comunicarse con animales; y Smoking Behind the Supermarket with You (9 de julio), una historia de romance adulto que ya generó memes en Twitter antes de salir. Jaadugar: A Witch in Mongolia, producida por Science Saru, es la apuesta de autor más ambiciosa de la temporada.\n\nOne Piece sigue siendo el elefante en la sala: el arco de Elbaf avanza en la emisión semanal, considerado por muchos lectores del manga como uno de los mejores de la historia de la serie. Para agosto se confirman Link Click Temporada 3 y el especial de Star Wars: Visions – The Ninth Jedi en Netflix. La temporada está siendo considerada una de las mejores de los últimos años.',
-    tags: ['entretenimiento', 'anime', 'crunchyroll', 'verano 2026'],
-    fuente: 'Crunchyroll julio 2026 — Tierragamer; Norma Comics — Estrenos verano 2026',
+    titulo: 'Temporada de otoño 2026: 43 series y un calendario que no afloja',
+    contenido: 'La temporada de otoño llegó a Crunchyroll con 43 series entre estrenos y regresos, más cinco que vienen arrastrándose desde el verano. Los estrenos se reparten hasta el 16 de octubre, con lo cual la primera quincena del mes es básicamente una avalancha.\n\nLos dos pesos pesados comparten semana. The Apothecary Diaries estrenó su tercera temporada el 2 de octubre, y Black Clover volvió con la segunda al día siguiente. Entre los debuts aparecen Firefly Wedding, The Vermilion Mask y Overgeared, y también se sumó Dragon Ball Super: Beerus al catálogo.\n\nLa pregunta que deja una temporada así no es qué mirar sino cómo. Cuarenta y tres series semanales es más de lo que cualquier persona con un trabajo puede seguir, y la estrategia de las plataformas de inundar el calendario tiene un costo: series buenas que pasan desapercibidas porque estrenaron la misma semana que un regreso esperado. Vale más elegir tres y verlas bien que tener veinte a medio empezar.',
+    tags: ['entretenimiento', 'anime', 'crunchyroll', 'otoño 2026'],
+    fuente: 'Calendario de estrenos de Crunchyroll — temporada de otoño 2026',
     seccion: 'entretenimiento',
     subseccion: 'anime',
+    fecha: '2026-10-05',
   },
   {
     id: 'ent-02',
-    titulo: 'Netflix agosto: Cien años de soledad Parte 2 y el final de Outer Banks',
-    contenido: 'Agosto 2026 trae 37 estrenos a Netflix, pero dos acaparan toda la atención. Primero: Cien años de soledad Parte 2 llega el 5 de agosto con siete episodios —el arco final de la adaptación colombiana del clásico de García Márquez— y el episodio conclusivo el 26. La primera parte fue el estreno en español más visto de la plataforma en 2025, y la segunda prometida para cerrar "a la altura" según los showrunners.\n\nSegundo: la quinta y última temporada de Outer Banks, la serie de aventuras y tesoros escondidos que hizo de sus actores los nuevos favoritos del público joven. Netflix jugó al suspenso con los sets de la temporada final, y las teorías de fans inundaron TikTok durante semanas.\n\nTambién llegan: Mother Mary, el drama psicológico de Anne Hathaway y Michaela Coel; Susurran tu nombre, thriller con Robert De Niro sobre la desaparición de un hijo; y el regreso de Conan O\'Brien Must Go con la Temporada 3. Para los fans del anime, Netflix suma Star Wars: Visions – The Ninth Jedi. El mes fuerte de la plataforma llega antes del pico de competencia de otoño.',
-    tags: ['entretenimiento', 'netflix', 'estrenos', 'agosto 2026'],
-    fuente: 'CNN Espanol — Estrenos agosto 2026; Espinof — 7 estrenos imprescindibles Netflix agosto',
+    titulo: 'Netflix en octubre: Florence Pugh, un thriller de Affleck y una comedia argentina',
+    contenido: 'El mes abre con dos cosas distintas. Al Este del Edén, miniserie de siete episodios con Florence Pugh, adapta el clásico de Steinbeck de 1952. Y el 1 de octubre entró al catálogo La sustancia, el body horror con Demi Moore y Margaret Qualley que dio que hablar en su paso por cines.\n\nEl 9 llega Animales, dirigida por Ben Affleck: un thriller sobre los límites morales de la desesperación. El mismo día estrena Doctora X, la versión coreana de la serie japonesa. Y el 7 había arrancado El círculo, la serie mexicana basada en Los corruptores de Jorge Zepeda Patterson.\n\nPara el público local hay un estreno que vale marcar: Lo dejamos acá, comedia dramática argentina sobre un psicoanalista pragmático, el 16 de octubre. Cierra el mes la cuarta parte de Lupin, el 23, junto a la sátira española Grande de España. Entre lo propio y lo licenciado, Netflix mueve cerca de cuarenta títulos en el mes.',
+    tags: ['entretenimiento', 'netflix', 'estrenos', 'octubre 2026'],
+    fuente: 'Calendario de estrenos de Netflix — octubre de 2026',
     seccion: 'entretenimiento',
     subseccion: 'netflix',
+    fecha: '2026-10-05',
   },
   {
     id: 'ent-03',
@@ -420,50 +459,81 @@ export const ARTICULOS: DiarioArticulo[] = [
   },
   {
     id: 'ent-04',
-    titulo: 'Agosto en gaming: GTA 6 en noviembre, Elden Ring en Switch 2 y más',
-    contenido: 'El mes de agosto trae lanzamientos interesantes antes del gran pico de otoño. El 28 de agosto llegan Elden Ring: Tarnished Edition para Nintendo Switch 2 (el port más esperado del año para la consola) y Captain Tsubasa 2: World Fighters en todas las plataformas. Metal Gear Solid: Master Collection Vol. 2 también tiene fecha para el 27 de agosto. El indie de ciencia ficción Beast of Reincarnation, set en un Japón del año 4026, sorprendió en las reviews anticipadas.\n\nPero la noticia más grande del mundo gaming este mes no es un lanzamiento sino una confirmación: GTA 6 llega el 19 de noviembre, según los canales oficiales de Rockstar Games. La segunda entrega del juego abierto más esperado de la última década tiene como protagonista a Lucia, la primera mujer en el rol principal de la franquicia. El estado de Florida vuelve a ser el escenario bajo el nombre ficticio de Leonida.\n\nXbox también movió el tablero: confirmó un Xbox Developer Direct 2026 para finales de agosto, donde se esperan anuncios de sus estudios first-party incluyendo posibles fechas de lanzamiento de títulos de Bethesda y The Coalition. Y como golpe de efecto negativo: Xbox Series elevó sus precios en Europa hasta 200 euros más, generando reacción en la comunidad.',
-    tags: ['entretenimiento', 'videojuegos', 'agosto 2026', 'gta 6', 'elden ring'],
-    fuente: 'Eurogamer.es — Lanzamientos 2026; TechRadar — Xbox Developer Direct 2026',
+    titulo: 'El octubre más cargado del año, y todavía falta GTA 6',
+    contenido: 'Octubre de 2026 junta en cuatro semanas más lanzamientos grandes que algunos años enteros. El 6 llega Gears of War: E-Day, la precuela que Microsoft viene preparando hace rato. El 9, Dragon\'s Dogma 2: Dark Arisen suma la expansión que el juego original pedía a gritos. El 15 aparece Castlevania: Belmont\'s Curse, y el 16 Capcom lleva los remakes de Resident Evil 2, 3 y 4 a Switch 2.\n\nLa segunda mitad no baja: Call of Duty: Modern Warfare 4 el 23, y Phantom Blade Zero el 29, el action chino que viene mostrándose desde hace años y que finalmente tiene fecha. A eso se le suma Ace Combat 8 a comienzos de mes.\n\nY todo esto es, en los hechos, el último mes para ponerse al día: Rockstar lanza GTA 6 el 19 de noviembre. La lógica de la industria es transparente — nadie quiere competir con eso, así que todo lo que podía salir antes se amontonó en octubre. Para el jugador el problema deja de ser qué comprar y pasa a ser qué va a quedar sin terminar.',
+    tags: ['entretenimiento', 'videojuegos', 'octubre 2026', 'gta 6', 'lanzamientos'],
+    fuente: 'Calendarios de lanzamientos de la industria — octubre y noviembre de 2026',
     seccion: 'entretenimiento',
     subseccion: 'videojuegos',
+    fecha: '2026-10-05',
   },
   {
     id: 'ent-05',
-    titulo: 'Mushoku Tensei T3 y Re:ZERO T4: los regresos que pararon las redes',
-    contenido: 'Dos de los isekai más importantes de la última década vuelven en la misma temporada de verano 2026 y la comunidad anime está partida entre quiénes priorizar. Mushoku Tensei: Jobless Reincarnation Temporada 3 retoma la historia de Rudeus Greyrat en lo que el manga promete como el arco más oscuro y emocionalmente pesado de la serie. La animación de Studio Bind es de las más detalladas del medio, y los previews mostraron un salto de calidad respecto a las temporadas anteriores.\n\nRe:ZERO Starting Life in Another World Temporada 4 Parte 2 es, para sus fans, el cierre del arco más ambicioso que Tappei Nagatsuki escribió. La Parte 1 terminó en un cliffhanger que dejó a Subaru en la situación más comprometida de la serie, y las expectativas de los lectores del novel están en el techo. El anime adaptó fielmente las novelas ligeras y la confianza del fandom en el staff es alta.\n\nPara quienes no siguen ninguna de las dos: la temporada de verano 2026 es la oportunidad perfecta para ponerse al día. Ambas series tienen arcos de inicio claros, excelente recepción crítica y bases de fans activas que producen resúmenes y guías de acceso en YouTube y Reddit.',
-    tags: ['entretenimiento', 'anime', 'isekai', 'verano 2026', 'crunchyroll'],
-    fuente: 'Pletnet.io — Anime julio 2026; MyAnimeWear — Ranking verano 2026',
+    titulo: 'Los regresos de otoño: dos temporadas que la comunidad venía esperando',
+    contenido: 'Hay temporadas que se definen por los estrenos y otras por los regresos. Esta es de las segundas. The Apothecary Diaries volvió el 2 de octubre con su tercera temporada, y Black Clover con la segunda prácticamente en paralelo.\n\nLo de The Apothecary Diaries es particular dentro del panorama actual. Es una serie construida sobre deducción, veneno y política palaciega, donde la protagonista resuelve problemas con conocimiento de farmacología en vez de con poder. En un mercado dominado por escalas de poder y peleas, funciona casi como un policial de época, y esa diferencia es buena parte de por qué conectó.\n\nEntre los debuts el que más expectativa arrastra es Firefly Wedding, junto a The Vermilion Mask y Overgeared. Y si hay algo que esta temporada deja claro es que el regreso de una serie querida arrastra más audiencia que casi cualquier estreno nuevo: la fidelidad, en anime, pesa más que la novedad.',
+    tags: ['entretenimiento', 'anime', 'crunchyroll', 'otoño 2026', 'regresos'],
+    fuente: 'Guía de anime de Crunchyroll — otoño 2026',
     seccion: 'entretenimiento',
     subseccion: 'anime',
+    fecha: '2026-10-05',
   },
   {
     id: 'ent-06',
-    titulo: 'Xbox sube precios en Europa y confirma Developer Direct para fines de agosto',
-    contenido: 'La semana gaming más movida del mes: Microsoft confirmó el Xbox Developer Direct 2026 para fines de agosto, donde se esperan anuncios de sus estudios internos —The Coalition, Obsidian, Bethesda Game Studios— y posibles fechas de lanzamiento de títulos en desarrollo. La presentación es la respuesta de Xbox al Summer Game Fest y al Nintendo Direct de junio, para mantener el momentum con los fanáticos hasta el otoño.\n\nLa mala noticia llegó junto con la buena: Xbox Series X y Series S aplicaron una subida de precios en Europa que puede llegar hasta 200 euros más según el modelo. La decisión generó críticas duras en la comunidad, especialmente en mercados como España, donde el precio del hardware de consola ya era elevado. Xbox justificó el ajuste por factores cambiarios y costos de cadena de suministro.\n\nEn cuanto a Sony, PlayStation mantiene su liderazgo global en ventas de hardware durante 2026, con PS5 superando los 80 millones de unidades acumuladas. Los juegos exclusivos siguen siendo el diferenciador: varios títulos first-party de Sony tuvieron críticas sobresalientes en el primer semestre. El debate entre ecosistemas sigue siendo el más activo de los foros gaming, con Game Pass de Microsoft como el contrapeso principal al dominio de ventas de Sony.',
-    tags: ['entretenimiento', 'consolas', 'xbox', 'playstation', 'agosto 2026'],
-    fuente: 'TechRadar — Xbox Developer Direct 2026; ElOtroLado.net — Semana 31 gaming',
+    titulo: 'El Nintendo Direct de septiembre: la Switch 2 sale a buscar el catálogo que le falta',
+    contenido: 'El 9 de septiembre Nintendo hizo un Direct de unos 45 minutos dedicado casi por completo a la Switch 2, y la estrategia quedó a la vista: en vez de apostar todo a exclusivos propios, la consola salió a buscar los juegos grandes que se perdió.\n\nCapcom confirmó Monster Hunter Wilds para el 4 de diciembre y los remakes de Resident Evil 2, 3 y 4. Square Enix anunció Final Fantasy VII Revelation para abril. ATLUS puso Persona 4 Revival en mayo. CD Projekt mostró The Witcher 3 Remastered corriendo en la consola, con una mejora visual que sorprendió. Se sumaron además Tomb Raider: Legacy of Atlantis, Stellar Blade Complete Edition y Kingdom Come: Deliverance II.\n\nLo propio también apareció: un Kirby nuevo en 3D, Kirby and the World Beyond, para la primavera de 2027. Pero el peso del Direct estuvo en los ports y las remasterizaciones, y eso cuenta una historia. La Switch original se construyó sobre la idea de que podías llevarte un juego grande a cualquier lado; la Switch 2 parece estar apostando a lo mismo, solo que esta vez con los juegos que antes no entraban.',
+    tags: ['entretenimiento', 'consolas', 'nintendo', 'switch 2', 'septiembre 2026'],
+    fuente: 'Nintendo Direct — 9 de septiembre de 2026',
     seccion: 'entretenimiento',
     subseccion: 'consolas',
+    fecha: '2026-10-05',
   },
   {
     id: 'ent-07',
-    titulo: 'Crunchyroll en verano 2026: el catálogo más grande de su historia',
-    contenido: 'La temporada de julio de 2026 en Crunchyroll tiene más de 50 títulos activos simultáneamente, el número más alto en la historia de la plataforma. La estrategia es clara: después de que Sony completó la integración con Funimation en 2024, el catálogo combinado más el pipeline de simulcast semanal convirtió a Crunchyroll en la referencia indiscutida del anime legal fuera de Japón.\n\nLos estrenos con más buzz de julio: Black Torch (4 de julio), Smoking Behind the Supermarket with You (9 de julio) y la coproducción con Netflix Star Wars: Visions – The Ninth Jedi. En continuaciones, la lista incluye Mushoku Tensei T3, Re:ZERO T4 Parte 2, Link Click T3 y One Piece en el arco de Elbaf. El español sigue siendo el segundo idioma más usado en la plataforma después del japonés, con América Latina como el mercado de mayor crecimiento en nuevas suscripciones.\n\nEl modelo de negocio está consolidado: simulcast en horas del estreno japonés para suscriptores premium, acceso a episodios anteriores gratis con publicidad, doblaje añadido semanas después. La piratería bajó dramáticamente no por acciones legales sino por la conveniencia del acceso legal. El anime dejó de ser nicho: en Argentina, las búsquedas de series de anime superaron a las de series americanas por primera vez en 2025.',
-    tags: ['entretenimiento', 'crunchyroll', 'anime', 'streaming', 'julio 2026'],
-    fuente: 'Tierragamer — Crunchyroll julio 2026; Cinemedios — Estrenos anime Crunchyroll',
+    titulo: 'Crunchyroll y el problema de tener demasiado',
+    contenido: 'La temporada de otoño le dio a Crunchyroll 43 series simultáneas, con estrenos escalonados hasta el 16 de octubre. Es, otra vez, el catálogo más grande que la plataforma tuvo en una temporada, y la cifra viene creciendo año a año sin pausa.\n\nEl crecimiento tiene una explicación clara: la plataforma consolidó derechos que antes estaban repartidos, y el anime dejó de ser un nicho para volverse una categoría que las grandes plataformas pelean. Lo que antes había que buscar en rincones raros de internet hoy llega subtitulado y doblado el mismo día que en Japón.\n\nPero la abundancia trae su propio problema, y es de descubrimiento. Con 43 series por temporada, el cuello de botella dejó de ser el acceso y pasó a ser la atención. Las series que no arrancan con una comunidad detrás o un nombre reconocido tienen muy poco margen: si no enganchan en los primeros dos episodios, quedan enterradas debajo de cuarenta más. La paradoja es que mientras más hay, más difícil se vuelve que algo nuevo encuentre su público.',
+    tags: ['entretenimiento', 'crunchyroll', 'anime', 'streaming', 'otoño 2026'],
+    fuente: 'Catálogo de Crunchyroll — temporada de otoño 2026',
     seccion: 'entretenimiento',
     subseccion: 'crunchyroll',
+    fecha: '2026-10-05',
+  },
+  {
+    id: 'ent-08',
+    titulo: 'VisionQuest abre la Fase Seis de Marvel con la pregunta más interesante que tenían a mano',
+    contenido: 'El 14 de octubre Disney+ estrena VisionQuest, y la serie entra oficialmente como parte de la Fase Seis del universo Marvel. Arranca con dos episodios y después sigue semanal hasta completar ocho.\n\nLa premisa es la más prometedora que Marvel tuvo en televisión desde hace un buen rato: Visión vive escondido, tratando de entender quién es, y lo hace conversando con distintas personalidades de IA integradas en su propia programación. Cuando le ponen precio a su cabeza, huye con un adolescente que podría ser su hijo reencarnado.\n\nQue este material llegue en 2026 no es casual. Un androide que intenta averiguar si lo que recuerda lo constituye, hablando con versiones de sí mismo que corren adentro suyo, es una historia que hace cinco años se leía como ciencia ficción y hoy se lee como una discusión bastante literal. Marvel no suele ir a buscar estos temas de frente; cuando lo hizo —WandaVision es el antecedente obvio, y también sobre Visión— le salió de lo mejor que tiene.',
+    tags: ['entretenimiento', 'disney', 'marvel', 'series', 'octubre 2026'],
+    fuente: 'Disney+ — calendario de estrenos de octubre de 2026',
+    seccion: 'entretenimiento',
+    subseccion: 'disney',
+    fecha: '2026-10-05',
   },
 ];
+
+/**
+ * Ventaja por frescura. Un artículo recién escrito arranca con 12 puntos y
+ * los pierde de forma lineal a lo largo de 45 días; después no suma nada.
+ * Los atemporales (sin `fecha`) no reciben bonus, así que la actualidad sube
+ * sola sin que haya que tocar el orden a mano cada vez.
+ */
+function bonusNovedad(fecha: string | undefined, hoy: number): number {
+  if (!fecha) return 0;
+  const t = new Date(fecha + 'T00:00:00').getTime();
+  if (Number.isNaN(t)) return 0;
+  const dias = (hoy - t) / 86400000;
+  if (dias < 0 || dias > 45) return 0;
+  return 12 * (1 - dias / 45);
+}
 
 export function scoreArticulos(
   articulos: DiarioArticulo[],
   tagScores: Record<string, number>,
   reactions: Record<string, string>,
 ): DiarioArticulo[] {
+  const hoy = Date.now();
   const general = articulos.filter(a => !a.seccion);
   const scored = general.map(a => {
-    const score = a.tags.reduce((s, t) => s + (tagScores[t] ?? 0), 0);
+    const score = a.tags.reduce((s, t) => s + (tagScores[t] ?? 0), 0)
+                + bonusNovedad(a.fecha, hoy);
     return { a, score };
   });
   scored.sort((x, y) => y.score - x.score);

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import type { Stat, Habit, FSRutina, FSMision, FSLibro, FSEntradaDiario } from '../types';
 import type { FSDiarioPrefs, DiarioReaction } from '../types';
 import { HOY } from '../utils/constants';
@@ -302,8 +302,11 @@ export function DiarioView({
   stats, habits: _habits, fsRutinas: _fsRutinas, fsMisiones,
   fsLibros, fsEntradas, userName, diarioPrefs, onReact,
 }: Props) {
-  const [articulos] = useState(() =>
-    scoreArticulos(ARTICULOS, diarioPrefs.tagScores, diarioPrefs.reactions)
+  // useMemo, no useState: con el initializer el orden se congelaba al montar y
+  // no se reacomodaba por más que reaccionaras hasta recargar la página.
+  const articulos = useMemo(
+    () => scoreArticulos(ARTICULOS, diarioPrefs.tagScores, diarioPrefs.reactions),
+    [diarioPrefs]
   );
 
   const [expandedId,  setExpandedId]  = useState<string | null>(null);
@@ -337,7 +340,7 @@ export function DiarioView({
   const saludo   = hora < 12 ? 'Buenos días' : hora < 20 ? 'Buenas tardes' : 'Buenas noches';
 
   const leadArt  = articulos[0];
-  const lecturas = articulos.slice(1, 9);
+  const lecturas = articulos.slice(1, 25);
 
   const sectionBorder: React.CSSProperties = { borderBottom: `1px solid ${BORDER}` };
 
