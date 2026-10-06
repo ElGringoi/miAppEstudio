@@ -53,6 +53,7 @@ import { EjercicioRow } from './components/EjercicioRow';
 import { DiarioView } from './components/DiarioView';
 import { MissionNodeComp } from './components/MissionNodeComp';
 import { LoginScreen } from './components/LoginScreen';
+import { CierreDia } from './components/CierreDia';
 
 // ─── App ──────────────────────────────────────────────────────────────────────
 
@@ -202,6 +203,13 @@ export default function App() {
   const [confirmModal, setConfirmModal] = useState<{ msg: string; onOk: () => void } | null>(null);
   function showConfirm(msg: string, onOk: () => void) { setConfirmModal({ msg, onOk }); }
 
+  // Cierre del día
+  const [showCierreDia, setShowCierreDia] = useState(false);
+  const [cierreDiaShownToday, setCierreDiaShownToday] = useState(() => {
+    const saved = localStorage.getItem(`cierre_dia_${HOY}`);
+    return saved === 'true';
+  });
+
   function toggleDark() {
     const next = !isDark;
     setIsDark(next);
@@ -324,6 +332,17 @@ export default function App() {
     return () => { unsubStats(); u2(); u3(); u4(); u5(); u6(); u7(); u8(); u9(); u10(); u11(); u12(); u13(); u14(); u15(); u16(); u17(); u18(); };
   }, [user?.uid]);
 
+  // Cierre del día — mostrar modal si es después de las 21:00 y no se mostró hoy
+  useEffect(() => {
+    const now = new Date();
+    const hour = now.getHours();
+    if (hour >= 21 && !cierreDiaShownToday && user?.uid) {
+      setShowCierreDia(true);
+      setCierreDiaShownToday(true);
+      localStorage.setItem(`cierre_dia_${HOY}`, 'true');
+    }
+  }, [user?.uid, cierreDiaShownToday]);
+
   // ── Derived ───────────────────────────────────────────────────────────────
 
   const stats    = useMemo(() => statsFromDoc(fsStats), [fsStats]);
@@ -347,6 +366,17 @@ export default function App() {
   })), [fsHabitos]);
 
   const todayEventos = useMemo(() => fsEventos.filter(e => e.fecha === HOY), [fsEventos]);
+
+  // Métricas para Cierre del Día
+  const cierreDiaMetrics = useMemo(() => {
+    const tareasHoy = fsTareas.filter(t => t.completedDates?.includes(HOY)).length;
+    const habitosHoy = fsHabitos.filter(h => isHabitDoneToday(h)).length;
+    // XP ganado aproximado: suma de XP de hábitos completados hoy
+    const xpHoy = fsHabitos
+      .filter(h => isHabitDoneToday(h))
+      .reduce((sum, h) => sum + (h.xpValue ?? 20), 0);
+    return { tareasHoy, habitosHoy, xpHoy };
+  }, [fsTareas, fsHabitos]);
 
   const txStats = useMemo(() => {
     const txMes = fsTransacciones.filter(t => t.fecha.startsWith(txMesFilter));
@@ -1339,6 +1369,26 @@ export default function App() {
         showToast('Nota guardada', true);
       }
     } catch (e) { console.error(e); showToast('Error al guardar la nota'); }
+  }
+
+  async function guardarReflexionCierreDia(reflexion: string) {
+    if (!user?.uid || !reflexion.trim()) return;
+    try {
+      const col = collection(db, 'usuarios', user.uid, 'diario');
+      await addDoc(col, {
+        tipo: 'reflexion',
+        titulo: `Cierre del día - ${HOY}`,
+        contenido: reflexion,
+        area: 'general',
+        fecha: HOY,
+        updatedAt: HOY,
+        tags: ['cierre_dia'],
+      });
+      showToast('Reflexión guardada', true);
+    } catch (e) {
+      console.error(e);
+      showToast('Error al guardar la reflexión');
+    }
   }
 
   async function deleteEntradaDiario(id: string) {
@@ -4591,6 +4641,16 @@ export default function App() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Cierre del día */}
+      <CierreDia
+        open={showCierreDia}
+        onClose={() => setShowCierreDia(false)}
+        tareasCompletadas={cierreDiaMetrics.tareasHoy}
+        habitosCompletados={cierreDiaMetrics.habitosHoy}
+        xpGanado={cierreDiaMetrics.xpHoy}
+        onGuardarReflexion={guardarReflexionCierreDia}
+      />
     </div>
   );
 }
