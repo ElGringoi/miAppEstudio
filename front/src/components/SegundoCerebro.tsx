@@ -41,6 +41,7 @@ interface SegundoCerebroProps {
 export function SegundoCerebro(props: SegundoCerebroProps) {
   const [seccion, setSeccion] = useState<Seccion>('notas');
   const inboxPendientes = props.inbox.filter(i => !i.procesado).length;
+  console.log('SegundoCerebro render - secciones:', CEREBRO_SECCIONES.length, 'inbox items:', props.inbox.length);
 
   // La franja va adentro del contenedor de cada sección: la altura de la caja
   // es fija (calc(100vh - 11rem)) y si la franja quedara afuera se pasaría del
