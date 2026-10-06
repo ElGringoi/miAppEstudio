@@ -2508,24 +2508,26 @@ export default function App() {
                 return (
                   <div className="flex gap-6 items-start">
                     {/* ── Body map (sticky, desktop) ── */}
-                    <div className="hidden lg:flex flex-col items-center w-52 shrink-0 sticky top-4">
-                      <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2">
-                        Músculos activos
-                      </p>
-                      <BodyMap activeMuscles={activeMuscles} className="w-full" />
-                      {activeEjNombre ? (
-                        <p className="mt-2 text-[10px] font-bold text-slate-400 text-center leading-tight px-2">
-                          {activeEjNombre}
+                    <div className="hidden lg:flex flex-col items-center w-52 shrink-0 sticky top-4 gap-3">
+                      <div className="w-full">
+                        <p className="font-label text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant mb-2 text-center">
+                          Músculos activos
                         </p>
-                      ) : (
-                        <p className="mt-2 text-[9px] text-slate-500 text-center">
-                          Pasá el cursor sobre un ejercicio
-                        </p>
-                      )}
+                        <BodyMap activeMuscles={activeMuscles} className="w-full" />
+                        {activeEjNombre ? (
+                          <p className="mt-2 text-[10px] font-bold text-on-surface text-center leading-tight px-2">
+                            {activeEjNombre}
+                          </p>
+                        ) : (
+                          <p className="mt-2 text-[9px] text-on-surface-variant text-center">
+                            Pasá el cursor sobre un ejercicio
+                          </p>
+                        )}
+                      </div>
                       {activeMuscles.length > 0 && (
-                        <div className="mt-3 flex flex-wrap justify-center gap-1 px-1">
+                        <div className="w-full flex flex-wrap justify-center gap-1 px-1">
                           {activeMuscles.map(m => (
-                            <span key={m} className="text-[9px] font-black uppercase tracking-wide bg-red-100 dark:bg-red-900/30 text-red-600 px-1.5 py-0.5 rounded-full">
+                            <span key={m} className="font-label text-[9px] font-semibold uppercase tracking-wide bg-secondary/15 text-secondary px-1.5 py-0.5 rounded-full">
                               {m}
                             </span>
                           ))}
