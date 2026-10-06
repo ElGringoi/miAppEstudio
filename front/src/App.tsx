@@ -36,11 +36,16 @@ import type {
   DiarioReaction, FSDiarioPrefs, FSSueldoMeta, FSPresupuesto, FSMetaAhorro,
 } from './types';
 import { SegundoCerebro } from './components/SegundoCerebro';
-import { BodyMap } from './components/BodyMap';
 import type { MuscleId } from './components/BodyMap';
 import { getMuscles } from './utils/muscleMap';
 import { HabitHeatmap } from './components/HabitHeatmap';
 import { Modal, ModalHeader } from './components/Modal';
+import { GymHeader } from './components/GymHeader';
+import { GymSessionHero } from './components/GymSessionHero';
+import { GymRestTimer } from './components/GymRestTimer';
+import { GymProgrammedRoutine } from './components/GymProgrammedRoutine';
+import { GymExerciseList } from './components/GymExerciseList';
+import { GymWeeklyRoutines } from './components/GymWeeklyRoutines';
 import confetti from 'canvas-confetti';
 
 const DEFAULT_TASK_COLOR = '#3b82f6';
@@ -49,7 +54,6 @@ import { xpLevel, statsFromDoc, buildTree, youtubeEmbedUrl, isHabitActiveToday, 
 import { ProgressBar } from './components/ProgressBar';
 import { MisionCard } from './components/MisionCard';
 import { CapituloRow } from './components/CapituloRow';
-import { EjercicioRow } from './components/EjercicioRow';
 import { DiarioView } from './components/DiarioView';
 import { MissionNodeComp } from './components/MissionNodeComp';
 import { LoginScreen } from './components/LoginScreen';
@@ -119,9 +123,9 @@ export default function App() {
   // Rutinas state
   const [fsRutinas,      setFsRutinas]      = useState<FSRutina[]>([]);
   const [gymInnerTab,    setGymInnerTab]    = useState<'entreno' | 'comida'>('entreno');
+  const [gymRestTimer,   setGymRestTimer]   = useState(0); // milisegundos
   const [targetRutinaId,    setTargetRutinaId]    = useState<string | null>(null);
   const [targetEjercicioId, setTargetEjercicioId] = useState<string | null>(null);
-  const [activeGymEjercicioId, setActiveGymEjercicioId] = useState<string | null>(null);
 
   const [editingHabitXp, setEditingHabitXp] = useState<string | null>(null);
 
@@ -303,6 +307,15 @@ export default function App() {
     return () => { unsubStats(); u2(); u3(); u4(); u5(); u6(); u7(); u8(); u9(); u10(); u11(); u12(); u13(); u14(); u15(); u16(); u17(); };
   }, [user?.uid]);
 
+  // ── Gym Rest Timer ─────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (gymRestTimer <= 0) return;
+    const interval = setInterval(() => {
+      setGymRestTimer(t => Math.max(0, t - 100));
+    }, 100);
+    return () => clearInterval(interval);
+  }, [gymRestTimer]);
+
   // ── Derived ───────────────────────────────────────────────────────────────
 
   const stats    = useMemo(() => statsFromDoc(fsStats), [fsStats]);
@@ -473,15 +486,6 @@ export default function App() {
 
   const habitsToday  = habits.filter(h => h.activeToday);
   const done         = habitsToday.filter(h => h.completed).length;
-
-  const activeMuscles = useMemo<MuscleId[]>(() => {
-    if (!activeGymEjercicioId) return [];
-    for (const r of fsRutinas) {
-      const ej = r.ejercicios?.find(e => e.id === activeGymEjercicioId);
-      if (ej) return getMuscles(ej.nombre);
-    }
-    return [];
-  }, [activeGymEjercicioId, fsRutinas]);
 
   const totalXp                                   = fsStats ? FS_KEYS.reduce((s, k) => s + (fsStats[k]?.xp ?? 0), 0) : 0;
   const { level: heroLevel, xpInLevel, xpForNext: heroXpForNext } = xpLevel(totalXp);
@@ -2480,183 +2484,76 @@ export default function App() {
 
           {/* ══ GYM ══ */}
           {tab === 'gym' && (
-            <motion.div key="gym" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-6">
+            <motion.div key="gym" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-6 pb-32">
+
+              <GymHeader userXp={Math.floor(fsStats?.fuerza?.xp || 0)} nextLevelXp={3000} badge="8d" />
 
               {/* Inner tabs */}
-              <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl w-full md:w-fit">
-                {([['entreno', 'Entrenamiento', <Dumbbell className="w-4 h-4" />], ['comida', 'Alimentación', <Utensils className="w-4 h-4" />]] as const).map(([id, label, icon]) => (
+              <div className="flex bg-surface-container-low p-1 rounded-lg w-full md:w-fit">
+                {([['entreno', 'Entrenamientos', <Dumbbell className="w-4 h-4" />], ['comida', 'Alimentación', <Utensils className="w-4 h-4" />]] as const).map(([id, label, icon]) => (
                   <button key={id} onClick={() => setGymInnerTab(id as 'entreno' | 'comida')}
-                    className={cn('flex flex-1 md:flex-none items-center justify-center gap-2 px-3 md:px-5 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all',
-                      gymInnerTab === id ? 'bg-white dark:bg-slate-900 shadow-sm text-blue-600' : 'text-slate-500 hover:text-slate-700')}>
+                    className={cn('flex flex-1 md:flex-none items-center justify-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold uppercase tracking-wide transition-all',
+                      gymInnerTab === id ? 'bg-primary-container/15 text-primary' : 'text-on-surface-variant hover:text-on-surface')}>
                     {icon}{label}
                   </button>
                 ))}
               </div>
 
               {gymInnerTab === 'entreno' && (() => {
-                const todayNum    = getDay(new Date());
-                const todayRuts   = fsRutinas.filter(r => r.diasSemana?.includes(todayNum));
-                const otherRuts   = fsRutinas.filter(r => !r.diasSemana?.includes(todayNum));
-                const activeEjNombre = (() => {
-                  if (!activeGymEjercicioId) return null;
-                  for (const r of fsRutinas) {
-                    const ej = r.ejercicios?.find(e => e.id === activeGymEjercicioId);
-                    if (ej) return ej.nombre;
-                  }
-                  return null;
-                })();
+                const todayNum = getDay(new Date());
+                const todayRutina = fsRutinas.find(r => r.diasSemana?.includes(todayNum));
+                const todayEjercicios = todayRutina?.ejercicios || [];
+                const completedExercises = todayEjercicios.filter(e => e.lastCompletedDate === HOY).length;
+                const totalExercises = todayEjercicios.length;
+
                 return (
-                  <div className="flex gap-6 items-start">
-                    {/* ── Body map (sticky, desktop) ── */}
-                    <div className="hidden lg:flex flex-col items-center w-52 shrink-0 sticky top-4 gap-3">
-                      <div className="w-full">
-                        <p className="font-label text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant mb-2 text-center">
-                          Músculos activos
-                        </p>
-                        <BodyMap activeMuscles={activeMuscles} className="w-full" />
-                        {activeEjNombre ? (
-                          <p className="mt-2 text-[10px] font-bold text-on-surface text-center leading-tight px-2">
-                            {activeEjNombre}
-                          </p>
-                        ) : (
-                          <p className="mt-2 text-[9px] text-on-surface-variant text-center">
-                            Pasá el cursor sobre un ejercicio
-                          </p>
-                        )}
-                      </div>
-                      {activeMuscles.length > 0 && (
-                        <div className="w-full flex flex-wrap justify-center gap-1 px-1">
-                          {activeMuscles.map(m => (
-                            <span key={m} className="font-label text-[9px] font-semibold uppercase tracking-wide bg-secondary/15 text-secondary px-1.5 py-0.5 rounded-full">
-                              {m}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                  <div className="space-y-4">
+                    {/* Hero de sesión */}
+                    <GymSessionHero
+                      rutina={todayRutina}
+                      musclesActive={todayRutina ? getMuscles(todayRutina.nombre) : undefined}
+                      exercisesTotal={totalExercises}
+                      exercisesCompleted={completedExercises}
+                      xpGain={todayRutina ? 78 : undefined}
+                    />
 
-                    {/* ── Exercise content ── */}
-                  <div className="flex-1 space-y-8">
+                    {todayRutina && (
+                      <>
+                        {/* Rutina Programada & Timer */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <GymProgrammedRoutine stage={todayRutina.nombre} version={todayRutina.version} />
+                          <GymRestTimer
+                            seconds={Math.floor(gymRestTimer / 1000)}
+                            onAdd={() => setGymRestTimer(t => t + 50000)}
+                            onSkip={() => setGymRestTimer(0)}
+                          />
+                        </div>
 
-                    {/* Hoy */}
-                    <section>
-                      <div className="flex items-center gap-3 mb-4">
-                        <div className="p-2.5 rounded-xl bg-red-600 text-white shadow-lg shadow-red-500/20"><Dumbbell className="w-5 h-5" /></div>
-                        <div>
-                          <h3 className="text-xl font-black tracking-tight uppercase">HOY — {DIAS_CORTO[todayNum]}</h3>
-                          <p className="text-xs text-slate-500">{todayRuts.length === 0 ? 'Sin rutina asignada' : todayRuts.map(r => r.nombre).join(' · ')}</p>
-                        </div>
-                      </div>
-                      {todayRuts.length === 0 ? (
-                        <div className="py-12 text-center border-2 border-dashed border-slate-100 dark:border-slate-800 rounded-3xl">
-                          <Flame className="w-12 h-12 text-slate-200 dark:text-slate-800 mx-auto mb-3" />
-                          <p className="font-bold text-slate-400">Día de descanso 🏖️</p>
-                          <p className="text-xs text-slate-400 mt-1">No hay rutina para {DIAS_CORTO[todayNum]}</p>
-                        </div>
-                      ) : todayRuts.map(rutina => (
-                        <div key={rutina.id} className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 overflow-hidden mb-4">
-                          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
-                            <div>
-                              <h4 className="font-black text-base">{rutina.nombre}</h4>
-                              <p className="text-[10px] font-bold text-slate-400 mt-0.5 uppercase tracking-widest">
-                                {rutina.diasSemana?.map(d => DIAS_CORTO[d]).join(' · ')}
-                              </p>
-                            </div>
-                            <span className="text-[10px] font-black bg-blue-100 dark:bg-blue-900/30 text-blue-600 px-2 py-1 rounded-full">
-                              {rutina.ejercicios?.filter(e => e.lastCompletedDate === HOY).length ?? 0}/{rutina.ejercicios?.length ?? 0}
-                            </span>
-                          </div>
-                          <div className="p-4 space-y-3">
-                            {rutina.ejercicios?.length === 0 ? (
-                              <p className="text-xs text-slate-400 text-center py-4">Sin ejercicios. Agregá uno abajo.</p>
-                            ) : rutina.ejercicios?.map(ej => (
-                              <EjercicioRow key={ej.id} ejercicio={ej}
-                                isActive={activeGymEjercicioId === ej.id}
-                                onSelect={() => setActiveGymEjercicioId(ej.id)}
-                                onToggle={() => toggleEjercicio(rutina.id, ej.id)}
-                                onDelete={() => deleteEjercicio(rutina.id, ej.id)}
-                                onUpdateSets={sets => updateEjercicioSets(rutina.id, ej.id, sets)}
-                                onEdit={() => {
-                                  setTargetRutinaId(rutina.id);
-                                  setTargetEjercicioId(ej.id);
-                                  setEjercicioForm({ nombre: ej.nombre, series: ej.series ?? 3, reps: ej.reps ?? '', notas: ej.notas ?? '', mediaUrl: ej.mediaUrl ?? '' });
-                                  setModal('ejercicio');
-                                }} />
-                            ))}
-                            <button onClick={() => { setTargetRutinaId(rutina.id); setModal('ejercicio'); }}
-                              className="w-full py-3 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl text-xs font-bold text-slate-400 hover:border-blue-400 hover:text-blue-500 transition-all flex items-center justify-center gap-2">
-                              <Plus className="w-4 h-4" /> Agregar ejercicio
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </section>
+                        {/* Ejercicios */}
+                        <GymExerciseList
+                          ejercicios={todayEjercicios}
+                          onUpdateSets={(ejId, sets) => updateEjercicioSets(todayRutina.id, ejId, sets)}
+                          onAddSet={(ejId) => {
+                            const newSets = [...(todayEjercicios.find(e => e.id === ejId)?.setsLog || [])];
+                            newSets.push({ peso: 0, reps: 0, done: false });
+                            updateEjercicioSets(todayRutina.id, ejId, newSets);
+                          }}
+                        />
+                      </>
+                    )}
 
-                    {/* Todas las rutinas */}
-                    <section>
-                      <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-                        <h3 className="text-lg font-black uppercase tracking-tight">Mis Rutinas</h3>
-                        <div className="flex items-center gap-2">
-                          <button onClick={addRutinasFinde}
-                            className="flex items-center gap-1.5 px-3 py-2 bg-green-600 text-white rounded-xl text-xs font-bold hover:opacity-90 shadow-md shadow-green-500/20">
-                            <Plus className="w-3.5 h-3.5" /> Finde
-                          </button>
-                          <button onClick={seedRutinas2daEtapa}
-                            className="flex items-center gap-1.5 px-3 py-2 bg-amber-500 text-white rounded-xl text-xs font-bold hover:opacity-90 shadow-md shadow-amber-500/20">
-                            <Dumbbell className="w-3.5 h-3.5" /> 2da Etapa
-                          </button>
-                          <button onClick={() => setModal('rutina')}
-                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold hover:opacity-90 shadow-md shadow-blue-500/20">
-                            <Plus className="w-4 h-4" /> Nueva
-                          </button>
-                        </div>
-                      </div>
-                      {fsRutinas.length === 0 ? (
-                        <div className="py-12 text-center border-2 border-dashed border-slate-100 dark:border-slate-800 rounded-3xl">
-                          <Dumbbell className="w-12 h-12 text-slate-200 dark:text-slate-800 mx-auto mb-3" />
-                          <p className="font-bold text-slate-400">Sin rutinas aún.</p>
-                          <div className="flex flex-col items-center gap-2 mt-3">
-                            <button onClick={() => setModal('rutina')} className="text-xs text-blue-500 font-bold hover:underline">+ Crear rutina manual</button>
-                            <button onClick={seedRutinaHipertrofia}
-                              className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-xl text-xs font-bold hover:opacity-90 shadow-md shadow-red-500/20">
-                              <Dumbbell className="w-3.5 h-3.5" /> Importar Rutina Hipertrofia (Lun–Vie)
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="space-y-3">
-                          {[...todayRuts, ...otherRuts].map(rutina => (
-                            <div key={rutina.id} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-                              <div className="flex items-center justify-between px-5 py-4">
-                                <div>
-                                  <h4 className="font-bold text-sm">{rutina.nombre}</h4>
-                                  <div className="flex gap-1 mt-1">
-                                    {DIAS_LETRA.map((d, i) => (
-                                      <span key={i} className={cn('w-5 h-5 rounded-full text-[9px] font-black flex items-center justify-center',
-                                        rutina.diasSemana?.includes(i) ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-400')}>
-                                        {d}
-                                      </span>
-                                    ))}
-                                  </div>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <span className="text-[10px] font-bold text-slate-400">{rutina.ejercicios?.length ?? 0} ejercicios</span>
-                                  <button onClick={() => { setTargetRutinaId(rutina.id); setModal('ejercicio'); }}
-                                    className="p-1.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-500 transition-all">
-                                    <Plus className="w-4 h-4" />
-                                  </button>
-                                  <button onClick={() => deleteRutina(rutina.id)}
-                                    className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-400 transition-all">
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </section>
-                  </div>
+                    {/* Rutinas Semanales */}
+                    <GymWeeklyRoutines rutinas={fsRutinas} />
+
+                    {/* Botón Terminar Rutina (sticky) */}
+                    {todayRutina && (
+                      <button
+                        onClick={() => todayRutina && toggleEjercicio(todayRutina.id, todayEjercicios[0]?.id || '')}
+                        className="fixed bottom-20 left-4 right-4 md:bottom-8 md:left-auto md:right-8 w-auto px-6 py-4 bg-secondary text-on-secondary font-bold rounded-lg shadow-lg hover:opacity-90 transition flex items-center justify-center gap-2"
+                      >
+                        📋 Terminar Rutina (+75 XP Fuerza)
+                      </button>
+                    )}
                   </div>
                 );
               })()}
