@@ -5,19 +5,19 @@ export type MuscleId =
   | 'abs' | 'oblicuo' | 'cuad' | 'tibial' | 'trap' | 'dorsal'
   | 'espalda_baja' | 'gluteo' | 'femoral' | 'gemelo';
 
-const RED    = '#ef4444';
-const DIMMED = 'rgba(100,116,139,0.18)';
-const BODY   = '#1e293b';
-const BORDER = '#334155';
+const ACTIVE    = '#4edea3';
+const DIMMED = 'rgba(140,144,159,0.18)';
+const BODY   = '#262a35';
+const BORDER = '#313540';
 
 export function BodyMap({ activeMuscles, className }: {
   activeMuscles: MuscleId[];
   className?: string;
 }) {
   const s = new Set(activeMuscles);
-  const f = (id: MuscleId) => s.has(id) ? RED : DIMMED;
+  const f = (id: MuscleId) => s.has(id) ? ACTIVE : DIMMED;
   const glow = (id: MuscleId): React.CSSProperties =>
-    s.has(id) ? { filter: 'drop-shadow(0 0 5px rgba(239,68,68,0.9))' } : {};
+    s.has(id) ? { filter: 'drop-shadow(0 0 5px rgba(78,222,163,0.8))' } : {};
 
   return (
     <svg
@@ -28,7 +28,7 @@ export function BodyMap({ activeMuscles, className }: {
     >
       {/* ─────────────── FRONT VIEW (x: 0 – 136, cx=68) ─────────────── */}
       <text x="68" y="11" textAnchor="middle" fontSize="8" fontWeight="800"
-        fill="#475569" letterSpacing="2">FRENTE</text>
+        fill="#8c909f" letterSpacing="2">FRENTE</text>
 
       {/* Head */}
       <circle cx="68" cy="29" r="21" fill={BODY} stroke={BORDER} strokeWidth="1" />
@@ -117,7 +117,7 @@ export function BodyMap({ activeMuscles, className }: {
 
       {/* ─────────────── BACK VIEW (x: 144 – 280, cx=212) ─────────────── */}
       <text x="212" y="11" textAnchor="middle" fontSize="8" fontWeight="800"
-        fill="#475569" letterSpacing="2">DORSO</text>
+        fill="#8c909f" letterSpacing="2">DORSO</text>
 
       {/* Head back */}
       <circle cx="212" cy="29" r="21" fill={BODY} stroke={BORDER} strokeWidth="1" />
@@ -195,7 +195,7 @@ export function BodyMap({ activeMuscles, className }: {
       <ellipse cx="234" cy="428" rx="13" ry="8" fill={BODY} stroke={BORDER} strokeWidth="0.5" />
 
       {/* Divider */}
-      <line x1="140" y1="15" x2="140" y2="476" stroke="#0f172a" strokeWidth="3" />
+      <line x1="140" y1="15" x2="140" y2="476" stroke="#0f131d" strokeWidth="3" />
     </svg>
   );
 }

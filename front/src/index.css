@@ -2,6 +2,132 @@
 
 @variant dark (&:where(.dark, .dark *));
 
+/*
+ * Sistema de diseño "RPG Productivity & Study System" (Stitch).
+ * Los tokens semánticos son para el código nuevo. Las paletas slate/blue/
+ * emerald/green/violet/purple/red se remapean para que las clases viejas
+ * tomen el look nuevo sin tocar cada componente; cada escala mantiene el
+ * orden claro→oscuro para que las clases sin variante dark: no se inviertan.
+ */
+@theme {
+  --font-sans:  'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-label: 'Space Grotesk', 'Plus Jakarta Sans', system-ui, sans-serif;
+
+  --color-surface:                   #0f131d;
+  --color-surface-bright:            #353944;
+  --color-surface-container-lowest:  #0a0e18;
+  --color-surface-container-low:     #171b26;
+  --color-surface-container:         #1c1f2a;
+  --color-surface-container-high:    #262a35;
+  --color-surface-container-highest: #313540;
+  --color-on-surface:                #dfe2f1;
+  --color-on-surface-variant:        #c2c6d6;
+  --color-outline:                   #8c909f;
+  --color-outline-variant:           #424754;
+
+  --color-primary:                #adc6ff;
+  --color-on-primary:             #002e6a;
+  --color-primary-container:      #4d8eff;
+  --color-on-primary-container:   #00285d;
+  --color-secondary:              #4edea3;
+  --color-on-secondary:           #003824;
+  --color-secondary-container:    #00a572;
+  --color-on-secondary-container: #00311f;
+  --color-tertiary:               #ddb7ff;
+  --color-on-tertiary:            #490080;
+  --color-tertiary-container:     #b76dff;
+  --color-error:                  #ffb4ab;
+  --color-on-error:               #690005;
+  --color-error-container:        #93000a;
+  --color-on-error-container:     #ffdad6;
+  --color-warning:                #f59e0b;
+  --color-info:                   #38bdf8;
+
+  --color-slate-50:  #eef0f8;
+  --color-slate-100: #dfe2f1;
+  --color-slate-200: #c9cddc;
+  --color-slate-300: #b4b8c8;
+  --color-slate-400: #8c909f;
+  --color-slate-500: #6f7383;
+  --color-slate-600: #424754;
+  --color-slate-700: #313540;
+  --color-slate-800: #262a35;
+  --color-slate-900: #1c1f2a;
+  --color-slate-950: #0f131d;
+
+  --color-blue-50:  #eef3ff;
+  --color-blue-100: #d8e2ff;
+  --color-blue-200: #c4d4ff;
+  --color-blue-300: #adc6ff;
+  --color-blue-400: #8fb2ff;
+  --color-blue-500: #6a9dff;
+  --color-blue-600: #4d8eff;
+  --color-blue-700: #2f6fe0;
+  --color-blue-800: #004395;
+  --color-blue-900: #002e6a;
+  --color-blue-950: #001a42;
+
+  --color-emerald-50:  #e6fff3;
+  --color-emerald-100: #c4fbe0;
+  --color-emerald-200: #8ff5c8;
+  --color-emerald-300: #6ffbbe;
+  --color-emerald-400: #4edea3;
+  --color-emerald-500: #2fc98c;
+  --color-emerald-600: #00a572;
+  --color-emerald-700: #00855c;
+  --color-emerald-800: #005236;
+  --color-emerald-900: #003824;
+  --color-emerald-950: #002113;
+
+  --color-green-50:  #e6fff3;
+  --color-green-100: #c4fbe0;
+  --color-green-200: #8ff5c8;
+  --color-green-300: #6ffbbe;
+  --color-green-400: #4edea3;
+  --color-green-500: #2fc98c;
+  --color-green-600: #00a572;
+  --color-green-700: #00855c;
+  --color-green-800: #005236;
+  --color-green-900: #003824;
+  --color-green-950: #002113;
+
+  --color-violet-50:  #f8efff;
+  --color-violet-100: #f0dbff;
+  --color-violet-200: #e6c9ff;
+  --color-violet-300: #ddb7ff;
+  --color-violet-400: #c992ff;
+  --color-violet-500: #b76dff;
+  --color-violet-600: #9a4ce6;
+  --color-violet-700: #6900b3;
+  --color-violet-800: #580094;
+  --color-violet-900: #490080;
+  --color-violet-950: #2c0051;
+
+  --color-purple-50:  #f8efff;
+  --color-purple-100: #f0dbff;
+  --color-purple-200: #e6c9ff;
+  --color-purple-300: #ddb7ff;
+  --color-purple-400: #c992ff;
+  --color-purple-500: #b76dff;
+  --color-purple-600: #9a4ce6;
+  --color-purple-700: #6900b3;
+  --color-purple-800: #580094;
+  --color-purple-900: #490080;
+  --color-purple-950: #2c0051;
+
+  --color-red-50:  #fff1ef;
+  --color-red-100: #ffdad6;
+  --color-red-200: #ffc6bf;
+  --color-red-300: #ffb4ab;
+  --color-red-400: #ff8a7d;
+  --color-red-500: #f2645a;
+  --color-red-600: #d93a33;
+  --color-red-700: #b3141a;
+  --color-red-800: #93000a;
+  --color-red-900: #690005;
+  --color-red-950: #410002;
+}
+
 /* ── Glassmorphism card ────────────────────────────────────────────────────── */
 .glass-card {
   backdrop-filter: blur(16px);
@@ -21,9 +147,13 @@
 
 * { box-sizing: border-box; }
 
+html { color-scheme: dark; }
+
 body {
   margin: 0;
-  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  background: var(--color-surface);
+  color: var(--color-on-surface);
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -33,4 +163,4 @@ body {
 
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+::-webkit-scrollbar-thumb { background: var(--color-surface-container-highest); border-radius: 3px; }

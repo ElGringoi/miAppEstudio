@@ -1,10 +1,10 @@
 import { useEffect, useState, useMemo, useRef, type ReactNode } from 'react';
 import {
   LayoutDashboard, Calendar as CalendarIcon, Zap, Settings,
-  CheckCircle2, Plus, Target, Sword, Flame, Dumbbell,
+  Check, CheckCircle2, Plus, Target, Sword, Flame, Dumbbell,
   ChevronRight, Bell, Search, Trophy, Menu, Pencil,
   Repeat, CalendarDays, LogOut, Trash2, X, Utensils,
-  Wallet, TrendingUp, TrendingDown, Download, Moon, Sun, Newspaper, Brain,
+  Wallet, TrendingUp, TrendingDown, Download, Newspaper, Brain,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
@@ -47,7 +47,7 @@ const DEFAULT_TASK_COLOR = '#3b82f6';
 import { HOY, getToday, FS_KEYS, STAT_META, DIAS_CORTO, DIAS_LETRA, ESTADO_LIBRO_META, MATERIAL_ICON, CATEGORIAS_GASTO, CATEGORIAS_INGRESO, CLASS_META, RANK_META, MONEDA_META, PRIORIDAD_META, APP_VERSION } from './utils/constants';
 import { xpLevel, statsFromDoc, buildTree, youtubeEmbedUrl, isHabitActiveToday, isHabitDoneToday, isDateInCurrentWeek, habitRecurrenceLabel, calcStreak, calcMainLevel, rankFromLevel, assignClass, calcXpPerDay, streakMultiplier, calcXpBySource, mesAnterior } from './utils/helpers';
 import { ProgressBar } from './components/ProgressBar';
-import { StatCard } from './components/StatCard';
+import { MisionCard } from './components/MisionCard';
 import { CapituloRow } from './components/CapituloRow';
 import { EjercicioRow } from './components/EjercicioRow';
 import { DiarioView } from './components/DiarioView';
@@ -60,35 +60,35 @@ import { LoginScreen } from './components/LoginScreen';
 
 const NAV: { id: TabId; icon: ReactNode; label: string }[] = [
   { id: 'dashboard',  icon: <LayoutDashboard className="w-5 h-5" />, label: 'Dashboard'  },
-  { id: 'calendar',   icon: <CalendarIcon     className="w-5 h-5" />, label: 'Calendar'   },
+  { id: 'calendar',   icon: <CalendarIcon     className="w-5 h-5" />, label: 'Calendario' },
   { id: 'gym',        icon: <Dumbbell         className="w-5 h-5" />, label: 'Gym'        },
-  { id: 'attributes', icon: <Sword            className="w-5 h-5" />, label: 'Attributes' },
+  { id: 'attributes', icon: <Sword            className="w-5 h-5" />, label: 'Atributos'  },
   { id: 'habits',     icon: <Zap              className="w-5 h-5" />, label: 'Quests'     },
-  { id: 'missions',   icon: <Target           className="w-5 h-5" />, label: 'Missions'   },
-  { id: 'billetera',  icon: <Wallet           className="w-5 h-5" />, label: 'Treasury'   },
+  { id: 'missions',   icon: <Target           className="w-5 h-5" />, label: 'Misiones'   },
+  { id: 'billetera',  icon: <Wallet           className="w-5 h-5" />, label: 'Billetera'  },
   { id: 'diario',    icon: <Newspaper        className="w-5 h-5" />, label: 'Diario'     },
   { id: 'cerebro',   icon: <Brain            className="w-5 h-5" />, label: 'Cerebro'    },
-  { id: 'settings',   icon: <Settings         className="w-5 h-5" />, label: 'Settings'   },
+  { id: 'settings',   icon: <Settings         className="w-5 h-5" />, label: 'Ajustes'    },
 ];
 
 const PAGE_TITLE: Record<string, string> = {
-  dashboard: 'BATTLE STATION', calendar: 'BATTLE LOG', gym: 'GYM',
-  attributes: 'SKILL TREE', habits: 'DAILY QUESTS', missions: 'MISSION TREE',
-  billetera: 'TREASURY', diario: 'EL QUESTFLOW', cerebro: 'SEGUNDO CEREBRO', settings: 'SETTINGS',
+  dashboard: 'Dashboard', calendar: 'Calendario', gym: 'Gym',
+  attributes: 'Atributos', habits: 'Quests', missions: 'Misiones',
+  billetera: 'Billetera', diario: 'El Questflow', cerebro: 'Segundo Cerebro', settings: 'Ajustes',
 };
 
 function getPageSub(firstName: string): Record<string, string> {
   return {
-    dashboard: `Welcome back, ${firstName} 👋`,
-    calendar: 'Schedule your battles',
+    dashboard: `¡Buenas, ${firstName}! Metele pata 👋`,
+    calendar: 'Tu agenda de batallas',
     gym: 'Entrenamiento y alimentación',
-    attributes: "Your hero's power",
-    habits: 'Complete your daily quests',
-    missions: 'Track your objectives',
+    attributes: 'El poder de tu personaje',
+    habits: 'Tus quests de todos los días',
+    missions: 'Tus objetivos, paso a paso',
     billetera: 'Controlá tus ingresos y gastos',
     diario: 'Tu diario personal de progreso',
     cerebro: 'Notas, ideas, personas y grupos',
-    settings: 'Configure your hero',
+    settings: 'Configurá tu personaje',
   };
 }
 
@@ -108,10 +108,6 @@ export default function App() {
   // UI state
   const [tab,         setTab]         = useState<TabId>('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [isDark, setIsDark] = useState(() => {
-    const saved = localStorage.getItem('questflow_dark');
-    return saved === 'true' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches);
-  });
   const [selDate,     setSelDate]     = useState(new Date());
 
   const [attrStat, setAttrStat] = useState<FSStatKey>('fuerza');
@@ -201,13 +197,6 @@ export default function App() {
   const [confirmModal, setConfirmModal] = useState<{ msg: string; onOk: () => void } | null>(null);
   function showConfirm(msg: string, onOk: () => void) { setConfirmModal({ msg, onOk }); }
 
-  function toggleDark() {
-    const next = !isDark;
-    setIsDark(next);
-    document.documentElement.classList.toggle('dark', next);
-    localStorage.setItem('questflow_dark', String(next));
-  }
-
   // Modal state
   const [modal, setModal] = useState<'habit' | 'task' | 'evento' | 'rutina' | 'ejercicio' | 'libro' | 'materia' | 'material' | 'tareaFac' | 'examen' | 'entrada_diario' | 'mision' | null>(null);
   const [editingHabitId, setEditingHabitId] = useState<string | null>(null);
@@ -240,14 +229,6 @@ export default function App() {
 
   // Auth listener
   useEffect(() => onAuthStateChanged(auth, u => { setUser(u); setAuthLoading(false); }), []);
-
-  // Persistir dark mode en localStorage
-  useEffect(() => {
-    const saved = localStorage.getItem('questflow_dark');
-    if (saved === 'true' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-      document.documentElement.classList.add('dark');
-    }
-  }, []);
 
   // Detector de level-up del personaje principal
   useEffect(() => {
@@ -1680,13 +1661,13 @@ export default function App() {
   );
 
   return (
-    <div className="flex min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 relative overflow-hidden">
+    <div className="flex min-h-screen bg-surface text-on-surface relative overflow-hidden">
 
       {/* ── Ambient orbs (solo dark mode) ── */}
       <div className="pointer-events-none fixed inset-0 z-0 hidden dark:block">
-        <div className="absolute -top-40 -left-40 w-80 h-80 rounded-full bg-violet-600/10 blur-3xl" />
-        <div className="absolute top-1/3 -right-32 w-72 h-72 rounded-full bg-blue-600/8 blur-3xl" />
-        <div className="absolute bottom-0 left-1/3 w-96 h-64 rounded-full bg-pink-600/6 blur-3xl" />
+        <div className="absolute -top-40 -left-40 w-80 h-80 rounded-full bg-tertiary/8 blur-3xl" />
+        <div className="absolute top-1/3 -right-32 w-72 h-72 rounded-full bg-primary-container/8 blur-3xl" />
+        <div className="absolute bottom-0 left-1/3 w-96 h-64 rounded-full bg-secondary/5 blur-3xl" />
       </div>
 
       {/* ── Toast ── */}
@@ -1909,27 +1890,27 @@ export default function App() {
 
       {/* ── Sidebar ── */}
       <aside className={cn(
-        'border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col fixed h-full z-30 transition-all duration-300 overflow-hidden',
+        'bg-surface-container-low/95 backdrop-blur-xl shadow-[4px_0_24px_rgba(0,0,0,0.35)] flex flex-col fixed h-full z-30 transition-all duration-300 overflow-hidden',
         sidebarOpen
           ? 'translate-x-0 w-64'
           : '-translate-x-full md:translate-x-0 w-64 md:w-16'
       )}>
         {/* Logo + toggle */}
-        <div className={cn('flex items-center border-b border-slate-100 dark:border-slate-800 shrink-0', sidebarOpen ? 'p-4 gap-3 justify-between' : 'p-3 justify-center')}>
+        <div className={cn('flex items-center shrink-0', sidebarOpen ? 'p-4 gap-3 justify-between' : 'p-3 justify-center')}>
           {sidebarOpen && (
             <div className="flex items-center gap-3 min-w-0">
-              <div className="h-9 w-9 shrink-0 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-500/30">
+              <div className="h-9 w-9 shrink-0 rounded-xl bg-surface-container-high flex items-center justify-center text-primary shadow-[0_0_12px_rgba(77,142,255,0.25)]">
                 <CheckCircle2 className="w-5 h-5" />
               </div>
               <div className="min-w-0">
-                <h1 className="font-black text-base leading-none tracking-tight">QUESTFLOW</h1>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Lv.{heroLevel} Hero</p>
+                <h1 className="font-extrabold text-base leading-none tracking-tight text-on-surface">QUESTFLOW</h1>
+                <p className="font-label text-[10px] font-semibold text-secondary uppercase tracking-widest mt-1">Nv.{heroLevel} · Héroe</p>
               </div>
             </div>
           )}
           <button
             onClick={() => setSidebarOpen(v => !v)}
-            className="shrink-0 p-1.5 rounded-lg text-slate-400 hover:text-blue-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
+            className="shrink-0 p-1.5 rounded-lg text-outline hover:text-primary hover:bg-surface-container-high transition-all"
             title={sidebarOpen ? 'Colapsar' : 'Expandir'}
           >
             <ChevronRight className={cn('w-4 h-4 transition-transform duration-300 hidden md:block', sidebarOpen && 'rotate-180')} />
@@ -1943,40 +1924,42 @@ export default function App() {
             <button key={item.id} onClick={() => { setTab(item.id); if (window.innerWidth < 768) setSidebarOpen(false); }}
               title={!sidebarOpen ? item.label : undefined}
               className={cn(
-                'w-full flex items-center rounded-xl transition-all duration-200 group',
-                sidebarOpen ? 'gap-3 px-4 py-3' : 'justify-center px-2 py-3',
-                tab === item.id ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                'relative w-full flex items-center rounded-lg transition-all duration-200 group',
+                sidebarOpen ? 'gap-3 px-4 py-2.5' : 'justify-center px-2 py-2.5',
+                tab === item.id
+                  ? 'bg-surface-container-high text-primary before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-[3px] before:rounded-full before:bg-primary-container'
+                  : 'text-on-surface-variant hover:bg-surface-container hover:text-on-surface'
               )}>
-              <span className={cn('shrink-0', tab === item.id ? 'text-white' : 'group-hover:text-blue-500 transition-colors')}>{item.icon}</span>
+              <span className={cn('shrink-0', tab === item.id ? 'text-primary' : 'group-hover:text-primary transition-colors')}>{item.icon}</span>
               {sidebarOpen && <span className="font-semibold text-sm">{item.label}</span>}
             </button>
           ))}
         </nav>
 
         {/* Footer */}
-        <div className={cn('border-t border-slate-200 dark:border-slate-800 shrink-0', sidebarOpen ? 'p-4' : 'p-2')}>
+        <div className={cn('shrink-0', sidebarOpen ? 'p-4' : 'p-2')}>
           {sidebarOpen && (
-            <div className="bg-blue-50 dark:bg-blue-900/20 rounded-2xl p-4 mb-4 relative overflow-hidden group">
+            <div className="bg-surface-container rounded-xl p-4 mb-4 relative overflow-hidden group">
               <div className="relative z-10">
-                <p className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-1">Hero XP</p>
-                <div className="flex justify-between items-end mb-2">
-                  <span className="text-xs font-bold">{xpInLevel} xp</span>
-                  <span className="text-[10px] opacity-60">/ {heroXpForNext}</span>
+                <p className="font-label text-[10px] font-semibold text-secondary uppercase tracking-widest mb-1">XP del héroe</p>
+                <div className="flex justify-between items-end mb-2 font-label tabular-nums">
+                  <span className="text-xs font-semibold text-on-surface">{xpInLevel} XP</span>
+                  <span className="text-[10px] text-outline">/ {heroXpForNext}</span>
                 </div>
-                <ProgressBar value={xpInLevel} max={heroXpForNext} color="bg-blue-600" className="h-1.5" />
+                <ProgressBar value={xpInLevel} max={heroXpForNext} color="bg-secondary" className="h-1.5" />
               </div>
-              <Sword className="absolute -right-4 -bottom-4 w-20 h-20 text-blue-500/10 group-hover:rotate-12 transition-transform duration-500" />
+              <Sword className="absolute -right-4 -bottom-4 w-20 h-20 text-secondary/10 group-hover:rotate-12 transition-transform duration-500" />
             </div>
           )}
           <div className={cn('flex items-center gap-3', !sidebarOpen && 'justify-center')}>
             {user.photoURL
-              ? <img src={user.photoURL} className="h-9 w-9 shrink-0 rounded-full border-2 border-blue-200" />
+              ? <img src={user.photoURL} className="h-9 w-9 shrink-0 rounded-full ring-2 ring-primary/60" />
               : <div className="h-9 w-9 shrink-0 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm">{initials}</div>
             }
             {sidebarOpen && (
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-bold truncate">{user.displayName}</p>
-                <p className="text-[10px] text-slate-500 truncate">{user.email}</p>
+                <p className="text-[10px] text-outline truncate">{user.email}</p>
               </div>
             )}
           </div>
@@ -1985,25 +1968,25 @@ export default function App() {
 
       {/* ── Bottom Nav (mobile only) ── */}
       <nav className="fixed bottom-0 inset-x-0 z-40 md:hidden">
-        <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-t border-slate-200 dark:border-slate-800 flex items-stretch h-16 px-1">
+        <div className="bg-surface-container-low/90 backdrop-blur-xl shadow-[0_-4px_24px_rgba(0,0,0,0.45)] flex items-stretch h-16 px-1 pb-[env(safe-area-inset-bottom)]">
           {NAV.filter(n => ['dashboard', 'habits', 'missions', 'gym', 'attributes'].includes(n.id)).map(item => (
             <button
               key={item.id}
               onClick={() => { setTab(item.id); setSidebarOpen(false); }}
               className={cn(
                 'relative flex flex-col items-center justify-center gap-0.5 flex-1 py-2 mx-0.5 rounded-xl transition-all',
-                tab === item.id ? 'text-blue-600' : 'text-slate-400'
+                tab === item.id ? 'text-secondary' : 'text-on-surface-variant'
               )}
             >
               {tab === item.id && (
                 <motion.div
                   layoutId="mobile-tab-indicator"
-                  className="absolute inset-0 bg-blue-50 dark:bg-blue-900/30 rounded-xl"
+                  className="absolute inset-0 bg-secondary/10 rounded-xl"
                   transition={{ type: 'spring', stiffness: 500, damping: 40 }}
                 />
               )}
               <span className="relative z-10">{item.icon}</span>
-              <span className="relative z-10 text-[9px] font-black tracking-tight leading-none">
+              <span className="relative z-10 font-label text-[10px] font-semibold tracking-wide leading-none">
                 {item.label.split(' ')[0]}
               </span>
             </button>
@@ -2019,26 +2002,23 @@ export default function App() {
             <button
               onClick={() => setSidebarOpen(true)}
               aria-label="Abrir menú"
-              className="md:hidden shrink-0 p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400"
+              className="md:hidden shrink-0 p-2 rounded-lg bg-surface-container text-on-surface-variant"
             >
               <Menu className="w-5 h-5" />
             </button>
             <div className="min-w-0">
-              <p className="text-slate-500 dark:text-slate-400 font-medium text-xs md:text-sm truncate">{pageSub[tab]}</p>
-              <h2 className="text-2xl md:text-4xl font-black tracking-tighter mt-0.5 truncate">{PAGE_TITLE[tab]}</h2>
+              <p className="font-label text-secondary font-semibold text-[11px] md:text-xs uppercase tracking-widest truncate">{pageSub[tab]}</p>
+              <h2 className="text-2xl md:text-4xl font-extrabold tracking-tight mt-0.5 truncate text-on-surface">{PAGE_TITLE[tab]}</h2>
             </div>
           </div>
           <div className="flex items-center gap-2 md:gap-4 shrink-0">
             <div className="relative hidden md:block">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <input type="text" placeholder="Search quests…" aria-label="Buscar" className="pl-10 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 w-64" />
+              <input type="text" placeholder="Buscar quests…" aria-label="Buscar" className="pl-10 pr-4 py-2 bg-surface-container-lowest border border-outline/30 rounded-lg text-sm placeholder:text-outline focus:outline-none focus:border-primary focus:ring-[3px] focus:ring-primary-container/25 w-64" />
             </div>
-            <button onClick={toggleDark} aria-label="Cambiar tema" className="p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-600 dark:text-slate-400 hover:text-blue-500 transition-colors">
-              {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-            </button>
             <div className="relative">
-              <button onClick={() => setShowNotifications(v => !v)} aria-label="Notificaciones" className="relative p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl hover:border-blue-400 transition-colors">
-                <Bell className="w-5 h-5 text-slate-600 dark:text-slate-400" />
+              <button onClick={() => setShowNotifications(v => !v)} aria-label="Notificaciones" className="relative p-2 bg-surface-container rounded-lg hover:bg-surface-container-high transition-colors">
+                <Bell className="w-5 h-5 text-on-surface-variant" />
                 {(habitsToday.length - done) > 0 && (
                   <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center">
                     {habitsToday.length - done}
@@ -2048,7 +2028,7 @@ export default function App() {
               {showNotifications && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)} />
-                  <div className="absolute right-0 top-full mt-2 w-[min(320px,calc(100vw-2rem))] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl z-50 overflow-hidden">
+                  <div className="absolute right-0 top-full mt-2 w-[min(320px,calc(100vw-2rem))] bg-surface-container-high/95 backdrop-blur-xl border border-white/5 rounded-xl shadow-2xl z-50 overflow-hidden">
                     <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
                       <h3 className="font-bold text-sm text-slate-800 dark:text-slate-100">Notificaciones</h3>
                       <button onClick={() => setShowNotifications(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-lg leading-none">×</button>
@@ -2121,297 +2101,262 @@ export default function App() {
         <AnimatePresence mode="wait">
 
           {/* ══ DASHBOARD ══ */}
-          {tab === 'dashboard' && (
+          {tab === 'dashboard' && (() => {
+            const firstName   = user.displayName?.split(' ')[0] ?? 'héroe';
+            const xpHoy       = habitsToday.filter(h => h.completed).reduce((s, h) => s + (h.xpValue ?? 20), 0);
+            const mejorRacha  = fsHabitos.length ? Math.max(0, ...fsHabitos.map(h => calcStreak(h.completedDates ?? [], h.recurrence ?? 'daily'))) : 0;
+            const pctHabitos  = Math.round((done / Math.max(habitsToday.length, 1)) * 100);
+            const todayGCal   = gcalForDate(new Date());
+            const agendaHoy   = [...todayEventos, ...todayGCal.map(g => ({ _gcal: true as const, id: g.id, titulo: g.summary ?? '(sin título)', hora: gcalTime(g) }))];
+            const misionesTop = (missions.children ?? []).slice(0, 3);
+            const card        = 'rounded-xl bg-surface-container p-4 shadow-lg flex flex-col gap-4 relative overflow-hidden';
+            const cardTitle   = 'text-base font-bold text-on-surface flex items-center gap-2 min-w-0 [&>svg]:shrink-0';
+            const chip        = 'font-label text-[10px] font-semibold tracking-wide px-2 py-0.5 rounded-full whitespace-nowrap shrink-0';
+            return (
             <motion.div key="dashboard" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-6">
 
-              {/* Hero Banner */}
-              <div className="relative bg-gradient-to-br from-slate-900 via-blue-950/70 to-slate-900 rounded-3xl p-6 border border-blue-900/40 overflow-hidden shadow-xl">
-                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_65%_0%,rgba(59,130,246,0.2),transparent_60%)]" />
-                <div className="relative z-10 flex flex-wrap items-center gap-6">
+              {/* Hero del personaje */}
+              <section className={cn(card, 'shadow-xl')}>
+                <div className="absolute -right-8 -top-8 w-32 h-32 bg-secondary/15 rounded-full blur-2xl pointer-events-none" />
+                <div className="absolute -left-6 -bottom-6 w-28 h-28 bg-primary-container/15 rounded-full blur-2xl pointer-events-none" />
+                <div className="relative z-10 flex items-center gap-4">
                   <div className="relative shrink-0">
                     {user.photoURL
-                      ? <img src={user.photoURL} className="w-[72px] h-[72px] rounded-2xl border-2 border-blue-400/40 shadow-xl" />
-                      : <div className="w-[72px] h-[72px] rounded-2xl bg-gradient-to-br from-blue-500 to-purple-700 flex items-center justify-center text-white font-black text-xl shadow-xl border-2 border-blue-400/30">{initials}</div>
+                      ? <img src={user.photoURL} className="w-16 h-16 rounded-full object-cover ring-2 ring-secondary/60 shadow-[0_0_20px_rgba(78,222,163,0.35)]" />
+                      : <div className="w-16 h-16 rounded-full bg-surface-container-high flex items-center justify-center text-on-surface font-extrabold text-xl shadow-[0_0_20px_rgba(78,222,163,0.35)]">{initials}</div>
                     }
-                    <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-amber-400 text-black text-[9px] font-black px-2 py-0.5 rounded-full whitespace-nowrap shadow-lg">LVL {heroLevel}</span>
+                    <span className="absolute -bottom-1 -right-1 bg-secondary text-on-secondary font-label text-[10px] font-bold px-2 py-0.5 rounded-full shadow-md">Nv.{heroLevel}</span>
                   </div>
-                  <div className="flex-1 min-w-[180px]">
-                    <div className="flex flex-wrap items-center gap-2 mb-1">
-                      <h3 className="text-xl font-black text-white tracking-tight">{user.displayName}</h3>
-                      <span className={cn('text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest border', CLASS_META[heroClass]?.color ?? 'text-blue-300', 'bg-white/10 border-white/20')}>
-                        {CLASS_META[heroClass]?.icon} {heroClass}
-                      </span>
-                      <span className={cn('text-[10px] font-black px-2 py-1 rounded-full uppercase tracking-widest bg-white/10 border border-white/20', RANK_META[heroRank]?.color ?? 'text-slate-300')}>
-                        {RANK_META[heroRank]?.label ?? heroRank}
-                      </span>
-                    </div>
-                    <p className="text-slate-400 text-xs mb-1">{xpInLevel} / {heroXpForNext} XP — nivel {heroLevel}</p>
-                    <p className={cn('text-xs font-bold mb-1', RANK_META[heroRank]?.color ?? 'text-slate-400')}>
-                      Nivel Principal {mainLevelData.level} · {RANK_META[heroRank]?.label}
+                  <div className="flex flex-col min-w-0 flex-1">
+                    <span className="text-xl font-bold text-on-surface truncate">¡Buenas, {firstName}! ⚡</span>
+                    <p className="font-label text-xs text-secondary truncate">
+                      {CLASS_META[heroClass]?.icon} {heroClass} · {RANK_META[heroRank]?.label ?? heroRank}
                     </p>
                     {(() => {
                       const nextLvl = RANK_META[heroRank]?.next;
                       if (nextLvl && nextLvl !== Infinity) {
                         const diff = nextLvl - mainLevelData.level;
-                        return <p className="text-[10px] text-slate-500 mb-3">⚡ {diff} nivel{diff !== 1 ? 'es' : ''} para {Object.entries(RANK_META).find(([,v]) => v.next === nextLvl)?.[0] ?? ''}-Rank</p>;
+                        return <p className="text-xs text-on-surface-variant truncate">{diff} nivel{diff !== 1 ? 'es' : ''} para {Object.entries(RANK_META).find(([,v]) => v.next === nextLvl)?.[0] ?? ''}-Rank. ¡Metele pata!</p>;
                       }
-                      return <p className="text-[10px] text-amber-400 mb-3">👑 Rango máximo — Monarch</p>;
+                      return <p className="text-xs text-warning truncate">👑 Rango máximo — Monarch</p>;
                     })()}
-                    <div className="flex items-center gap-3">
-                      <div className="flex-1 h-2 bg-slate-800 rounded-full overflow-hidden border border-slate-700/50">
-                        <motion.div initial={{ width: 0 }} animate={{ width: `${(xpInLevel / heroXpForNext) * 100}%` }} transition={{ duration: 1, ease: 'easeOut' }} className="h-full bg-gradient-to-r from-blue-600 to-blue-400 rounded-full" />
-                      </div>
-                      <span className="text-[10px] font-black text-slate-500 whitespace-nowrap">{Math.round((xpInLevel / heroXpForNext) * 100)}%</span>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 w-full sm:w-auto shrink-0">
-                    {FS_KEYS.map(k => {
-                      const { level } = xpLevel(fsStats?.[k]?.xp ?? 0);
-                      return (
-                        <div key={k} className="flex items-center gap-1.5 bg-slate-800/70 border border-slate-700/50 rounded-xl px-2.5 py-2">
-                          <span className="text-xs">{STAT_META[k].icon}</span>
-                          <span className="text-[10px] font-black text-slate-300">{STAT_META[k].shortName}</span>
-                          <span className="text-[10px] text-slate-500 ml-auto">Lv{level}</span>
-                        </div>
-                      );
-                    })}
                   </div>
                 </div>
-              </div>
 
-              {/* Widget: Foco del día */}
-              <div className="bg-gradient-to-r from-violet-600/10 to-blue-600/10 border border-violet-500/20 rounded-2xl p-4 flex items-center gap-4">
-                <Target className="w-5 h-5 text-violet-400 shrink-0" />
-                <input
-                  type="text"
-                  value={todayFocus}
-                  onChange={e => { setTodayFocus(e.target.value); localStorage.setItem(`focus_${HOY}`, e.target.value); }}
-                  placeholder="¿En qué te vas a enfocar hoy?"
-                  className="flex-1 bg-transparent text-sm font-bold placeholder-slate-500 outline-none text-slate-100"
-                />
-              </div>
-
-              {/* Today at a Glance */}
-              <div className="grid grid-cols-3 gap-2 md:gap-3">
-                {([
-                  {
-                    label: 'XP HOY',
-                    value: habitsToday.filter(h => h.completed).reduce((s, h) => s + (h.xpValue ?? 20), 0),
-                    suffix: 'xp',
-                    icon: <Zap className="w-4 h-4" />,
-                    color: 'text-blue-600',
-                    bg: 'bg-blue-600/5 border-blue-200/50 dark:border-blue-900/30',
-                  },
-                  {
-                    label: 'MEJOR RACHA',
-                    value: fsHabitos.length
-                      ? Math.max(0, ...fsHabitos.map(h => calcStreak(h.completedDates ?? [], h.recurrence ?? 'daily')))
-                      : 0,
-                    suffix: '🔥',
-                    icon: <Flame className="w-4 h-4" />,
-                    color: 'text-orange-500',
-                    bg: 'bg-orange-500/5 border-orange-200/50 dark:border-orange-900/30',
-                  },
-                  {
-                    label: 'QUESTS',
-                    value: `${done}/${habitsToday.length}`,
-                    suffix: '',
-                    icon: <CheckCircle2 className="w-4 h-4" />,
-                    color: 'text-emerald-600',
-                    bg: 'bg-emerald-600/5 border-emerald-200/50 dark:border-emerald-900/30',
-                  },
-                ] as const).map((tile, i) => (
-                  <motion.div
-                    key={tile.label}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.07, duration: 0.4 }}
-                    className={cn('rounded-2xl p-3 border', tile.bg)}
-                  >
-                    <span className={cn('flex items-center gap-1 mb-1.5', tile.color)}>
-                      {tile.icon}
-                      <span className="text-[9px] font-black uppercase tracking-widest">{tile.label}</span>
+                <div className="relative z-10 flex flex-col gap-1.5 bg-surface-container-lowest/80 p-2.5 rounded-lg">
+                  <div className="flex justify-between items-baseline font-label text-xs tabular-nums">
+                    <span className="text-on-surface font-semibold flex items-center gap-1">
+                      <span className="text-secondary">✦</span> {xpInLevel} / {heroXpForNext} XP
                     </span>
-                    <p className="text-xl font-black text-slate-800 dark:text-slate-100 leading-none tabular-nums">
-                      {tile.value}
-                      {tile.suffix && <span className="text-sm ml-0.5 font-bold">{tile.suffix}</span>}
-                    </p>
-                  </motion.div>
-                ))}
-              </div>
-
-              {/* Stats + Radar */}
-              <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2">
-                  <div className="flex items-center gap-2 mb-4">
-                    <Trophy className="w-5 h-5 text-blue-600" />
-                    <h3 className="text-lg font-black tracking-tight uppercase">Hero Attributes</h3>
+                    <span className="text-on-surface-variant text-[10px]">Faltan {heroXpForNext - xpInLevel} XP para Nv. {heroLevel + 1}</span>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {stats.map(s => <StatCard key={s.name} stat={s} />)}
+                  <div className="w-full h-2.5 rounded-full bg-surface-container-high overflow-hidden">
+                    <motion.div initial={{ width: 0 }} animate={{ width: `${(xpInLevel / heroXpForNext) * 100}%` }} transition={{ duration: 1, ease: 'easeOut' }}
+                      className="h-full bg-gradient-to-r from-secondary-container via-secondary to-primary-container rounded-full shadow-[0_0_12px_rgba(78,222,163,0.5)]" />
                   </div>
                 </div>
-                <motion.div initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.5 }}
-                  className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800 flex flex-col items-center justify-center">
-                  <h4 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">Performance Radar</h4>
-                  <div className="w-full h-60">
+
+                <div className="relative z-10 grid grid-cols-3 gap-2">
+                  {[
+                    { icon: '🔥', value: `${mejorRacha} días`, sub: 'Mejor racha',    color: 'text-secondary' },
+                    { icon: '⚔️', value: `${done}/${habitsToday.length}`, sub: 'Quests de hoy', color: 'text-primary' },
+                    { icon: '✦',  value: `+${xpHoy} XP`, sub: 'Ganado hoy',      color: 'text-tertiary' },
+                  ].map(t => (
+                    <div key={t.sub} className="flex items-center gap-2 px-2.5 py-2 rounded-lg bg-surface-container-high/80 min-w-0">
+                      <span className="text-lg shrink-0">{t.icon}</span>
+                      <div className="flex flex-col min-w-0">
+                        <span className={cn('font-label text-xs font-bold truncate tabular-nums', t.color)}>{t.value}</span>
+                        <span className="font-label text-[10px] text-on-surface-variant truncate">{t.sub}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="relative z-10 flex items-center gap-3 px-3 py-2.5 rounded-lg bg-surface-container-lowest/80 focus-within:ring-[3px] focus-within:ring-primary-container/25">
+                  <Target className="w-4 h-4 text-tertiary shrink-0" />
+                  <input
+                    type="text"
+                    value={todayFocus}
+                    onChange={e => { setTodayFocus(e.target.value); localStorage.setItem(`focus_${HOY}`, e.target.value); }}
+                    placeholder="¿En qué te vas a enfocar hoy?"
+                    className="flex-1 bg-transparent text-sm font-semibold placeholder:text-outline outline-none text-on-surface"
+                  />
+                </div>
+              </section>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+
+                {/* Rueda de atributos */}
+                <section className={card}>
+                  <div className="flex justify-between items-center">
+                    <h3 className={cardTitle}><TrendingUp className="w-5 h-5 text-secondary" /> Rueda de Atributos</h3>
+                    <span className={cn(chip, 'text-tertiary bg-surface-container-highest')}>Hexágono RPG</span>
+                  </div>
+                  <div className="w-full h-56">
                     <ResponsiveContainer width="100%" height="100%">
-                      <RadarChart cx="50%" cy="50%" outerRadius="80%" data={radarData}>
+                      <RadarChart cx="50%" cy="50%" outerRadius="75%" data={radarData}>
                         <defs>
                           <filter id="stat-glow"><feGaussianBlur stdDeviation="3" result="coloredBlur" /><feMerge><feMergeNode in="coloredBlur" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
                         </defs>
-                        <PolarGrid stroke="#334155" />
-                        <PolarAngleAxis dataKey="subject" tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 700 }} />
+                        <PolarGrid stroke="#313540" />
+                        <PolarAngleAxis dataKey="subject" tick={{ fill: '#c2c6d6', fontSize: 10, fontWeight: 700, fontFamily: 'Space Grotesk, sans-serif' }} />
                         <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
-                        <Radar name="Stats" dataKey="A" stroke="#7c3aed" fill="#7c3aed" fillOpacity={0.4}
+                        <Radar name="Stats" dataKey="A" stroke="#4edea3" fill="#4edea3" fillOpacity={0.28} strokeWidth={2.5}
                           isAnimationActive animationDuration={800} animationEasing="ease-out"
                           style={{ filter: 'url(#stat-glow)' }} />
                       </RadarChart>
                     </ResponsiveContainer>
                   </div>
-                </motion.div>
-              </section>
-
-              {/* Agenda + Side panel */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2">
-                  <section className="bg-white dark:bg-slate-900 rounded-3xl p-4 md:p-8 border border-slate-200 dark:border-slate-800">
-                    <div className="flex items-center justify-between mb-4 md:mb-8">
-                      <h3 className="text-xl font-black flex items-center gap-3"><CalendarIcon className="w-6 h-6 text-blue-600" /> DAILY AGENDA</h3>
-                      <button onClick={() => { setEventoForm(p => ({ ...p, fecha: HOY })); setModal('evento'); }}
-                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold hover:opacity-90 transition-all shadow-md shadow-blue-500/20">
-                        <Plus className="w-4 h-4" /> Nuevo Evento
-                      </button>
-                    </div>
-                    {(() => {
-                      const todayGCal = gcalForDate(new Date());
-                      const allToday  = [...todayEventos, ...todayGCal.map(g => ({ _gcal: true as const, id: g.id, titulo: g.summary ?? '(sin título)', hora: gcalTime(g) }))];
-                      return allToday.length === 0
-                        ? <div className="py-12 text-center border-2 border-dashed border-slate-100 dark:border-slate-800 rounded-3xl">
-                            <CalendarDays className="w-12 h-12 text-slate-200 dark:text-slate-800 mx-auto mb-3" />
-                            <p className="text-sm font-bold text-slate-400">Sin eventos para hoy</p>
-                            <button onClick={() => { setEventoForm(p => ({ ...p, fecha: HOY })); setModal('evento'); }}
-                              className="mt-2 text-xs text-blue-500 font-bold hover:underline">+ Agregar evento</button>
+                  <div className="grid grid-cols-2 gap-2">
+                    {FS_KEYS.map(k => {
+                      const xp = fsStats?.[k]?.xp ?? 0;
+                      const { level } = xpLevel(xp);
+                      return (
+                        <div key={k} className="flex items-center gap-2 p-2 rounded-lg bg-surface-container-high min-w-0">
+                          <span className="text-primary shrink-0">{STAT_META[k].icon}</span>
+                          <div className="flex flex-col min-w-0 flex-1">
+                            <div className="flex items-center justify-between gap-1">
+                              <span className="font-label text-[11px] font-bold text-on-surface truncate">{STAT_META[k].name}</span>
+                              <span className="font-label text-[11px] font-bold text-secondary">L{level}</span>
+                            </div>
+                            <span className="font-label text-[10px] text-on-surface-variant tabular-nums">{xp} XP</span>
                           </div>
-                        : <div className="space-y-4 relative">
-                            <div className="absolute left-[67px] md:left-[87px] top-0 bottom-0 w-px bg-slate-100 dark:bg-slate-800" />
-                            {allToday.map(ev => {
-                              const isGCal = '_gcal' in ev;
-                              return (
-                                <div key={ev.id} className="grid grid-cols-[56px_1fr] gap-3 md:grid-cols-[80px_1fr] md:gap-8">
-                                  <div className="text-right py-2"><span className="text-xs font-black text-slate-400">{ev.hora || '—'}</span></div>
-                                  <div className="relative pl-3 md:pl-4">
-                                    <div className={cn('absolute -left-[27px] md:-left-[41px] top-3 w-3 h-3 rounded-full border-2 border-white dark:border-slate-900 z-10', isGCal ? 'bg-emerald-500' : 'bg-blue-600')} />
-                                    <div className="group/ev relative p-3 md:p-5 rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-                                      <h4 className="font-bold text-sm">{ev.titulo}</h4>
-                                      <p className={cn('text-[10px] mt-1 font-bold uppercase tracking-widest', isGCal ? 'text-emerald-500' : 'text-blue-500')}>
-                                        {isGCal ? '📅 Google Calendar' : 'evento'}
-                                      </p>
-                                      {!isGCal && (
-                                        <button onClick={() => deleteEvento(ev.id)}
-                                          className="opacity-0 group-hover/ev:opacity-100 absolute top-2 right-2 p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-400 hover:text-red-600 transition-all">
-                                          <Trash2 className="w-3.5 h-3.5" />
-                                        </button>
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>;
-                    })()}
-                  </section>
-                </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <button onClick={() => setTab('attributes')}
+                    className="w-full py-2 px-3 rounded-lg bg-surface-container-high hover:bg-surface-bright transition-colors font-label text-xs font-semibold text-primary flex items-center justify-center gap-1 active:scale-[0.99]">
+                    Ver desglose de Atributos <ChevronRight className="w-4 h-4" />
+                  </button>
+                </section>
 
                 <div className="space-y-6">
-                  {/* Quests */}
-                  <section className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="font-black text-sm flex items-center gap-2"><Zap className="w-5 h-5 text-blue-600" /> DAILY QUESTS</h3>
-                      <span className="text-[10px] font-black bg-blue-100 dark:bg-blue-900/30 text-blue-600 px-2 py-1 rounded-full">{Math.round((done / Math.max(habitsToday.length, 1)) * 100)}% DONE</span>
+                  {/* Hábitos de hoy */}
+                  <section className={card}>
+                    <div className="flex items-center justify-between">
+                      <h3 className={cardTitle}><CheckCircle2 className="w-5 h-5 text-secondary" /> Hábitos de Hoy</h3>
+                      <span className={cn(chip, 'text-secondary bg-surface-container-lowest font-bold')}>+{xpHoy} XP ganados</span>
+                    </div>
+                    <div className="flex flex-col gap-1.5 bg-surface-container-lowest p-2.5 rounded-lg">
+                      <div className="flex justify-between items-center font-label text-xs">
+                        <span className="text-on-surface tabular-nums">{done} de {habitsToday.length} completados ({pctHabitos}%)</span>
+                        {habitsToday.length > 0 && (
+                          <span className="text-secondary font-semibold text-[10px]">
+                            {pctHabitos === 100 ? '¡Día perfecto!' : pctHabitos >= 50 ? '¡Buen ritmo!' : '¡Arrancá!'}
+                          </span>
+                        )}
+                      </div>
+                      <div className="w-full h-2 rounded-full bg-surface-container-high overflow-hidden">
+                        <div className="h-full bg-secondary rounded-full shadow-[0_0_10px_rgba(78,222,163,0.4)] transition-all duration-300" style={{ width: `${pctHabitos}%` }} />
+                      </div>
                     </div>
                     {habitsToday.length === 0
-                      ? <p className="text-[11px] text-slate-400 text-center py-4">Sin quests para hoy.</p>
-                      : <div className="space-y-2">
-                          {habitsToday.slice(0, 6).map(h => {
+                      ? <p className="text-xs text-on-surface-variant text-center py-4">Sin quests para hoy.</p>
+                      : <div className="flex flex-col gap-2">
+                          {habitsToday.map(h => {
                             const fh = fsHabitos.find(x => x.id === h.id);
                             const streak = fh ? calcStreak(fh.completedDates ?? [], fh.recurrence ?? 'daily') : 0;
                             return (
-                              <div key={h.id} onClick={() => toggleHabit(h.id)} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer">
-                                <div className={cn('w-8 h-8 rounded-lg flex items-center justify-center shrink-0', h.completed ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-400')}>{h.icon}</div>
-                                <div className="flex-1 min-w-0">
-                                  <p className={cn('font-bold text-xs leading-tight truncate', h.completed && 'line-through text-slate-400')}>{h.name}</p>
-                                  {streak > 1 && (
-                                    <span className="flex items-center gap-0.5 text-[9px] font-black text-orange-500 mt-0.5">
-                                      <Flame className="w-2.5 h-2.5" /> {streak}d
-                                    </span>
-                                  )}
+                              <button key={h.id} onClick={() => toggleHabit(h.id)}
+                                className={cn('flex items-center gap-3 p-3 rounded-lg text-left transition-all active:scale-[0.99]',
+                                  h.completed ? 'bg-surface-container-high/60' : 'bg-surface-container-high hover:bg-surface-bright')}>
+                                <span className={cn('w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-all',
+                                  h.completed ? 'bg-secondary text-on-secondary shadow-[0_0_10px_rgba(78,222,163,0.4)]' : 'bg-surface-container-lowest ring-[1.5px] ring-outline/60 text-transparent')}>
+                                  <Check className="w-4 h-4" strokeWidth={3} />
+                                </span>
+                                <span className="flex flex-col min-w-0 flex-1">
+                                  <span className={cn('text-sm font-semibold truncate', h.completed ? 'line-through text-on-surface-variant' : 'text-on-surface')}>{h.name}</span>
+                                  <span className="flex items-center gap-2 font-label text-[10px]">
+                                    <span className={cn('font-semibold', h.completed ? 'text-secondary' : 'text-primary')}>+{h.xpValue} XP {h.attribute}</span>
+                                    {streak > 1 && <span className="text-on-surface-variant">· Racha 🔥 {streak}d</span>}
+                                  </span>
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                    }
+                  </section>
+
+                  {/* Agenda de hoy */}
+                  <section className={card}>
+                    <div className="flex items-center justify-between">
+                      <h3 className={cardTitle}><CalendarIcon className="w-5 h-5 text-primary" /> Agenda de Hoy</h3>
+                      <button onClick={() => { setEventoForm(p => ({ ...p, fecha: HOY })); setModal('evento'); }}
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-surface-container-high hover:bg-surface-bright font-label text-[11px] font-semibold text-primary transition-colors">
+                        <Plus className="w-3.5 h-3.5" /> Evento
+                      </button>
+                    </div>
+                    {agendaHoy.length === 0
+                      ? <div className="py-8 text-center rounded-lg bg-surface-container-lowest">
+                          <CalendarDays className="w-10 h-10 text-surface-container-highest mx-auto mb-2" />
+                          <p className="text-sm font-semibold text-on-surface-variant">Sin eventos para hoy</p>
+                        </div>
+                      : <div className="flex flex-col gap-2">
+                          {agendaHoy.map(ev => {
+                            const isGCal = '_gcal' in ev;
+                            return (
+                              <div key={ev.id} className="group/ev flex items-start gap-3 p-3 rounded-lg bg-surface-container-high relative">
+                                <div className={cn('w-1 self-stretch rounded-full shrink-0', isGCal ? 'bg-secondary' : 'bg-primary')} />
+                                <div className="flex flex-col min-w-0 flex-1">
+                                  <span className={cn('font-label text-xs font-bold tabular-nums', isGCal ? 'text-secondary' : 'text-primary')}>{ev.hora || 'Todo el día'}</span>
+                                  <p className="text-sm font-semibold text-on-surface truncate">{ev.titulo}</p>
+                                  <span className="text-xs text-on-surface-variant">{isGCal ? 'Google Calendar' : 'Evento'}</span>
                                 </div>
-                                <div className={cn('w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0', h.completed ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-200 dark:border-slate-700')}>
-                                  {h.completed && <CheckCircle2 className="w-3 h-3" />}
-                                </div>
+                                {!isGCal && (
+                                  <button onClick={() => deleteEvento(ev.id)} aria-label="Borrar evento"
+                                    className="opacity-100 md:opacity-0 md:group-hover/ev:opacity-100 p-1.5 rounded-lg hover:bg-error-container/30 text-outline hover:text-error transition-all">
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
                               </div>
                             );
                           })}
                         </div>
                     }
-                    <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
-                      <ProgressBar value={done} max={Math.max(habitsToday.length, 1)} color="bg-blue-600" />
-                      <p className="text-[10px] text-slate-400 mt-1.5">{done}/{habitsToday.length} · +{done * 20} XP</p>
-                    </div>
                   </section>
+                </div>
 
-                  {/* Mission overview */}
-                  <section className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="font-black text-sm flex items-center gap-2"><Target className="w-5 h-5 text-blue-600" /> MISSIONS</h3>
-                      <button onClick={() => setTab('missions')} className="text-[10px] text-blue-500 font-black hover:underline">Ver árbol →</button>
+                <div className="space-y-6">
+                  {/* Misiones activas */}
+                  <section className={card}>
+                    <div className="flex items-center justify-between">
+                      <h3 className={cardTitle}><Sword className="w-5 h-5 text-tertiary" /> Misiones Activas</h3>
+                      <button onClick={() => setTab('missions')} className={cn(chip, 'text-secondary bg-surface-container-high hover:bg-surface-bright font-bold')}>Ver árbol →</button>
                     </div>
-                    {missions.children && missions.children.length > 0
-                      ? <div className="space-y-3">
-                          {missions.children.slice(0, 3).map(m => (
-                            <div key={m.id} className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
-                              <div className="flex items-center justify-between mb-2">
-                                <p className="text-[10px] font-black text-slate-600 dark:text-slate-300 truncate pr-2">{m.title}</p>
-                                <span className="text-[9px] font-black text-blue-500 shrink-0">{m.progress}%</span>
-                              </div>
-                              <div className="h-1 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                                <div className="h-full bg-blue-500 rounded-full" style={{ width: `${m.progress}%` }} />
-                              </div>
-                            </div>
+                    {misionesTop.length === 0
+                      ? fsMisiones.length === 0
+                        ? <p className="text-xs text-on-surface-variant text-center py-4">Sin misiones activas.</p>
+                        : <MisionCard title={missions.title} progress={missions.progress} epica />
+                      : <div className="flex flex-col gap-3">
+                          {misionesTop.map((m, i) => (
+                            <MisionCard key={m.id} title={m.title} progress={m.progress} descripcion={m.descripcion} epica={i === 0} />
                           ))}
                         </div>
-                      : fsMisiones.length === 0
-                        ? <p className="text-[11px] text-slate-400 text-center py-4">Sin misiones activas.</p>
-                        : <div className="p-4 rounded-2xl bg-gradient-to-br from-blue-600 to-blue-800 text-white relative overflow-hidden">
-                            <Sword className="absolute -right-3 -bottom-3 w-16 h-16 text-white/10" />
-                            <p className="text-[9px] font-black uppercase tracking-widest text-blue-200 mb-1">EPIC QUEST</p>
-                            <h4 className="font-black text-sm mb-2">{missions.title}</h4>
-                            <div className="h-1.5 bg-white/20 rounded-full overflow-hidden">
-                              <div className="h-full bg-white rounded-full" style={{ width: `${missions.progress}%` }} />
-                            </div>
-                            <p className="text-[10px] text-blue-200 mt-1">{missions.progress}%</p>
-                          </div>
                     }
                   </section>
 
-                  {/* XP History — últimos 14 días */}
-                  <section className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800">
-                    <h4 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">XP Semanal</h4>
+                  {/* XP semanal */}
+                  <section className={card}>
+                    <h3 className={cardTitle}><Zap className="w-5 h-5 text-primary" /> XP · últimos 14 días</h3>
                     <div className="h-28">
                       <ResponsiveContainer width="100%" height="100%">
                         <LineChart data={xpPerDay}>
-                          <XAxis dataKey="date" tick={{ fontSize: 8, fill: '#94a3b8' }} tickFormatter={d => d.slice(5)} />
+                          <XAxis dataKey="date" tick={{ fontSize: 9, fill: '#8c909f', fontFamily: 'Space Grotesk, sans-serif' }} tickFormatter={d => d.slice(5)} axisLine={false} tickLine={false} />
                           <YAxis hide />
-                          <Line type="monotone" dataKey="xp" stroke="#3b82f6" strokeWidth={2} dot={false} />
+                          <Line type="monotone" dataKey="xp" stroke="#4d8eff" strokeWidth={2.5} dot={false} />
                         </LineChart>
                       </ResponsiveContainer>
                     </div>
                   </section>
 
                   {/* Logros */}
-                  <section className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800">
-                    <h4 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">Logros</h4>
+                  <section className={card}>
+                    <div className="flex items-center justify-between">
+                      <h3 className={cardTitle}><Trophy className="w-5 h-5 text-secondary" /> Botín &amp; Logros</h3>
+                      <span className={cn(chip, 'text-tertiary bg-surface-container-highest')}>{logrosUnlocked.length} desbloqueados</span>
+                    </div>
                     <div className="grid grid-cols-3 gap-2">
                       {[
                         { id: 'primera_quest', icon: '⚔️', label: 'Primera Quest' },
@@ -2423,13 +2368,13 @@ export default function App() {
                         { id: 'primer_examen', icon: '🎓', label: 'Primer examen' },
                         { id: 'todos_hoy',     icon: '✅', label: 'Todas hoy'     },
                       ].map(l => {
-                        const done = logrosUnlocked.includes(l.id);
+                        const unlocked = logrosUnlocked.includes(l.id);
                         return (
                           <div key={l.id} title={l.label}
-                            className={cn('flex flex-col items-center gap-1 p-2 rounded-xl border text-center transition-all',
-                              done ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700/50' : 'border-slate-100 dark:border-slate-800 opacity-40 grayscale')}>
+                            className={cn('flex flex-col items-center gap-1 p-2 rounded-lg text-center transition-all',
+                              unlocked ? 'bg-tertiary/15 shadow-[0_0_20px_-4px_rgba(221,183,255,0.3)]' : 'bg-surface-container-lowest opacity-40 grayscale')}>
                             <span className="text-xl">{l.icon}</span>
-                            <span className="text-[9px] font-bold text-slate-500 leading-tight">{l.label}</span>
+                            <span className="font-label text-[9px] font-semibold text-on-surface-variant leading-tight">{l.label}</span>
                           </div>
                         );
                       })}
@@ -2438,7 +2383,8 @@ export default function App() {
                 </div>
               </div>
             </motion.div>
-          )}
+            );
+          })()}
 
           {/* ══ CALENDAR ══ */}
           {tab === 'calendar' && (
@@ -3390,7 +3336,7 @@ export default function App() {
                         </div>
                         <ResponsiveContainer width="100%" height={80}>
                           <BarChart data={calcXpPerDay(fsHabitos, analyticsRange)} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
-                            <Bar dataKey="xp" fill="#3b82f6" radius={[2, 2, 0, 0]} />
+                            <Bar dataKey="xp" fill="#4d8eff" radius={[2, 2, 0, 0]} />
                             <Tooltip formatter={(v) => typeof v === 'number' ? [`${v} XP`, ''] : [v, '']} contentStyle={{ fontSize: 11, borderRadius: 8 }} />
                           </BarChart>
                         </ResponsiveContainer>
@@ -3536,14 +3482,14 @@ export default function App() {
                   </div>
                   <ResponsiveContainer width="100%" height={150}>
                     <LineChart data={evolucionData} margin={{ left: 0, right: 8, top: 4, bottom: 0 }}>
-                      <XAxis dataKey="mes" tick={{ fontSize: 10, fontWeight: 700, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                      <XAxis dataKey="mes" tick={{ fontSize: 10, fontWeight: 700, fill: '#8c909f' }} axisLine={false} tickLine={false} />
                       <YAxis hide />
                       <Tooltip
                         formatter={(v, name) => [typeof v === 'number' ? `${MONEDA_META[evolucionMoneda]?.symbol ?? '$'} ${v.toLocaleString('es-AR', { minimumFractionDigits: 2 })}` : v, name === 'ingresos' ? 'Ingresos' : 'Gastos']}
                         contentStyle={{ fontSize: 11, borderRadius: 8 }}
                       />
-                      <Line type="monotone" dataKey="ingresos" stroke="#10b981" strokeWidth={2} dot={{ r: 3, fill: '#10b981' }} activeDot={{ r: 5 }} />
-                      <Line type="monotone" dataKey="gastos"   stroke="#f87171" strokeWidth={2} dot={{ r: 3, fill: '#f87171' }} activeDot={{ r: 5 }} />
+                      <Line type="monotone" dataKey="ingresos" stroke="#4edea3" strokeWidth={2} dot={{ r: 3, fill: '#4edea3' }} activeDot={{ r: 5 }} />
+                      <Line type="monotone" dataKey="gastos"   stroke="#ffb4ab" strokeWidth={2} dot={{ r: 3, fill: '#ffb4ab' }} activeDot={{ r: 5 }} />
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
@@ -3634,11 +3580,11 @@ export default function App() {
                     <ResponsiveContainer width="100%" height={120}>
                       <BarChart data={txStats.porCategoria} layout="vertical" margin={{ left: 0, right: 12, top: 0, bottom: 0 }}>
                         <XAxis type="number" hide />
-                        <YAxis type="category" dataKey="name" width={70} tick={{ fontSize: 10, fontWeight: 700, fill: '#94a3b8' }} />
+                        <YAxis type="category" dataKey="name" width={70} tick={{ fontSize: 10, fontWeight: 700, fill: '#8c909f' }} />
                         <Tooltip formatter={(v) => typeof v === 'number' ? `$${v.toLocaleString('es-AR', { minimumFractionDigits: 2 })}` : v} contentStyle={{ fontSize: 11, borderRadius: 8 }} />
                         <Bar dataKey="value" radius={[0, 4, 4, 0]}>
                           {txStats.porCategoria.map((_, i) => (
-                            <Cell key={i} fill={['#10b981','#f59e0b','#3b82f6','#ef4444','#8b5cf6','#ec4899','#14b8a6','#f97316'][i % 8]} />
+                            <Cell key={i} fill={['#4edea3','#f59e0b','#3b82f6','#ef4444','#8b5cf6','#ec4899','#14b8a6','#f97316'][i % 8]} />
                           ))}
                         </Bar>
                       </BarChart>

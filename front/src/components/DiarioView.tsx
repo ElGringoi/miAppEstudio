@@ -12,7 +12,7 @@ const INK2   = '#4a4a4a';
 const ACC    = '#8c3b3b';
 const BORDER = '#d6cec2';
 const SERIF  = "'Newsreader', Georgia, serif";
-const SANS   = "'Work Sans', system-ui, sans-serif";
+const SANS   = "'Plus Jakarta Sans', system-ui, sans-serif";
 
 const RESPONSIVE_CSS = `
   .diario-root { padding: 0 40px 80px; }
