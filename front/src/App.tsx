@@ -54,6 +54,7 @@ import { DiarioView } from './components/DiarioView';
 import { MissionNodeComp } from './components/MissionNodeComp';
 import { LoginScreen } from './components/LoginScreen';
 import { CierreDia } from './components/CierreDia';
+import { BitacoraWidget } from './components/BitacoraWidget';
 
 // ─── App ──────────────────────────────────────────────────────────────────────
 
@@ -1391,6 +1392,25 @@ export default function App() {
     }
   }
 
+  async function guardarBitacora(texto: string) {
+    if (!user?.uid || !texto.trim()) return;
+    try {
+      const col = collection(db, 'usuarios', user.uid, 'diario');
+      await addDoc(col, {
+        tipo: 'bitacora',
+        contenido: texto,
+        area: 'general',
+        fecha: HOY,
+        updatedAt: HOY,
+        tags: ['bitacora'],
+      });
+      showToast('Anotación guardada', true);
+    } catch (e) {
+      console.error(e);
+      showToast('Error al guardar la anotación');
+    }
+  }
+
   async function deleteEntradaDiario(id: string) {
     if (!user?.uid) return;
     try {
@@ -2320,6 +2340,9 @@ export default function App() {
                   className="flex-1 bg-transparent text-sm font-bold placeholder-slate-500 outline-none text-slate-100"
                 />
               </div>
+
+              {/* Widget: Bitácora diaria */}
+              <BitacoraWidget onGuardar={guardarBitacora} />
 
               {/* Today at a Glance */}
               <div className="grid grid-cols-3 gap-2 md:gap-3">
