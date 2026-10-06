@@ -32,7 +32,7 @@ import type {
   FSStatKey, FSStatsDoc, FSHabito, FSEvento, FSMision, FSTarea,
   GCalEvent, FSEjercicio, FSRutina, EstadoLibro, FSCapitulo, FSLibro,
   TipoMaterial, FSMaterial, FSTareaFac, FSExamen, FSMateria,
-  FSEntradaDiario, FSObjetivoCHA, FSPersona, FSGrupo, FSInboxItem, InboxDestino, FSTransaccion, Habit, Task, HabitRecurrence, TabId, Moneda, LevelUpEvent, MisionPrioridad, SetLog,
+  FSEntradaDiario, FSObjetivoCHA, FSPersona, FSGrupo, FSInboxItem, InboxDestino, FSTransaccion, Habit, Task, HabitRecurrence, TabId, Moneda, LevelUpEvent, MisionPrioridad, SetLog, FSRoca,
   DiarioReaction, FSDiarioPrefs, FSSueldoMeta, FSPresupuesto, FSMetaAhorro,
 } from './types';
 import { SegundoCerebro } from './components/SegundoCerebro';
@@ -55,6 +55,7 @@ import { MissionNodeComp } from './components/MissionNodeComp';
 import { LoginScreen } from './components/LoginScreen';
 import { CierreDia } from './components/CierreDia';
 import { BitacoraWidget } from './components/BitacoraWidget';
+import { RocasWidget } from './components/RocasWidget';
 
 // ─── App ──────────────────────────────────────────────────────────────────────
 
@@ -181,6 +182,7 @@ export default function App() {
   const [fsPersonas,        setFsPersonas]        = useState<FSPersona[]>([]);
   const [fsGrupos,          setFsGrupos]          = useState<FSGrupo[]>([]);
   const [fsInbox,           setFsInbox]           = useState<FSInboxItem[]>([]);
+  const [fsRocas,           setFsRocas]           = useState<FSRoca[]>([]);
 
   // ── Nuevas mejoras ────────────────────────────────────────────────────────
   const [showNotifications, setShowNotifications] = useState(false);
@@ -305,7 +307,7 @@ export default function App() {
     setDataReady(false);
     const uid = user.uid;
     let loaded = 0;
-    const markLoaded = () => { if (++loaded === 18) setDataReady(true); };
+    const markLoaded = () => { if (++loaded === 19) setDataReady(true); };
     const unsubStats = onSnapshot(doc(db, 'usuarios', uid, 'stats', 'main'), snap => {
       setFsStats(snap.data() as FSStatsDoc ?? null);
       markLoaded();
@@ -330,7 +332,8 @@ export default function App() {
     const u16 = onSnapshot(collection(db, 'usuarios', uid, 'personas'),     s => { setFsPersonas(s.docs.map(d => ({ id: d.id, ...d.data() } as FSPersona))); markLoaded(); });
     const u17 = onSnapshot(collection(db, 'usuarios', uid, 'grupos'),       s => { setFsGrupos(s.docs.map(d => ({ id: d.id, ...d.data() } as FSGrupo))); markLoaded(); });
     const u18 = onSnapshot(collection(db, 'usuarios', uid, 'inbox'),        s => { setFsInbox(s.docs.map(d => ({ id: d.id, ...d.data() } as FSInboxItem))); markLoaded(); });
-    return () => { unsubStats(); u2(); u3(); u4(); u5(); u6(); u7(); u8(); u9(); u10(); u11(); u12(); u13(); u14(); u15(); u16(); u17(); u18(); };
+    const u19 = onSnapshot(collection(db, 'usuarios', uid, 'rocas'),        s => { setFsRocas(s.docs.map(d => ({ id: d.id, ...d.data() } as FSRoca))); markLoaded(); });
+    return () => { unsubStats(); u2(); u3(); u4(); u5(); u6(); u7(); u8(); u9(); u10(); u11(); u12(); u13(); u14(); u15(); u16(); u17(); u18(); u19(); };
   }, [user?.uid]);
 
   // Cierre del día — mostrar modal si es después de las 21:00 y no se mostró hoy
@@ -1411,6 +1414,47 @@ export default function App() {
     }
   }
 
+  async function agregarRoca(titulo: string) {
+    if (!user?.uid || !titulo.trim()) return;
+    try {
+      const col = collection(db, 'usuarios', user.uid, 'rocas');
+      const semana = HOY.slice(0, 7); // YYYY-WW
+      await addDoc(col, {
+        titulo,
+        descripcion: '',
+        progreso: 0,
+        meta: 100,
+        semana,
+      });
+      showToast('Roca agregada', true);
+    } catch (e) {
+      console.error(e);
+      showToast('Error al agregar roca');
+    }
+  }
+
+  async function actualizarRocaProgreso(id: string, progreso: number) {
+    if (!user?.uid) return;
+    try {
+      await updateDoc(doc(db, 'usuarios', user.uid, 'rocas', id), { progreso });
+      showToast('Progreso actualizado', true);
+    } catch (e) {
+      console.error(e);
+      showToast('Error al actualizar');
+    }
+  }
+
+  async function eliminarRoca(id: string) {
+    if (!user?.uid) return;
+    try {
+      await deleteDoc(doc(db, 'usuarios', user.uid, 'rocas', id));
+      showToast('Roca eliminada');
+    } catch (e) {
+      console.error(e);
+      showToast('Error al eliminar roca');
+    }
+  }
+
   async function deleteEntradaDiario(id: string) {
     if (!user?.uid) return;
     try {
@@ -2343,6 +2387,14 @@ export default function App() {
 
               {/* Widget: Bitácora diaria */}
               <BitacoraWidget onGuardar={guardarBitacora} />
+
+              {/* Widget: Rocas de la semana */}
+              <RocasWidget
+                rocas={fsRocas.filter(r => r.semana === HOY.slice(0, 7))}
+                onAgregar={agregarRoca}
+                onActualizarProgreso={actualizarRocaProgreso}
+                onEliminar={eliminarRoca}
+              />
 
               {/* Today at a Glance */}
               <div className="grid grid-cols-3 gap-2 md:gap-3">

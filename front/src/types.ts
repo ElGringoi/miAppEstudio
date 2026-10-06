@@ -129,6 +129,7 @@ export type FSTransaccion   = { id: string; descripcion: string; monto: number; 
 export type FSSueldoMeta    = { id: string; mes: string; montoEsperado: number; moneda: Moneda };
 export type FSPresupuesto   = { id: string; mes: string; categoria: string; monto: number; moneda: Moneda };
 export type FSMetaAhorro    = { id: string; nombre: string; icono?: string; montoObjetivo: number; montoActual: number; moneda: Moneda; fechaLimite?: string };
+export type FSRoca          = { id: string; titulo: string; descripcion?: string; progreso: number; meta: number; linkedTareaIds?: string[]; linkedMisionIds?: string[]; semana: string };
 export type LogroId =
   | 'primera_quest' | 'racha_7' | 'racha_30' | 'nivel_5' | 'nivel_10'
   | 'primer_libro' | 'primer_examen' | 'todos_hoy' | 'xp_100_dia';
