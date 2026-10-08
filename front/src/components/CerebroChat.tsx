@@ -18,7 +18,7 @@ interface CerebroChatProps {
 }
 
 export function CerebroChat({ header, entradas, personas, grupos }: CerebroChatProps) {
-  const { mensajes, loading, error, send, limpiar } = useCerebroChat({
+  const { mensajes, loading, send, limpiar } = useCerebroChat({
     entradas,
     personas,
     grupos,
@@ -61,7 +61,7 @@ export function CerebroChat({ header, entradas, personas, grupos }: CerebroChatP
         ref={scrollRef}
         className="flex-1 min-h-0 overflow-y-auto px-4 py-6 space-y-4"
       >
-        {estaVacio && !loading && !error && (
+        {estaVacio && (
           <div className="flex flex-col items-center text-center gap-2 mb-6">
             <div className="text-4xl">🧠</div>
             <h3 className="text-lg font-bold text-slate-700 dark:text-slate-200">
@@ -73,14 +73,6 @@ export function CerebroChat({ header, entradas, personas, grupos }: CerebroChatP
             <p className="text-xs text-slate-500 dark:text-slate-500 mt-4">
               💡 Prueba: "¿Qué noté sobre productividad?" o "¿Cuáles son los pendientes con Martín?"
             </p>
-          </div>
-        )}
-
-        {error && (
-          <div className="flex justify-center mb-4">
-            <div className="max-w-[80%] rounded-2xl bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 px-4 py-2.5 text-sm">
-              Error: {error}
-            </div>
           </div>
         )}
 
@@ -120,7 +112,7 @@ export function CerebroChat({ header, entradas, personas, grupos }: CerebroChatP
             onChange={e => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Preguntale algo..."
-            className="flex-1 pl-4 pr-12 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-sm placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-blue-500 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+            className="flex-1 pl-4 pr-12 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-sm placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-blue-500 transition-all disabled:opacity-60"
             disabled={loading}
           />
           <button
