@@ -145,6 +145,7 @@ export interface ChatMessage {
 
 export interface ContextoCerebro {
   notas?: FSEntradaDiario[];
-  personas?: FSPersona[];
-  grupos?: FSGrupo[];
+  // Solo los campos que el hook envía al backend (ver extraerContexto)
+  personas?: Pick<FSPersona, 'nombre' | 'tags' | 'notas' | 'ultimoContacto'>[];
+  grupos?: Pick<FSGrupo, 'nombre' | 'tags' | 'notas'>[];
 }
