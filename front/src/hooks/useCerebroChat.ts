@@ -1,15 +1,11 @@
 /**
  * Hook personalizado para manejar la lógica del chat del Segundo Cerebro
- * Gestiona estado de mensajes, historial, y extracción de contexto
+ * Gestiona el historial y responde buscando en las notas, personas y grupos
  */
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import type { ChatMessage, FSEntradaDiario, FSPersona, FSGrupo } from '../types';
-import { CEREBRO_SYSTEM_PROMPT } from '../utils/cerebro-prompts';
-import { callCerebroChatFunction } from '../lib/claude-client';
-import type { ChatRequest } from '../lib/claude-client';
-
-type ContextoChat = ChatRequest['contexto'];
+import { responderConMisDatos } from '../utils/cerebro-busqueda';
 
 const STORAGE_KEY = 'cerebro_chat_history';
 
@@ -19,24 +15,20 @@ interface UseCerebroChatOptions {
   grupos: FSGrupo[];
 }
 
+/** Lee el historial guardado; si falla, arranca vacío */
+const cargarHistorial = (): ChatMessage[] => {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    return saved ? JSON.parse(saved) : [];
+  } catch (e) {
+    console.warn('No se pudo cargar historial del chat:', e);
+    return [];
+  }
+};
+
 export function useCerebroChat(options: UseCerebroChatOptions) {
   const { entradas, personas, grupos } = options;
-  const [mensajes, setMensajes] = useState<ChatMessage[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const mountedRef = useRef(true);
-
-  // Cargar historial del localStorage al montar
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        setMensajes(JSON.parse(saved));
-      }
-    } catch (e) {
-      console.warn('No se pudo cargar historial del chat:', e);
-    }
-  }, []);
+  const [mensajes, setMensajes] = useState<ChatMessage[]>(cargarHistorial);
 
   // Guardar historial en localStorage cada vez que cambia
   useEffect(() => {
@@ -48,135 +40,25 @@ export function useCerebroChat(options: UseCerebroChatOptions) {
   }, [mensajes]);
 
   /**
-   * Extrae contexto relevante basándose en palabras clave del mensaje
-   */
-  const extraerContexto = useCallback(
-    (query: string): ContextoChat => {
-      const palabrasClave = query.split(/\s+/).filter(p => p.length > 3);
-
-      // Búsqueda simple: coincide en tags, título, contenido, nombre
-      const notasRelevantes = entradas.filter(e => {
-        const buscar = [
-          e.titulo?.toLowerCase() || '',
-          e.contenido.toLowerCase(),
-          e.tags?.map(t => t.toLowerCase()).join(' ') || '',
-        ].join(' ');
-        return palabrasClave.some(kw => buscar.includes(kw));
-      }).slice(0, 3);
-
-      const personasRelevantes = personas
-        .filter(p => {
-          const buscar = [
-            p.nombre.toLowerCase(),
-            p.apodo?.toLowerCase() || '',
-            p.tags?.map(t => t.toLowerCase()).join(' ') || '',
-            p.notas?.toLowerCase() || '',
-          ].join(' ');
-          return palabrasClave.some(kw => buscar.includes(kw));
-        })
-        .slice(0, 3)
-        .map(p => ({
-          nombre: p.nombre,
-          tags: p.tags,
-          notas: p.notas,
-          ultimoContacto: p.ultimoContacto,
-        }));
-
-      const gruposRelevantes = grupos
-        .filter(g => {
-          const buscar = [
-            g.nombre.toLowerCase(),
-            g.tags?.map(t => t.toLowerCase()).join(' ') || '',
-            g.notas?.toLowerCase() || '',
-          ].join(' ');
-          return palabrasClave.some(kw => buscar.includes(kw));
-        })
-        .slice(0, 3)
-        .map(g => ({
-          nombre: g.nombre,
-          tags: g.tags,
-          notas: g.notas,
-        }));
-
-      return {
-        notas: notasRelevantes.length > 0 ? notasRelevantes : undefined,
-        personas: personasRelevantes.length > 0 ? personasRelevantes : undefined,
-        grupos: gruposRelevantes.length > 0 ? gruposRelevantes : undefined,
-      };
-    },
-    [entradas, personas, grupos]
-  );
-
-  /**
-   * Envía un mensaje y obtiene respuesta de Claude
+   * Agrega la pregunta y la respuesta de búsqueda local al historial
    */
   const send = useCallback(
     async (userMessage: string) => {
-      if (!userMessage.trim()) return;
+      const texto = userMessage.trim();
+      if (!texto) return;
 
-      setError(null);
-      setLoading(true);
+      const ahora = new Date().toISOString();
+      const userMsg: ChatMessage = { id: crypto.randomUUID(), de: 'user', texto, timestamp: ahora };
+      const iaMsg: ChatMessage = {
+        id: crypto.randomUUID(),
+        de: 'ia',
+        texto: responderConMisDatos(texto, { entradas, personas, grupos }),
+        timestamp: ahora,
+      };
 
-      try {
-        // Agregar mensaje del usuario
-        const userMsgId = crypto.randomUUID();
-        const userMsg: ChatMessage = {
-          id: userMsgId,
-          de: 'user',
-          texto: userMessage.trim(),
-          timestamp: new Date().toISOString(),
-        };
-
-        if (!mountedRef.current) return;
-        setMensajes(prev => [...prev, userMsg]);
-
-        // Extraer contexto relevante
-        const contexto = extraerContexto(userMessage);
-
-        // Preparar historial para Claude (últimos 10 mensajes).
-        // La API exige que la conversación arranque con un mensaje del usuario.
-        const recientes = mensajes.slice(-10);
-        const primerUsuario = recientes.findIndex(m => m.de === 'user');
-        const historialReciente = (primerUsuario === -1 ? [] : recientes.slice(primerUsuario))
-          .map(m => ({
-            role: (m.de === 'user' ? 'user' : 'assistant') as 'user' | 'assistant',
-            content: m.texto,
-          }));
-
-        // Agregar el nuevo mensaje del usuario
-        historialReciente.push({ role: 'user', content: userMessage.trim() });
-
-        // Llamar a la Cloud Function
-        const response = await callCerebroChatFunction({
-          userMessage: userMessage.trim(),
-          conversationHistory: historialReciente,
-          contexto,
-        });
-
-        if (!mountedRef.current) return;
-
-        // Agregar respuesta de IA
-        const iaMsgId = crypto.randomUUID();
-        const iaMsg: ChatMessage = {
-          id: iaMsgId,
-          de: 'ia',
-          texto: response,
-          timestamp: new Date().toISOString(),
-        };
-
-        setMensajes(prev => [...prev, iaMsg]);
-      } catch (err) {
-        if (!mountedRef.current) return;
-        const errorMsg = err instanceof Error ? err.message : 'Error desconocido';
-        setError(errorMsg);
-        console.error('Error en useCerebroChat:', err);
-      } finally {
-        if (mountedRef.current) {
-          setLoading(false);
-        }
-      }
+      setMensajes(prev => [...prev, userMsg, iaMsg]);
     },
-    [mensajes, extraerContexto]
+    [entradas, personas, grupos]
   );
 
   /**
@@ -187,19 +69,9 @@ export function useCerebroChat(options: UseCerebroChatOptions) {
     localStorage.removeItem(STORAGE_KEY);
   }, []);
 
-  // Cleanup
-  useEffect(() => {
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
-
   return {
     mensajes,
-    loading,
-    error,
     send,
     limpiar,
-    systemPrompt: CEREBRO_SYSTEM_PROMPT,
   };
 }
