@@ -6,8 +6,14 @@
 
 import type { FSEntradaDiario, FSPersona, FSGrupo } from '../types';
 
-interface DatosCerebro {
+export interface DatosCerebro {
   entradas: FSEntradaDiario[];
+  personas: FSPersona[];
+  grupos: FSGrupo[];
+}
+
+export interface Resultados {
+  notas: FSEntradaDiario[];
   personas: FSPersona[];
   grupos: FSGrupo[];
 }
@@ -54,33 +60,42 @@ const topN = <T>(items: Coincidencia<T>[], n = 3): T[] =>
     .slice(0, n)
     .map(c => c.item);
 
-/** Devuelve la respuesta armada con lo que coincide con la pregunta. */
-export function responderConMisDatos(query: string, datos: DatosCerebro): string {
+/** Las 3 notas, personas y grupos que más coinciden con la pregunta. */
+export function buscarRelevantes(query: string, datos: DatosCerebro) {
   const claves = palabrasClave(query);
   if (claves.length === 0) {
+    return { notas: [], personas: [], grupos: [] } as Resultados;
+  }
+
+  return {
+    notas: topN(
+      datos.entradas.map(e => ({
+        item: e,
+        score: puntuar([e.titulo ?? '', e.contenido, (e.tags ?? []).join(' ')].join(' '), claves),
+      }))
+    ),
+    personas: topN(
+      datos.personas.map(p => ({
+        item: p,
+        score: puntuar([p.nombre, p.apodo ?? '', (p.tags ?? []).join(' '), p.notas ?? ''].join(' '), claves),
+      }))
+    ),
+    grupos: topN(
+      datos.grupos.map(g => ({
+        item: g,
+        score: puntuar([g.nombre, (g.tags ?? []).join(' '), g.notas ?? ''].join(' '), claves),
+      }))
+    ),
+  } as Resultados;
+}
+
+/** Devuelve la respuesta armada con lo que coincide con la pregunta, sin IA. */
+export function responderConMisDatos(query: string, datos: DatosCerebro): string {
+  if (palabrasClave(query).length === 0) {
     return 'Escribí una pregunta con alguna palabra concreta (un tema, una persona o un grupo) y busco en tus notas.';
   }
 
-  const notas = topN(
-    datos.entradas.map(e => ({
-      item: e,
-      score: puntuar([e.titulo ?? '', e.contenido, (e.tags ?? []).join(' ')].join(' '), claves),
-    }))
-  );
-
-  const personas = topN(
-    datos.personas.map(p => ({
-      item: p,
-      score: puntuar([p.nombre, p.apodo ?? '', (p.tags ?? []).join(' '), p.notas ?? ''].join(' '), claves),
-    }))
-  );
-
-  const grupos = topN(
-    datos.grupos.map(g => ({
-      item: g,
-      score: puntuar([g.nombre, (g.tags ?? []).join(' '), g.notas ?? ''].join(' '), claves),
-    }))
-  );
+  const { notas, personas, grupos } = buscarRelevantes(query, datos);
 
   if (notas.length === 0 && personas.length === 0 && grupos.length === 0) {
     return 'No encontré nada en tus notas, personas ni grupos que coincida con esa pregunta. Probá con otras palabras o con alguno de tus tags.';

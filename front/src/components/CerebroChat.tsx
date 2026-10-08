@@ -5,7 +5,7 @@
 
 import type { ReactNode } from 'react';
 import { useRef, useEffect, useState } from 'react';
-import { Send, Trash2 } from 'lucide-react';
+import { Send, Loader, Trash2 } from 'lucide-react';
 import type { FSEntradaDiario, FSPersona, FSGrupo } from '../types';
 import { useCerebroChat } from '../hooks/useCerebroChat';
 import { cn } from '../lib/utils';
@@ -18,7 +18,7 @@ interface CerebroChatProps {
 }
 
 export function CerebroChat({ header, entradas, personas, grupos }: CerebroChatProps) {
-  const { mensajes, send, limpiar } = useCerebroChat({
+  const { mensajes, loading, send, limpiar } = useCerebroChat({
     entradas,
     personas,
     grupos,
@@ -35,7 +35,7 @@ export function CerebroChat({ header, entradas, personas, grupos }: CerebroChatP
   }, [mensajes]);
 
   const handleSend = async () => {
-    if (!inputValue.trim()) return;
+    if (!inputValue.trim() || loading) return;
     await send(inputValue);
     setInputValue('');
   };
@@ -95,6 +95,13 @@ export function CerebroChat({ header, entradas, personas, grupos }: CerebroChatP
           </div>
         ))}
 
+        {loading && (
+          <div className="flex justify-start">
+            <div className="rounded-2xl rounded-bl-md bg-slate-100 dark:bg-slate-800 px-4 py-3">
+              <Loader className="w-4 h-4 text-slate-600 dark:text-slate-400 animate-spin" />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Input */}
@@ -105,11 +112,12 @@ export function CerebroChat({ header, entradas, personas, grupos }: CerebroChatP
             onChange={e => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Preguntale algo..."
-            className="flex-1 pl-4 pr-12 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-sm placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+            className="flex-1 pl-4 pr-12 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-sm placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-blue-500 transition-all disabled:opacity-60"
+            disabled={loading}
           />
           <button
             onClick={handleSend}
-            disabled={!inputValue.trim()}
+            disabled={loading || !inputValue.trim()}
             className="p-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             <Send className="w-4 h-4" />
