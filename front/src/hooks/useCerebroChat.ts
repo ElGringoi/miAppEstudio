@@ -5,7 +5,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import type { ChatMessage, ContextoCerebro, FSEntradaDiario, FSPersona, FSGrupo } from '../types';
-import { CEREBRO_SYSTEM_PROMPT, buildContextoPrompt, buildUserPrompt } from '../utils/cerebro-prompts';
+import { CEREBRO_SYSTEM_PROMPT } from '../utils/cerebro-prompts';
 import { callCerebroChatFunction } from '../lib/claude-client';
 
 const STORAGE_KEY = 'cerebro_chat_history';
@@ -49,7 +49,6 @@ export function useCerebroChat(options: UseCerebroChatOptions) {
    */
   const extraerContexto = useCallback(
     (query: string): ContextoCerebro => {
-      const queryLower = query.toLowerCase();
       const palabrasClave = query.split(/\s+/).filter(p => p.length > 3);
 
       // Búsqueda simple: coincide en tags, título, contenido, nombre
@@ -130,7 +129,6 @@ export function useCerebroChat(options: UseCerebroChatOptions) {
 
         // Extraer contexto relevante
         const contexto = extraerContexto(userMessage);
-        const contextoStr = buildContextoPrompt(contexto);
 
         // Preparar historial para Claude (últimos 5 intercambios)
         const historialReciente = mensajes
