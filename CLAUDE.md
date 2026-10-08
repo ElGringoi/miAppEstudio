@@ -98,8 +98,8 @@ Todas las colecciones viven bajo `usuarios/{uid}/`:
 |---|---|---|
 | `stats/main` | `FSStatsDoc` | Doc único; `{ fuerza: { xp }, salud: { xp }, ... }` |
 | `habitos` | `FSHabito[]` | `completedDates: string[]` para recurrencia semanal |
-| `eventos` | `FSEvento[]` | — |
-| `tareas` | `FSTarea[]` | `completedDates: string[]` |
+| `eventos` | `FSEvento[]` | `detalle?` (qué es) y `origen?` (de dónde vino), se ven al expandir |
+| `tareas` | `FSTarea[]` | `completedDates: string[]`; `detalle?` y `origen?` (los carga el Segundo Cerebro) |
 | `misiones` | `FSMision[]` | Flat list con `parentId` y `orden` |
 | `rutinas` | `FSRutina[]` | Ejercicios embebidos en el doc |
 | `libros` | `FSLibro[]` | Capítulos embebidos; `xpPorCapitulo` configurable |

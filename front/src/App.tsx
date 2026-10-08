@@ -52,6 +52,7 @@ import { CapituloRow } from './components/CapituloRow';
 import { EjercicioRow } from './components/EjercicioRow';
 import { DiarioView } from './components/DiarioView';
 import { MissionNodeComp } from './components/MissionNodeComp';
+import { ExpandToggle, DetalleOrigenPanel } from './components/DetalleOrigen';
 import { LoginScreen } from './components/LoginScreen';
 
 // ─── App ──────────────────────────────────────────────────────────────────────
@@ -219,8 +220,10 @@ export default function App() {
     costoMonto: '', costoMoneda: 'ARS' as Moneda,
   });
   const [habitForm,      setHabitForm]      = useState({ nombre: '', stat: 'fuerza' as FSStatKey, recurrence: 'daily' as HabitRecurrence, diasSemana: [] as number[] });
-  const [taskForm,     setTaskForm]     = useState({ titulo: '', hora: '', recurrence: 'once' as FSTarea['recurrence'], weekday: 1, date: HOY, color: DEFAULT_TASK_COLOR });
-  const [eventoForm,   setEventoForm]   = useState({ titulo: '', hora: '', fecha: HOY });
+  const [taskForm,     setTaskForm]     = useState({ titulo: '', hora: '', recurrence: 'once' as FSTarea['recurrence'], weekday: 1, date: HOY, color: DEFAULT_TASK_COLOR, detalle: '', origen: '' });
+  const [eventoForm,   setEventoForm]   = useState({ titulo: '', hora: '', fecha: HOY, detalle: '', origen: '' });
+  // Tarea/evento expandido en el calendario para ver detalle y origen
+  const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
   const [rutinaForm,   setRutinaForm]   = useState({ nombre: '', diasSemana: [] as number[] });
   const [ejercicioForm, setEjercicioForm] = useState({ nombre: '', series: 3, reps: '8-12', notas: '', mediaUrl: '' });
   const [libroForm,     setLibroForm]     = useState({ titulo: '', autor: '', estado: 'pendiente' as EstadoLibro, totalCapitulos: 10, xpPorCapitulo: 5 });
@@ -487,6 +490,7 @@ export default function App() {
         completed: t.completedDates?.includes(dStr) ?? false,
         recurrence: t.recurrence, weekday: t.weekday, date: t.date,
         completedDates: t.completedDates ?? [],
+        detalle: t.detalle, origen: t.origen,
       }));
   };
 
@@ -751,10 +755,12 @@ export default function App() {
       ...(taskForm.hora ? { hora: taskForm.hora } : {}),
       ...(taskForm.recurrence === 'weekly' ? { weekday: taskForm.weekday } : {}),
       ...(taskForm.recurrence === 'once' ? { date: taskForm.date } : {}),
+      ...(taskForm.detalle.trim() ? { detalle: taskForm.detalle.trim() } : {}),
+      ...(taskForm.origen.trim() ? { origen: taskForm.origen.trim() } : {}),
     };
     try {
       await addDoc(collection(db, 'usuarios', user.uid, 'tareas'), data);
-      setTaskForm({ titulo: '', hora: '', recurrence: 'once', weekday: 1, date: HOY, color: DEFAULT_TASK_COLOR });
+      setTaskForm({ titulo: '', hora: '', recurrence: 'once', weekday: 1, date: HOY, color: DEFAULT_TASK_COLOR, detalle: '', origen: '' });
       setModal(null);
     } catch (e: unknown) {
       setModalError((e as Error).message ?? 'Error al guardar');
@@ -776,10 +782,12 @@ export default function App() {
       titulo: eventoForm.titulo.trim(),
       fecha: eventoForm.fecha,
       ...(eventoForm.hora ? { hora: eventoForm.hora } : {}),
+      ...(eventoForm.detalle.trim() ? { detalle: eventoForm.detalle.trim() } : {}),
+      ...(eventoForm.origen.trim() ? { origen: eventoForm.origen.trim() } : {}),
     };
     try {
       await addDoc(collection(db, 'usuarios', user.uid, 'eventos'), data);
-      setEventoForm({ titulo: '', hora: '', fecha: HOY });
+      setEventoForm({ titulo: '', hora: '', fecha: HOY, detalle: '', origen: '' });
       setModal(null);
     } catch (e: unknown) {
       setModalError((e as Error).message ?? 'Error al guardar');
@@ -2304,9 +2312,17 @@ export default function App() {
                                     <div className={cn('absolute -left-[27px] md:-left-[41px] top-3 w-3 h-3 rounded-full border-2 border-white dark:border-slate-900 z-10', isGCal ? 'bg-emerald-500' : 'bg-blue-600')} />
                                     <div className="group/ev relative p-3 md:p-5 rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
                                       <h4 className="font-bold text-sm">{ev.titulo}</h4>
-                                      <p className={cn('text-[10px] mt-1 font-bold uppercase tracking-widest', isGCal ? 'text-emerald-500' : 'text-blue-500')}>
-                                        {isGCal ? '📅 Google Calendar' : 'evento'}
-                                      </p>
+                                      <div className="flex items-center gap-1">
+                                        <p className={cn('text-[10px] mt-1 font-bold uppercase tracking-widest', isGCal ? 'text-emerald-500' : 'text-blue-500')}>
+                                          {isGCal ? '📅 Google Calendar' : 'evento'}
+                                        </p>
+                                        {!isGCal && (ev.detalle || ev.origen) && (
+                                          <ExpandToggle open={expandedItemId === ev.id} onToggle={() => setExpandedItemId(expandedItemId === ev.id ? null : ev.id)} />
+                                        )}
+                                      </div>
+                                      {!isGCal && (ev.detalle || ev.origen) && (
+                                        <DetalleOrigenPanel open={expandedItemId === ev.id} detalle={ev.detalle} origen={ev.origen} />
+                                      )}
                                       {!isGCal && (
                                         <button onClick={() => deleteEvento(ev.id)}
                                           className="opacity-0 group-hover/ev:opacity-100 absolute top-2 right-2 p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-400 hover:text-red-600 transition-all">
@@ -2487,10 +2503,14 @@ export default function App() {
                       </div>
                     ) : (
                       <>
-                        {tasks.map(task => (
+                        {tasks.map(task => {
+                          const hasInfo  = !!(task.detalle || task.origen);
+                          const expanded = expandedItemId === task.id;
+                          return (
                           <div key={task.id}
-                            className="group flex items-center justify-between p-3 md:p-5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 hover:border-blue-200 cursor-pointer"
+                            className="group p-3 md:p-5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 hover:border-blue-200 cursor-pointer"
                             onClick={() => toggleTask(task.id, selDate)}>
+                            <div className="flex items-center justify-between">
                             <div className="flex items-center gap-4">
                               <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: task.color }} />
                               <span className="text-xs font-black text-slate-400 w-16">{task.time}</span>
@@ -2502,6 +2522,7 @@ export default function App() {
                               </div>
                             </div>
                             <div className="flex items-center gap-2">
+                              {hasInfo && <ExpandToggle open={expanded} onToggle={() => setExpandedItemId(expanded ? null : task.id)} />}
                               <button onClick={e => { e.stopPropagation(); deleteTask(task.id); }}
                                 className="opacity-100 md:opacity-0 md:group-hover:opacity-100 p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-400 hover:text-red-600 transition-all">
                                 <Trash2 className="w-4 h-4" />
@@ -2510,8 +2531,11 @@ export default function App() {
                                 {task.completed && <CheckCircle2 className="w-5 h-5" />}
                               </div>
                             </div>
+                            </div>
+                            {hasInfo && <DetalleOrigenPanel open={expanded} detalle={task.detalle} origen={task.origen} />}
                           </div>
-                        ))}
+                          );
+                        })}
                         {gcalDay.map(ev => (
                           <div key={ev.id} className="flex items-center justify-between p-3 md:p-5 bg-emerald-50 dark:bg-emerald-900/10 rounded-2xl border border-emerald-100 dark:border-emerald-900/30">
                             <div className="flex items-center gap-4">
@@ -4209,6 +4233,20 @@ export default function App() {
                       </div>
                     </div>
                   )}
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Detalle (opcional)</label>
+                    <textarea value={taskForm.detalle} rows={3}
+                      onChange={e => setTaskForm(p => ({ ...p, detalle: e.target.value }))}
+                      placeholder="¿Qué es esta tarea? Contexto, pasos, notas…"
+                      className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 resize-none" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Origen (opcional)</label>
+                    <input type="text" value={taskForm.origen}
+                      onChange={e => setTaskForm(p => ({ ...p, origen: e.target.value }))}
+                      placeholder="Ej: WhatsApp con Agustín"
+                      className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
+                  </div>
                   <button onClick={addTask} disabled={!taskForm.titulo.trim()}
                     className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold hover:opacity-90 disabled:opacity-40 transition-all">
                     Agregar Tarea
@@ -4488,6 +4526,20 @@ export default function App() {
                         onChange={e => setEventoForm(p => ({ ...p, fecha: e.target.value }))}
                         className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
                     </div>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Detalle (opcional)</label>
+                    <textarea value={eventoForm.detalle} rows={3}
+                      onChange={e => setEventoForm(p => ({ ...p, detalle: e.target.value }))}
+                      placeholder="¿De qué se trata este evento?"
+                      className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 resize-none" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Origen (opcional)</label>
+                    <input type="text" value={eventoForm.origen}
+                      onChange={e => setEventoForm(p => ({ ...p, origen: e.target.value }))}
+                      placeholder="Ej: Mail de la facu"
+                      className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
                   </div>
                   <button onClick={addEvento} disabled={!eventoForm.titulo.trim()}
                     className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold hover:opacity-90 disabled:opacity-40 transition-all">
