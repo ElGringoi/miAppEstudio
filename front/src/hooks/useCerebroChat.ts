@@ -4,9 +4,12 @@
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-import type { ChatMessage, ContextoCerebro, FSEntradaDiario, FSPersona, FSGrupo } from '../types';
-import { CEREBRO_SYSTEM_PROMPT, buildContextoPrompt, buildUserPrompt } from '../utils/cerebro-prompts';
+import type { ChatMessage, FSEntradaDiario, FSPersona, FSGrupo } from '../types';
+import { CEREBRO_SYSTEM_PROMPT } from '../utils/cerebro-prompts';
 import { callCerebroChatFunction } from '../lib/claude-client';
+import type { ChatRequest } from '../lib/claude-client';
+
+type ContextoChat = ChatRequest['contexto'];
 
 const STORAGE_KEY = 'cerebro_chat_history';
 
@@ -48,8 +51,7 @@ export function useCerebroChat(options: UseCerebroChatOptions) {
    * Extrae contexto relevante basándose en palabras clave del mensaje
    */
   const extraerContexto = useCallback(
-    (query: string): ContextoCerebro => {
-      const queryLower = query.toLowerCase();
+    (query: string): ContextoChat => {
       const palabrasClave = query.split(/\s+/).filter(p => p.length > 3);
 
       // Búsqueda simple: coincide en tags, título, contenido, nombre
@@ -130,11 +132,12 @@ export function useCerebroChat(options: UseCerebroChatOptions) {
 
         // Extraer contexto relevante
         const contexto = extraerContexto(userMessage);
-        const contextoStr = buildContextoPrompt(contexto);
 
-        // Preparar historial para Claude (últimos 5 intercambios)
-        const historialReciente = mensajes
-          .slice(-10)
+        // Preparar historial para Claude (últimos 10 mensajes).
+        // La API exige que la conversación arranque con un mensaje del usuario.
+        const recientes = mensajes.slice(-10);
+        const primerUsuario = recientes.findIndex(m => m.de === 'user');
+        const historialReciente = (primerUsuario === -1 ? [] : recientes.slice(primerUsuario))
           .map(m => ({
             role: (m.de === 'user' ? 'user' : 'assistant') as 'user' | 'assistant',
             content: m.texto,
