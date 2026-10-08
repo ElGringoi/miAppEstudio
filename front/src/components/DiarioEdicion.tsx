@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react';
 import type { FSEvento, FSTarea, FSMision, FSHabito, FSEntradaDiario, FSDiarioPrefs, DiarioReaction } from '../types';
 import { ARTICULOS } from '../utils/diarioSeed';
 import type { DiarioArticulo } from '../utils/diarioSeed';
+import { arteDeArticulo } from '../utils/diarioArte';
 import { HOY } from '../utils/constants';
 import { isHabitActiveToday, isHabitDoneToday } from '../utils/helpers';
 
@@ -100,6 +101,32 @@ const reactBtn = (activo: boolean): CSSProperties => ({
   borderRadius: 999, padding: '4px 12px', cursor: 'pointer', fontSize: 14,
 });
 
+// Foto real si el artículo la tiene; si no, ilustración generada a partir del id.
+function Ilustracion({ a, alto }: { a: DiarioArticulo; alto: number }) {
+  const estilo: CSSProperties = { width: '100%', height: alto, display: 'block', borderRadius: 4, marginBottom: 14 };
+  if (a.imagen) {
+    return <img src={a.imagen} alt={a.titulo} style={{ ...estilo, objectFit: 'cover' }} />;
+  }
+  const arte = arteDeArticulo(a.id, a.seccion);
+  return (
+    <svg viewBox={`0 0 ${arte.ancho} ${arte.alto}`} preserveAspectRatio="xMidYMid slice" aria-hidden="true" style={estilo}>
+      <rect width={arte.ancho} height={arte.alto} fill={arte.fondo} />
+      {arte.formas.map((f, i) => {
+        if (f.tipo === 'circulo') {
+          return <circle key={i} cx={f.x} cy={f.y} r={f.r} fill={f.color} opacity={f.opacidad} />;
+        }
+        if (f.tipo === 'rect') {
+          return (
+            <rect key={i} x={f.x} y={f.y} width={f.w} height={f.h} fill={f.color} opacity={f.opacidad}
+              transform={`rotate(${f.rot} ${f.x + f.w / 2} ${f.y + f.h / 2})`} />
+          );
+        }
+        return <line key={i} x1={f.x1} y1={f.y1} x2={f.x2} y2={f.y2} stroke={f.color} strokeWidth={f.grosor} />;
+      })}
+    </svg>
+  );
+}
+
 function Articulo({ a, prefs, onReact, principal = false }: {
   a: DiarioArticulo; prefs: FSDiarioPrefs;
   onReact: Props['onReact']; principal?: boolean;
@@ -111,6 +138,7 @@ function Articulo({ a, prefs, onReact, principal = false }: {
 
   return (
     <article style={{ borderTop: `1px solid ${BORDER}`, padding: principal ? '12px 0 24px' : '18px 0' }}>
+      <Ilustracion a={a} alto={principal ? 260 : 150} />
       <h3 style={{
         fontFamily: SERIF, fontWeight: 700, color: INK, margin: '0 0 8px', lineHeight: 1.2,
         fontSize: principal ? 'clamp(26px, 4vw, 38px)' : 'clamp(18px, 2.4vw, 22px)',

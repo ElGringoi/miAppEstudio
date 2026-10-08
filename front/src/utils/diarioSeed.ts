@@ -4,6 +4,8 @@ export interface DiarioArticulo {
   contenido: string;
   tags: string[];
   fuente?: string;
+  /** URL de foto real. Si falta, la UI muestra una ilustración generada a partir del id. */
+  imagen?: string;
   seccion?: 'deporte' | 'entretenimiento';
   subseccion?: string;
   /**
