@@ -102,7 +102,14 @@ export function SegundoCerebro(props: SegundoCerebroProps) {
     />
   );
 
-  if (seccion === 'chat') return <CerebroChat header={header} />;
+  if (seccion === 'chat') return (
+    <CerebroChat
+      header={header}
+      entradas={props.entradas}
+      personas={props.personas}
+      grupos={props.grupos}
+    />
+  );
 
   return (
     <CerebroNotas

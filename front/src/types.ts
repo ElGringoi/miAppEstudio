@@ -153,3 +153,19 @@ export interface MissionNode {
   bloqueada?: boolean;
 }
 export interface Task { id: string; title: string; time: string; color: string; completed: boolean; recurrence: 'once' | 'daily' | 'weekly'; weekday?: number; date?: string; completedDates: string[]; }
+
+// ─── Segundo Cerebro: Chat types ──────────────────────────────────────────────
+
+export interface ChatMessage {
+  id: string;
+  de: 'user' | 'ia';
+  texto: string;
+  timestamp: string;
+  imagenUrl?: string;     // para fase 2: multimodal
+}
+
+export interface ContextoCerebro {
+  notas?: FSEntradaDiario[];
+  personas?: FSPersona[];
+  grupos?: FSGrupo[];
+}
