@@ -58,7 +58,7 @@ Los comandos se ejecutan desde la raíz del repo (donde está `package.json`).
 ```
 front/src/
 ├── App.tsx              # Componente raíz: todo el estado global y lógica de negocio
-├── App.css              # Estilos globales + @import "tailwindcss"
+├── index.css            # Tema global: @import "tailwindcss" + tokens @theme del sistema de diseño
 ├── main.tsx             # Entry point de Vite
 ├── types.ts             # Todos los tipos FS y UI (FSStatKey, FSHabito, Stat, etc.)
 ├── lib/
@@ -69,7 +69,7 @@ front/src/
 │   └── helpers.ts       # xpLevel, statsFromDoc, buildTree, isHabitActiveToday/Done, habitRecurrenceLabel, youtubeEmbedUrl
 └── components/
     ├── LoginScreen.tsx
-    ├── StatCard.tsx
+    ├── MisionCard.tsx
     ├── ProgressBar.tsx
     ├── MissionNodeComp.tsx
     ├── CapituloRow.tsx      # Fila de capítulo en biblioteca
@@ -130,7 +130,16 @@ Sin `tailwind.config.*`. Plugin configurado en `vite.config.ts`:
 import tailwindcss from '@tailwindcss/vite';
 // plugins: [react(), tailwindcss()]
 ```
-CSS usa `@import "tailwindcss"` en `App.css`.
+CSS usa `@import "tailwindcss"` en `index.css` (lo importa `main.tsx`; `App.css` no se usa).
+
+### Sistema de diseño
+
+Basado en el diseño de Stitch "RPG Productivity & Study System". **Solo modo oscuro** (`<html class="dark">`).
+
+- Tokens en el bloque `@theme` de `index.css`: `surface`, `surface-container-{lowest,low,,high,highest}`, `on-surface`, `on-surface-variant`, `outline`, `primary` / `primary-container`, `secondary` (XP, éxito), `tertiary` (épico), `error`, `warning`.
+- Fuentes: `font-sans` = Plus Jakarta Sans (texto), `font-label` = Space Grotesk (números, chips, labels; usar `tabular-nums`).
+- Las paletas `slate`, `blue`, `emerald`/`green`, `violet`/`purple` y `red` están remapeadas a esos tonos para que el código viejo herede el look. **Código nuevo: usar los tokens semánticos**, no `slate-*`/`blue-*`.
+- Profundidad con capas de superficie y sombras, no con bordes. Recharts usa hex fijos: alinearlos con los tokens.
 
 ---
 

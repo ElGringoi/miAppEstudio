@@ -21,7 +21,7 @@ export type FSTarea   = { id: string; titulo: string; hora?: string; recurrence:
 export type GCalEvent = { id: string; summary?: string; start: { dateTime?: string; date?: string }; end: { dateTime?: string; date?: string } };
 export type SetLog = { peso: number; reps: number; done: boolean };
 export type FSEjercicio = { id: string; nombre: string; series?: number; reps?: string; notas?: string; mediaUrl?: string; lastCompletedDate: string | null; restTimerSecs?: number; setsLog?: SetLog[] };
-export type FSRutina    = { id: string; nombre: string; diasSemana: number[]; ejercicios: FSEjercicio[]; orden: number };
+export type FSRutina    = { id: string; nombre: string; diasSemana: number[]; ejercicios: FSEjercicio[]; orden: number; semana?: number; progresoDias?: number; descripcion?: string; version?: string };
 export type EstadoLibro = 'leyendo' | 'leido' | 'pendiente';
 export type FSCapitulo  = { id: string; numero: number; titulo?: string; leido: boolean; notas?: string };
 export type FSLibro     = { id: string; titulo: string; autor?: string; estado: EstadoLibro; capitulos: FSCapitulo[]; xpPorCapitulo: number };
@@ -65,6 +65,21 @@ export type FSFechaClave = {
   anual:  boolean;          // se repite todos los años
 };
 
+export type TipoSpark = 'pasion' | 'pregunta';
+export type FSSpark = {
+  id:        string;
+  tipo:      TipoSpark;     // 'pasion' = temas compartidos, 'pregunta' = pregunta clave de saludo
+  contenido: string;
+};
+
+export type TipoConexion = 'visita' | 'llamada' | 'mensaje' | 'encuentro';
+export type FSConexion = {
+  id:    string;
+  fecha: string;            // YYYY-MM-DD
+  tipo:  TipoConexion;
+  notas?: string;
+};
+
 export type FSPersona = {
   id:              string;
   nombre:          string;
@@ -79,6 +94,8 @@ export type FSPersona = {
   tags?:           string[];
   pendientes?:     FSPendiente[];
   fechasClave?:    FSFechaClave[];
+  sparks?:         FSSpark[];      // Temas de conversación y preguntas clave
+  conexiones?:     FSConexion[];   // Historial de últimos contactos
   links?:          string[];  // ids de FSEntradaDiario
   grupos?:         string[];  // ids de FSGrupo — FUENTE DE VERDAD de la membresía
   ultimoContacto?: string;    // gancho XP Carisma — todavía sin usar
@@ -103,12 +120,33 @@ export type FSGrupo = {
   createdAt?:       string;
   updatedAt?:       string;
 };
+// ─── Inbox del Segundo Cerebro ───────────────────────────────────────────────
+// Lo que entra sin clasificar: capturas rápidas propias, y lo que escribe el
+// agente externo (mensajes recientes, mails de Gmail). Contrato para el agente
+// en docs/INBOX_AGENTE.md — si cambia este tipo, actualizar ese archivo.
+
+export type InboxOrigen  = 'manual' | 'agente' | 'gmail';
+export type InboxDestino = 'nota' | 'idea' | 'tarea' | 'mision' | 'persona' | 'grupo';
+export type FSInboxItem = {
+  id:             string;
+  texto:          string;
+  titulo?:        string;
+  origen:         InboxOrigen;
+  remitente?:     string;
+  url?:           string;
+  recibidoEn:     string;        // ISO 8601 con hora
+  procesado?:     boolean;
+  procesadoComo?: InboxDestino;
+  procesadoEn?:   string;
+};
+
 export type FSObjetivoCHA   = { id: string; titulo: string; completado: boolean; orden: number };
 export type Moneda = 'ARS' | 'USD' | 'EUR' | 'BRL' | 'CLP' | 'UYU';
 export type FSTransaccion   = { id: string; descripcion: string; monto: number; tipo: 'ingreso' | 'gasto'; categoria: string; fecha: string; moneda?: Moneda };
 export type FSSueldoMeta    = { id: string; mes: string; montoEsperado: number; moneda: Moneda };
 export type FSPresupuesto   = { id: string; mes: string; categoria: string; monto: number; moneda: Moneda };
 export type FSMetaAhorro    = { id: string; nombre: string; icono?: string; montoObjetivo: number; montoActual: number; moneda: Moneda; fechaLimite?: string };
+export type FSRoca          = { id: string; titulo: string; descripcion?: string; progreso: number; meta: number; linkedTareaIds?: string[]; linkedMisionIds?: string[]; semana: string };
 export type LogroId =
   | 'primera_quest' | 'racha_7' | 'racha_30' | 'nivel_5' | 'nivel_10'
   | 'primer_libro' | 'primer_examen' | 'todos_hoy' | 'xp_100_dia';
@@ -145,6 +183,7 @@ export interface ChatMessage {
 
 export interface ContextoCerebro {
   notas?: FSEntradaDiario[];
-  personas?: FSPersona[];
-  grupos?: FSGrupo[];
+  // Solo los campos que el hook envía al backend (ver extraerContexto)
+  personas?: Pick<FSPersona, 'nombre' | 'tags' | 'notas' | 'ultimoContacto'>[];
+  grupos?: Pick<FSGrupo, 'nombre' | 'tags' | 'notas'>[];
 }

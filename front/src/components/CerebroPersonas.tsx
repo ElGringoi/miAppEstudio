@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import type { ReactNode } from 'react';
-import type { FSPersona, FSGrupo, FSEntradaDiario, FSPendiente, FSFechaClave } from '../types';
+import type { FSPersona, FSGrupo, FSEntradaDiario, FSPendiente, FSFechaClave, FSSpark, FSConexion } from '../types';
 import { cn } from '../lib/utils';
 import { Plus, Trash2, Pencil, Link2, Phone, Mail } from 'lucide-react';
 import { RELACION_META } from '../utils/constants';
@@ -11,18 +11,37 @@ import { PendientesEditor, PendientesList, FechasClaveEditor, FechasClaveList } 
 
 const relMeta = (r?: string) => RELACION_META.find(x => x.id === r);
 
+function getCumpleanoProximo(fechasClave?: any[]) {
+  if (!fechasClave) return null;
+  const cumples = fechasClave.filter(f => f.tipo === 'cumple');
+  if (cumples.length === 0) return null;
+
+  const hoy = new Date();
+  const proximosConDias = cumples.map(f => {
+    const [year, mes, dia] = f.fecha.split('-').map(Number);
+    const fecha = new Date(hoy.getFullYear(), mes - 1, dia);
+    if (fecha < hoy) fecha.setFullYear(hoy.getFullYear() + 1);
+    const dias = Math.ceil((fecha.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
+    return { f, dias, fecha };
+  });
+
+  const prox = proximosConDias.sort((a, b) => a.dias - b.dias)[0];
+  return prox && prox.dias <= 30 ? prox : null;
+}
+
 type FormState = {
   nombre: string; apodo: string; avatar: string; relacion: string;
   comoLaConoci: string; dondeLaConoci: string; telefono: string; email: string;
   notas: string; tags: string;
   pendientes: FSPendiente[]; fechasClave: FSFechaClave[];
+  sparks: any[]; conexiones: any[];
   links: string[]; grupos: string[];
 };
 
 const FORM_VACIO: FormState = {
   nombre: '', apodo: '', avatar: '', relacion: '',
   comoLaConoci: '', dondeLaConoci: '', telefono: '', email: '',
-  notas: '', tags: '', pendientes: [], fechasClave: [], links: [], grupos: [],
+  notas: '', tags: '', pendientes: [], fechasClave: [], sparks: [], conexiones: [], links: [], grupos: [],
 };
 
 interface Props {
@@ -109,6 +128,8 @@ export function CerebroPersonas({ header, personas, grupos, entradas, onSave, on
       tags:          (p.tags ?? []).join(', '),
       pendientes:    p.pendientes ?? [],
       fechasClave:   p.fechasClave ?? [],
+      sparks:        p.sparks ?? [],
+      conexiones:    p.conexiones ?? [],
       links:         p.links ?? [],
       grupos:        p.grupos ?? [],
     });
@@ -135,6 +156,8 @@ export function CerebroPersonas({ header, personas, grupos, entradas, onSave, on
         tags:          form.tags.split(',').map(t => t.trim()).filter(Boolean),
         pendientes:    form.pendientes,
         fechasClave:   form.fechasClave,
+        sparks:        form.sparks,
+        conexiones:    form.conexiones,
         links:         form.links,
         grupos:        form.grupos,
       };
@@ -264,130 +287,211 @@ export function CerebroPersonas({ header, personas, grupos, entradas, onSave, on
         />
       )}
 
-      {selected && !isEditing && (
-        <div className="flex flex-col h-full">
-          <PanelActions onBack={() => setShowRight(false)}>
-            <button onClick={() => openEditar(selected)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-            >
-              <Pencil className="w-4 h-4" /> Editar
-            </button>
-            <button onClick={() => handleDelete(selected.id)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-          </PanelActions>
+      {selected && !isEditing && (() => {
+        const cumpleProx = getCumpleanoProximo(selected.fechasClave);
+        const otrosFechas = (selected.fechasClave ?? []).filter(f => f.tipo !== 'cumple');
 
-          <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-            <div className="flex items-center gap-3">
-              <span className="text-4xl">{selected.avatar || '👤'}</span>
-              <div className="min-w-0">
-                <h1 className="text-2xl font-black text-slate-900 dark:text-white truncate">
-                  {selected.nombre}
-                </h1>
-                {selected.apodo && (
-                  <p className="text-sm text-slate-400">alias {selected.apodo}</p>
-                )}
+        return (
+          <div className="flex flex-col h-full">
+            <PanelActions onBack={() => setShowRight(false)}>
+              <button onClick={() => openEditar(selected)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              >
+                <Pencil className="w-4 h-4" /> Editar
+              </button>
+              <button onClick={() => handleDelete(selected.id)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </PanelActions>
+
+            <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
+              {/* HEADER: Avatar grande, nombre, apodo */}
+              <div className="flex flex-col items-center gap-3 pb-4 border-b border-slate-200 dark:border-slate-700">
+                <span className="text-7xl">{selected.avatar || '👤'}</span>
+                <div className="text-center">
+                  <h1 className="text-3xl font-black text-slate-900 dark:text-white leading-tight">
+                    {selected.nombre}
+                  </h1>
+                  {selected.apodo && (
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">"{selected.apodo}"</p>
+                  )}
+                </div>
               </div>
-            </div>
 
-            <div className="flex flex-wrap items-center gap-2">
-              {relMeta(selected.relacion) && (
-                <span className={cn('px-2 py-0.5 rounded text-white text-xs font-bold', relMeta(selected.relacion)!.color)}>
-                  {relMeta(selected.relacion)!.icon} {relMeta(selected.relacion)!.label}
-                </span>
+              {/* CUMPLEAÑOS PRÓXIMO */}
+              {cumpleProx && (
+                <div className="flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border border-amber-200 dark:border-amber-800">
+                  <span className="text-xl">🎂</span>
+                  <div className="text-center flex-1">
+                    <p className="text-sm font-semibold text-amber-900 dark:text-amber-100">
+                      Cumpleaños en {cumpleProx.dias === 0 ? 'hoy' : `${cumpleProx.dias} días`}
+                    </p>
+                    <p className="text-xs text-amber-700 dark:text-amber-200">REGALO PENDIENTE</p>
+                  </div>
+                </div>
               )}
-              {!relMeta(selected.relacion) && selected.relacion && (
-                <span className="px-2 py-0.5 rounded bg-slate-500 text-white text-xs font-bold">
-                  {selected.relacion}
-                </span>
-              )}
-              {(selected.tags ?? []).map(t => (
-                <span key={t} className="px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-xs font-medium">
-                  #{t}
-                </span>
-              ))}
-            </div>
 
-            {(selected.telefono || selected.email) && (
-              <div className="flex flex-wrap gap-2">
-                {selected.telefono && (
-                  <a href={`tel:${selected.telefono}`}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-medium hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
-                  >
-                    <Phone className="w-3.5 h-3.5" /> {selected.telefono}
-                  </a>
-                )}
-                {selected.email && (
-                  <a href={`mailto:${selected.email}`}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-medium hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
-                  >
-                    <Mail className="w-3.5 h-3.5" /> {selected.email}
-                  </a>
-                )}
+              {/* BOTONES DE ACCIÓN */}
+              <div className="grid grid-cols-3 gap-2">
+                <button className="flex flex-col items-center gap-1 px-2 py-2.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors text-xs font-medium text-slate-700 dark:text-slate-300">
+                  <span className="text-lg">📝</span>
+                  <span className="text-[10px]">Nota Rápida</span>
+                </button>
+                <button className="flex flex-col items-center gap-1 px-2 py-2.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors text-xs font-medium text-slate-700 dark:text-slate-300">
+                  <span className="text-lg">💬</span>
+                  <span className="text-[10px]">Chat</span>
+                </button>
+                <button className="flex flex-col items-center gap-1 px-2 py-2.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors text-xs font-medium text-slate-700 dark:text-slate-300">
+                  <span className="text-lg">📍</span>
+                  <span className="text-[10px]">Touch</span>
+                </button>
               </div>
-            )}
 
-            {(selected.comoLaConoci || selected.dondeLaConoci) && (
-              <Bloque titulo="Cómo la conocí">
-                <p className="text-sm text-slate-600 dark:text-slate-400">
-                  {selected.comoLaConoci}
-                  {selected.comoLaConoci && selected.dondeLaConoci ? ' · ' : ''}
-                  {selected.dondeLaConoci}
-                </p>
-              </Bloque>
-            )}
+              {/* DATOS CRUCIALES / SALVAVIDAS */}
+              <Bloque titulo="🛡️ Datos cruciales / salvavidas">
+                <div className="space-y-3">
+                  {relMeta(selected.relacion) && (
+                    <div className="flex items-center gap-2">
+                      <span className={cn('px-2.5 py-1 rounded text-white text-xs font-bold', relMeta(selected.relacion)!.color)}>
+                        {relMeta(selected.relacion)!.icon} {relMeta(selected.relacion)!.label}
+                      </span>
+                    </div>
+                  )}
+                  {!relMeta(selected.relacion) && selected.relacion && (
+                    <div>
+                      <span className="px-2.5 py-1 rounded bg-slate-600 text-white text-xs font-bold">
+                        {selected.relacion}
+                      </span>
+                    </div>
+                  )}
 
-            {(selected.pendientes ?? []).length > 0 && (
-              <Bloque titulo="Pendientes">
-                <PendientesList pendientes={selected.pendientes ?? []}
-                  onChange={next => onPatch(selected.id, { pendientes: next })} />
-              </Bloque>
-            )}
+                  {(selected.comoLaConoci || selected.dondeLaConoci) && (
+                    <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+                      <span className="font-semibold">Cómo nos conocimos:</span> {selected.comoLaConoci}
+                      {selected.comoLaConoci && selected.dondeLaConoci && ' · '}
+                      {selected.dondeLaConoci && <span className="italic">{selected.dondeLaConoci}</span>}
+                    </p>
+                  )}
 
-            {(selected.fechasClave ?? []).length > 0 && (
-              <Bloque titulo="Fechas clave">
-                <FechasClaveList fechas={selected.fechasClave ?? []}
-                  onChange={next => onPatch(selected.id, { fechasClave: next })} />
-              </Bloque>
-            )}
-
-            {selected.notas && (
-              <Bloque titulo="Notas">
-                <div
-                  className="prose-sm text-slate-700 dark:text-slate-300"
-                  dangerouslySetInnerHTML={{ __html: renderMarkdown(selected.notas) }}
-                />
-              </Bloque>
-            )}
-
-            {gruposDeSelected.length > 0 && (
-              <Bloque titulo="Grupos">
-                <div className="flex flex-wrap gap-2">
-                  {gruposDeSelected.map(g => (
-                    <span key={g.id} className="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-medium">
-                      {g.icono ?? '👥'} {g.nombre}
-                    </span>
-                  ))}
+                  {(selected.telefono || selected.email) && (
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      {selected.telefono && (
+                        <a href={`tel:${selected.telefono}`}
+                          className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-medium hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                        >
+                          <Phone className="w-3 h-3" /> {selected.telefono}
+                        </a>
+                      )}
+                      {selected.email && (
+                        <a href={`mailto:${selected.email}`}
+                          className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-medium hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                        >
+                          <Mail className="w-3 h-3" /> {selected.email}
+                        </a>
+                      )}
+                    </div>
+                  )}
                 </div>
               </Bloque>
-            )}
 
-            {notasDeSelected.length > 0 && (
-              <Bloque titulo={<><Link2 className="w-3.5 h-3.5 inline" /> Notas relacionadas</>}>
-                <div className="flex flex-wrap gap-2">
-                  {notasDeSelected.map(n => (
-                    <span key={n.id} className="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-medium">
-                      🔗 {n.titulo || 'Sin título'}
-                    </span>
-                  ))}
-                </div>
-              </Bloque>
-            )}
+              {/* SPARKS DE CONVERSACIÓN */}
+              {(selected.sparks ?? []).length > 0 && (
+                <Bloque titulo="✨ Sparks de conversación & rompehuelos">
+                  <div className="space-y-2">
+                    {selected.sparks!.map(s => (
+                      <div key={s.id} className="flex gap-2 text-sm">
+                        <span className="text-base">{s.tipo === 'pasion' ? '💡' : '❓'}</span>
+                        <p className="text-slate-600 dark:text-slate-400">{s.contenido}</p>
+                      </div>
+                    ))}
+                  </div>
+                </Bloque>
+              )}
+
+              {/* TAGS SINÁPTICOS & GUSTOS */}
+              {(selected.tags ?? []).length > 0 && (
+                <Bloque titulo="🏷️ Tags sinápticos & gustos">
+                  <div className="flex flex-wrap gap-2">
+                    {selected.tags!.map(t => (
+                      <span key={t} className="px-2.5 py-1 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-xs font-medium">
+                        #{t}
+                      </span>
+                    ))}
+                  </div>
+                </Bloque>
+              )}
+
+              {/* HISTORIAL DE CONEXIONES */}
+              {(selected.conexiones ?? []).length > 0 && (
+                <Bloque titulo="🔗 Historial de conexiones">
+                  <div className="space-y-2">
+                    {[...selected.conexiones!].reverse().map(c => (
+                      <div key={c.id} className="text-xs text-slate-600 dark:text-slate-400 pb-2 border-b border-slate-100 dark:border-slate-800 last:border-0 last:pb-0">
+                        <p className="font-semibold text-slate-700 dark:text-slate-300">{c.fecha} · {c.tipo}</p>
+                        {c.notas && <p className="mt-1 italic">{c.notas}</p>}
+                      </div>
+                    ))}
+                  </div>
+                </Bloque>
+              )}
+
+              {/* PENDIENTES */}
+              {(selected.pendientes ?? []).length > 0 && (
+                <Bloque titulo="📌 Pendientes">
+                  <PendientesList pendientes={selected.pendientes ?? []}
+                    onChange={next => onPatch(selected.id, { pendientes: next })} />
+                </Bloque>
+              )}
+
+              {/* FECHAS CLAVE (sin cumpleaños) */}
+              {otrosFechas.length > 0 && (
+                <Bloque titulo="📅 Otras fechas clave">
+                  <FechasClaveList fechas={otrosFechas}
+                    onChange={next => onPatch(selected.id, { fechasClave: [...(selected.fechasClave ?? []).filter(f => f.tipo === 'cumple'), ...next] })} />
+                </Bloque>
+              )}
+
+              {/* NOTAS */}
+              {selected.notas && (
+                <Bloque titulo="📖 Notas">
+                  <div
+                    className="prose-sm text-slate-700 dark:text-slate-300"
+                    dangerouslySetInnerHTML={{ __html: renderMarkdown(selected.notas) }}
+                  />
+                </Bloque>
+              )}
+
+              {/* GRUPOS */}
+              {gruposDeSelected.length > 0 && (
+                <Bloque titulo="👥 Grupos">
+                  <div className="flex flex-wrap gap-2">
+                    {gruposDeSelected.map(g => (
+                      <span key={g.id} className="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-medium">
+                        {g.icono ?? '👥'} {g.nombre}
+                      </span>
+                    ))}
+                  </div>
+                </Bloque>
+              )}
+
+              {/* NOTAS RELACIONADAS */}
+              {notasDeSelected.length > 0 && (
+                <Bloque titulo={<><Link2 className="w-3.5 h-3.5 inline" /> Notas relacionadas</>}>
+                  <div className="flex flex-wrap gap-2">
+                    {notasDeSelected.map(n => (
+                      <span key={n.id} className="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-medium">
+                        🔗 {n.titulo || 'Sin título'}
+                      </span>
+                    ))}
+                  </div>
+                </Bloque>
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {isEditing && (
         <div className="flex flex-col h-full">
@@ -465,6 +569,20 @@ export function CerebroPersonas({ header, personas, grupos, entradas, onSave, on
               <FechasClaveEditor
                 fechas={form.fechasClave}
                 onChange={next => setForm(f => ({ ...f, fechasClave: next }))}
+              />
+            </Campo>
+
+            <Campo label="✨ Sparks de conversación">
+              <SparkEditor
+                sparks={form.sparks}
+                onChange={next => setForm(f => ({ ...f, sparks: next }))}
+              />
+            </Campo>
+
+            <Campo label="🔗 Historial de conexiones">
+              <ConexionEditor
+                conexiones={form.conexiones}
+                onChange={next => setForm(f => ({ ...f, conexiones: next }))}
               />
             </Campo>
 
@@ -558,5 +676,151 @@ function Input({ value, onChange, placeholder }: {
       value={value}
       onChange={e => onChange(e.target.value)}
     />
+  );
+}
+
+function SparkEditor({ sparks, onChange }: {
+  sparks: any[]; onChange: (s: any[]) => void;
+}) {
+  const [newTipo, setNewTipo] = useState<'pasion' | 'pregunta'>('pasion');
+  const [newContenido, setNewContenido] = useState('');
+
+  const addSpark = () => {
+    if (!newContenido.trim()) return;
+    onChange([...sparks, {
+      id: `spark_${Date.now()}`,
+      tipo: newTipo,
+      contenido: newContenido.trim(),
+    }]);
+    setNewContenido('');
+  };
+
+  const removeSpark = (id: string) => {
+    onChange(sparks.filter(s => s.id !== id));
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex gap-2">
+        <button
+          onClick={() => setNewTipo('pasion')}
+          className={cn('px-2 py-1 rounded text-xs font-medium', newTipo === 'pasion' ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-800')}
+        >
+          💡 Pasión
+        </button>
+        <button
+          onClick={() => setNewTipo('pregunta')}
+          className={cn('px-2 py-1 rounded text-xs font-medium', newTipo === 'pregunta' ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-800')}
+        >
+          ❓ Pregunta
+        </button>
+      </div>
+      <div className="flex gap-2">
+        <input
+          className="flex-1 px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder={newTipo === 'pasion' ? 'Ej: tipografía, café' : 'Ej: ¿Cómo va el proyecto?'}
+          value={newContenido}
+          onChange={e => setNewContenido(e.target.value)}
+        />
+        <button
+          onClick={addSpark}
+          disabled={!newContenido.trim()}
+          className="px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold transition-colors"
+        >
+          <Plus className="w-4 h-4" />
+        </button>
+      </div>
+      <div className="space-y-1 max-h-32 overflow-y-auto">
+        {sparks.map(s => (
+          <div key={s.id} className="flex items-center justify-between gap-2 px-2 py-1.5 rounded bg-slate-100 dark:bg-slate-800">
+            <span className="text-xs text-slate-700 dark:text-slate-300">
+              <span className="mr-1">{s.tipo === 'pasion' ? '💡' : '❓'}</span>
+              {s.contenido}
+            </span>
+            <button
+              onClick={() => removeSpark(s.id)}
+              className="text-red-500 hover:text-red-700 transition-colors"
+            >
+              <Trash2 className="w-3 h-3" />
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ConexionEditor({ conexiones, onChange }: {
+  conexiones: any[]; onChange: (c: any[]) => void;
+}) {
+  const [newFecha, setNewFecha] = useState(new Date().toISOString().split('T')[0]);
+  const [newTipo, setNewTipo] = useState<'visita' | 'llamada' | 'mensaje' | 'encuentro'>('encuentro');
+  const [newNotas, setNewNotas] = useState('');
+
+  const addConexion = () => {
+    onChange([...conexiones, {
+      id: `conn_${Date.now()}`,
+      fecha: newFecha,
+      tipo: newTipo,
+      notas: newNotas.trim(),
+    }]);
+    setNewNotas('');
+  };
+
+  const removeConexion = (id: string) => {
+    onChange(conexiones.filter(c => c.id !== id));
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="grid grid-cols-2 gap-2">
+        <input
+          type="date"
+          className="px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+          value={newFecha}
+          onChange={e => setNewFecha(e.target.value)}
+        />
+        <select
+          className="px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+          value={newTipo}
+          onChange={e => setNewTipo(e.target.value as any)}
+        >
+          <option value="encuentro">Encuentro</option>
+          <option value="llamada">Llamada</option>
+          <option value="mensaje">Mensaje</option>
+          <option value="visita">Visita</option>
+        </select>
+      </div>
+      <div className="flex gap-2">
+        <input
+          className="flex-1 px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="Notas (opcional)"
+          value={newNotas}
+          onChange={e => setNewNotas(e.target.value)}
+        />
+        <button
+          onClick={addConexion}
+          className="px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors"
+        >
+          <Plus className="w-4 h-4" />
+        </button>
+      </div>
+      <div className="space-y-1 max-h-40 overflow-y-auto">
+        {[...conexiones].reverse().map(c => (
+          <div key={c.id} className="flex items-start justify-between gap-2 px-2 py-1.5 rounded bg-slate-100 dark:bg-slate-800">
+            <div className="text-xs text-slate-700 dark:text-slate-300 flex-1 min-w-0">
+              <p className="font-semibold">{c.fecha} · {c.tipo}</p>
+              {c.notas && <p className="italic truncate">{c.notas}</p>}
+            </div>
+            <button
+              onClick={() => removeConexion(c.id)}
+              className="text-red-500 hover:text-red-700 transition-colors shrink-0"
+            >
+              <Trash2 className="w-3 h-3" />
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
