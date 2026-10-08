@@ -7,7 +7,8 @@ export interface LevelUpEvent { stat: FSStatKey; oldLevel: number; newLevel: num
 export type FSStatsDoc = Record<FSStatKey, { xp: number }>;
 export type HabitRecurrence = 'daily' | 'weekdays' | 'once_week' | 'weekly';
 export type FSHabito  = { id: string; nombre: string; stat: FSStatKey; fechaCompletado: string | null; xpValue?: number; recurrence?: HabitRecurrence; diasSemana?: number[]; completedDates?: string[] };
-export type FSEvento  = { id: string; titulo: string; hora?: string; fecha: string };
+// detalle: qué es; origen: de dónde vino (ej. "WhatsApp con Agustín"). Los suele cargar el Segundo Cerebro.
+export type FSEvento  = { id: string; titulo: string; hora?: string; fecha: string; detalle?: string; origen?: string };
 export type MisionPrioridad = 'baja' | 'media' | 'alta' | 'urgente';
 export type FSMision  = {
   id: string; titulo: string; completada: boolean; parentId: string | null; orden: number;
@@ -17,7 +18,7 @@ export type FSMision  = {
   costoMonto?: number;
   costoMoneda?: Moneda;
 };
-export type FSTarea   = { id: string; titulo: string; hora?: string; recurrence: 'once' | 'daily' | 'weekly'; weekday?: number; date?: string; color: string; completedDates: string[] };
+export type FSTarea   = { id: string; titulo: string; hora?: string; recurrence: 'once' | 'daily' | 'weekly'; weekday?: number; date?: string; color: string; completedDates: string[]; detalle?: string; origen?: string };
 export type GCalEvent = { id: string; summary?: string; start: { dateTime?: string; date?: string }; end: { dateTime?: string; date?: string } };
 export type SetLog = { peso: number; reps: number; done: boolean };
 export type FSEjercicio = { id: string; nombre: string; series?: number; reps?: string; notas?: string; mediaUrl?: string; lastCompletedDate: string | null; restTimerSecs?: number; setsLog?: SetLog[] };
@@ -131,7 +132,7 @@ export interface MissionNode {
   costoMoneda?: Moneda;
   bloqueada?: boolean;
 }
-export interface Task { id: string; title: string; time: string; color: string; completed: boolean; recurrence: 'once' | 'daily' | 'weekly'; weekday?: number; date?: string; completedDates: string[]; }
+export interface Task { id: string; title: string; time: string; color: string; completed: boolean; recurrence: 'once' | 'daily' | 'weekly'; weekday?: number; date?: string; completedDates: string[]; detalle?: string; origen?: string; }
 
 // ─── Segundo Cerebro: Chat types ──────────────────────────────────────────────
 
@@ -145,6 +146,6 @@ export interface ChatMessage {
 
 export interface ContextoCerebro {
   notas?: FSEntradaDiario[];
-  personas?: FSPersona[];
-  grupos?: FSGrupo[];
+  personas?: Pick<FSPersona, 'nombre' | 'tags' | 'notas' | 'ultimoContacto'>[];
+  grupos?: Pick<FSGrupo, 'nombre' | 'tags' | 'notas'>[];
 }
