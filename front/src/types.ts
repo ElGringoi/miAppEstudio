@@ -65,6 +65,21 @@ export type FSFechaClave = {
   anual:  boolean;          // se repite todos los años
 };
 
+export type TipoSpark = 'pasion' | 'pregunta';
+export type FSSpark = {
+  id:        string;
+  tipo:      TipoSpark;     // 'pasion' = temas compartidos, 'pregunta' = pregunta clave de saludo
+  contenido: string;
+};
+
+export type TipoConexion = 'visita' | 'llamada' | 'mensaje' | 'encuentro';
+export type FSConexion = {
+  id:    string;
+  fecha: string;            // YYYY-MM-DD
+  tipo:  TipoConexion;
+  notas?: string;
+};
+
 export type FSPersona = {
   id:              string;
   nombre:          string;
@@ -79,6 +94,8 @@ export type FSPersona = {
   tags?:           string[];
   pendientes?:     FSPendiente[];
   fechasClave?:    FSFechaClave[];
+  sparks?:         FSSpark[];      // Temas de conversación y preguntas clave
+  conexiones?:     FSConexion[];   // Historial de últimos contactos
   links?:          string[];  // ids de FSEntradaDiario
   grupos?:         string[];  // ids de FSGrupo — FUENTE DE VERDAD de la membresía
   ultimoContacto?: string;    // gancho XP Carisma — todavía sin usar
