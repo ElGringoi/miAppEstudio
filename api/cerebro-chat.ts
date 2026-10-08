@@ -136,7 +136,7 @@ export default async function handler(req: RequestLike, res: ResponseLike) {
       },
       body: JSON.stringify({
         model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
-        max_tokens: 1024,
+        max_completion_tokens: 1024,
         temperature: 0.4,
         messages: [
           { role: 'system', content: buildSystemPrompt(body.contexto ?? {}) },
