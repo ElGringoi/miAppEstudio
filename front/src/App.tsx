@@ -50,7 +50,7 @@ import { ProgressBar } from './components/ProgressBar';
 import { StatCard } from './components/StatCard';
 import { CapituloRow } from './components/CapituloRow';
 import { EjercicioRow } from './components/EjercicioRow';
-import { DiarioView } from './components/DiarioView';
+import { DiarioEdicion } from './components/DiarioEdicion';
 import { MissionNodeComp } from './components/MissionNodeComp';
 import { LoginScreen } from './components/LoginScreen';
 import { CierreDia } from './components/CierreDia';
@@ -4023,14 +4023,12 @@ export default function App() {
           {tab === 'diario' && (
             <motion.div key="diario" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               <div className="-mx-4 -mt-4 md:-mx-8 md:-mt-8">
-                <DiarioView
-                  stats={stats}
-                  habits={habits}
-                  fsRutinas={fsRutinas}
+                <DiarioEdicion
+                  fsHabitos={fsHabitos}
+                  fsEventos={fsEventos}
+                  fsTareas={fsTareas}
                   fsMisiones={fsMisiones}
-                  fsLibros={fsLibros}
                   fsEntradas={fsDiario}
-                  userName={user?.displayName?.split(' ')[0] ?? 'Hero'}
                   diarioPrefs={fsDiarioPrefs}
                   onReact={reactArticulo}
                 />
