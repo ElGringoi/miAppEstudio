@@ -108,6 +108,7 @@ Todas las colecciones viven bajo `usuarios/{uid}/`:
 | `diario` | `FSEntradaDiario[]` | Notas; se editan desde Segundo Cerebro |
 | `diario_prefs/main` | `FSDiarioPrefs` | Doc único: reacciones, tagScores, guardados, deportes/equipos. Escribir siempre con `setDoc(..., { merge: true })` |
 | `objetivos_cha` | `FSObjetivoCHA[]` | Objetivos de Carisma |
+| `cerebro_prefs/main` | `{ relaciones: FSRelacion[] }` | Tipos de relación de Personas editables; si no existe se usa `RELACION_META`. Escribir con `setDoc(..., { merge: true })` |
 
 ### Tipos (en `types.ts`)
 
