@@ -1,34 +1,73 @@
 import { cn } from '../lib/utils';
+import { motion } from 'motion/react';
 
 export type MuscleId =
   | 'pecho' | 'hombro' | 'hombro_post' | 'bicep' | 'tricep' | 'forearm'
   | 'abs' | 'oblicuo' | 'cuad' | 'tibial' | 'trap' | 'dorsal'
   | 'espalda_baja' | 'gluteo' | 'femoral' | 'gemelo';
 
-const RED    = '#ef4444';
-const DIMMED = 'rgba(100,116,139,0.18)';
-const BODY   = '#1e293b';
-const BORDER = '#334155';
+export type MuscleStatsData = Record<MuscleId, { lastSession?: string; volume?: string } | undefined>;
 
-export function BodyMap({ activeMuscles, className }: {
+const ACTIVE_START = '#4edea3';
+const DIMMED = 'rgba(140,144,159,0.18)';
+const BODY   = '#262a35';
+const BORDER = '#313540';
+
+const MUSCLE_NAMES: Record<MuscleId, string> = {
+  pecho: 'Pecho', hombro: 'Hombro', hombro_post: 'Hombro Post', bicep: 'Bíceps',
+  tricep: 'Tríceps', forearm: 'Antebrazo', abs: 'Abdominales', oblicuo: 'Oblicuos',
+  cuad: 'Cuádriceps', tibial: 'Tibia', trap: 'Trapecio', dorsal: 'Dorsal',
+  espalda_baja: 'Espalda Baja', gluteo: 'Glúteos', femoral: 'Femorales', gemelo: 'Gemelos',
+};
+
+export function BodyMap({ activeMuscles, className, muscleStats }: {
   activeMuscles: MuscleId[];
   className?: string;
+  muscleStats?: MuscleStatsData;
 }) {
   const s = new Set(activeMuscles);
-  const f = (id: MuscleId) => s.has(id) ? RED : DIMMED;
-  const glow = (id: MuscleId): React.CSSProperties =>
-    s.has(id) ? { filter: 'drop-shadow(0 0 5px rgba(239,68,68,0.9))' } : {};
+  const hasData = (id: MuscleId) => muscleStats?.[id] != null;
+
+  const f = (id: MuscleId) => {
+    if (!s.has(id)) return DIMMED;
+    return hasData(id) ? `url(#grad-${id})` : ACTIVE_START;
+  };
+
+  const glow = (id: MuscleId): React.CSSProperties => {
+    if (!s.has(id)) return {};
+    if (!hasData(id)) return { filter: 'drop-shadow(0 0 5px rgba(78,222,163,0.8))' };
+    // Animated pulse for muscles with data
+    return { animation: 'muscle-pulse 0.8s ease-in-out infinite' };
+  };
 
   return (
-    <svg
-      viewBox="0 0 280 480"
-      xmlns="http://www.w3.org/2000/svg"
-      className={cn('w-full select-none', className)}
-      aria-label="Diagrama corporal con músculos activos"
-    >
+    <>
+      <style>{`
+        @keyframes muscle-pulse {
+          0%, 100% { filter: drop-shadow(0 0 5px rgba(78,222,163,0.4)); }
+          50% { filter: drop-shadow(0 0 12px rgba(78,222,163,0.8)); }
+        }
+      `}</style>
+      <motion.svg
+        viewBox="0 0 280 480"
+        xmlns="http://www.w3.org/2000/svg"
+        className={cn('w-full select-none', className)}
+        aria-label="Diagrama corporal con músculos activos"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.3 }}
+      >
+        <defs>
+          {activeMuscles.filter(m => hasData(m)).map(id => (
+            <linearGradient key={`grad-${id}`} id={`grad-${id}`} x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#4edea3" stopOpacity="0.9" />
+              <stop offset="100%" stopColor="#4edea3" stopOpacity="0.1" />
+            </linearGradient>
+          ))}
+        </defs>
       {/* ─────────────── FRONT VIEW (x: 0 – 136, cx=68) ─────────────── */}
       <text x="68" y="11" textAnchor="middle" fontSize="8" fontWeight="800"
-        fill="#475569" letterSpacing="2">FRENTE</text>
+        fill="#8c909f" letterSpacing="2">FRENTE</text>
 
       {/* Head */}
       <circle cx="68" cy="29" r="21" fill={BODY} stroke={BORDER} strokeWidth="1" />
@@ -117,7 +156,7 @@ export function BodyMap({ activeMuscles, className }: {
 
       {/* ─────────────── BACK VIEW (x: 144 – 280, cx=212) ─────────────── */}
       <text x="212" y="11" textAnchor="middle" fontSize="8" fontWeight="800"
-        fill="#475569" letterSpacing="2">DORSO</text>
+        fill="#8c909f" letterSpacing="2">DORSO</text>
 
       {/* Head back */}
       <circle cx="212" cy="29" r="21" fill={BODY} stroke={BORDER} strokeWidth="1" />
@@ -195,7 +234,37 @@ export function BodyMap({ activeMuscles, className }: {
       <ellipse cx="234" cy="428" rx="13" ry="8" fill={BODY} stroke={BORDER} strokeWidth="0.5" />
 
       {/* Divider */}
-      <line x1="140" y1="15" x2="140" y2="476" stroke="#0f172a" strokeWidth="3" />
-    </svg>
+      <line x1="140" y1="15" x2="140" y2="476" stroke="#0f131d" strokeWidth="3" />
+
+      {/* Muscle name labels (small, only visible if space allows) */}
+      {activeMuscles.map(id => {
+        const positions: Record<MuscleId, { x: number; y: number }> = {
+          pecho: { x: 50, y: 95 }, hombro: { x: 20, y: 80 }, hombro_post: { x: 180, y: 85 },
+          bicep: { x: 14, y: 110 }, tricep: { x: 125, y: 110 }, forearm: { x: 13, y: 165 },
+          abs: { x: 68, y: 160 }, oblicuo: { x: 34, y: 155 }, cuad: { x: 50, y: 280 },
+          tibial: { x: 46, y: 370 }, trap: { x: 68, y: 65 }, dorsal: { x: 180, y: 135 },
+          espalda_baja: { x: 212, y: 190 }, gluteo: { x: 200, y: 250 }, femoral: { x: 180, y: 310 },
+          gemelo: { x: 188, y: 380 },
+        };
+        const pos = positions[id];
+        return (
+          <text
+            key={`label-${id}`}
+            x={pos.x}
+            y={pos.y}
+            fontSize="7"
+            fill="#c2c6d6"
+            opacity="0.6"
+            fontFamily="'Space Grotesk', sans-serif"
+            fontWeight="600"
+            textAnchor="middle"
+            pointerEvents="none"
+          >
+            {MUSCLE_NAMES[id].slice(0, 3).toUpperCase()}
+          </text>
+        );
+      })}
+    </motion.svg>
+    </>
   );
 }
