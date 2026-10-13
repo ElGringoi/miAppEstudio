@@ -1,15 +1,13 @@
 import { useState, useMemo } from 'react';
 import type { ReactNode } from 'react';
-import type { FSPersona, FSGrupo, FSEntradaDiario, FSPendiente, FSFechaClave, FSSpark, FSConexion } from '../types';
+import type { FSPersona, FSGrupo, FSRelacion, FSEntradaDiario, FSPendiente, FSFechaClave, FSSpark, FSConexion } from '../types';
 import { cn } from '../lib/utils';
-import { Plus, Trash2, Pencil, Link2, Phone, Mail } from 'lucide-react';
-import { RELACION_META } from '../utils/constants';
+import { Plus, Trash2, Pencil, Link2, Phone, Mail, Settings2 } from 'lucide-react';
+import { RELACION_COLORES } from '../utils/constants';
 import { renderMarkdown } from '../utils/markdown';
 import { proximaOcurrencia } from '../utils/helpers';
 import { CerebroLayout, CerebroSearch, PanelActions, CerebroVacio, NuevoButton, FilaAcciones } from './CerebroLayout';
 import { PendientesEditor, PendientesList, FechasClaveEditor, FechasClaveList } from './CerebroPendientes';
-
-const relMeta = (r?: string) => RELACION_META.find(x => x.id === r);
 
 function getCumpleanoProximo(fechasClave?: any[]) {
   if (!fechasClave) return null;
@@ -53,9 +51,13 @@ interface Props {
   onDelete: (id: string) => Promise<void>;
   /** Guarda solo los pendientes o las fechas, desde la ficha, sin pasar por el formulario. */
   onPatch:  (id: string, campos: Pick<FSPersona, 'pendientes' | 'fechasClave'>) => Promise<void>;
+  relaciones: FSRelacion[];
+  onGuardarRelaciones: (lista: FSRelacion[]) => Promise<void>;
 }
 
-export function CerebroPersonas({ header, personas, grupos, entradas, onSave, onDelete, onPatch }: Props) {
+export function CerebroPersonas({ header, personas, grupos, entradas, onSave, onDelete, onPatch, relaciones, onGuardarRelaciones }: Props) {
+  const relMeta = (r?: string) => relaciones.find(x => x.id === r);
+  const [editandoRel, setEditandoRel] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isEditing,  setIsEditing]  = useState(false);
   const [showRight,  setShowRight]  = useState(false);
@@ -85,8 +87,8 @@ export function CerebroPersonas({ header, personas, grupos, entradas, onSave, on
   // Solo las relaciones que alguien está usando.
   const relacionesEnUso = useMemo(() => {
     const s = new Set(personas.map(p => p.relacion).filter(Boolean) as string[]);
-    return RELACION_META.filter(r => s.has(r.id));
-  }, [personas]);
+    return relaciones.filter(r => s.has(r.id));
+  }, [personas, relaciones]);
 
   const selected = useMemo(
     () => personas.find(p => p.id === selectedId) ?? null,
@@ -528,14 +530,32 @@ export function CerebroPersonas({ header, personas, grupos, entradas, onSave, on
               <Input value={form.apodo} onChange={v => setForm(f => ({ ...f, apodo: v }))} placeholder="ej: Marce" />
             </Campo>
 
-            <Campo label="Relación">
+            <Campo label={
+              <span className="flex items-center justify-between">
+                Relación
+                {!editandoRel && (
+                  <button type="button" onClick={() => setEditandoRel(true)}
+                    className="flex items-center gap-1 normal-case tracking-normal font-semibold text-primary hover:underline">
+                    <Settings2 className="w-3.5 h-3.5" /> Editar tipos
+                  </button>
+                )}
+              </span>
+            }>
+              {editandoRel && (
+                <RelacionesEditor
+                  relaciones={relaciones}
+                  personas={personas}
+                  onCancelar={() => setEditandoRel(false)}
+                  onGuardar={async lista => { await onGuardarRelaciones(lista); setEditandoRel(false); }}
+                />
+              )}
               <div className="flex flex-wrap gap-1.5 mb-2">
-                {RELACION_META.map(r => (
+                {relaciones.map(r => (
                   <button key={r.id}
                     onClick={() => setForm(f => ({ ...f, relacion: f.relacion === r.id ? '' : r.id }))}
                     className={cn(
                       'px-3 py-1 rounded-lg text-xs font-semibold transition-all',
-                      form.relacion === r.id ? cn(r.color, 'text-white') : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                      form.relacion === r.id ? cn(r.color, 'text-white ring-2 ring-white/70') : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
                     )}
                   >{r.icon} {r.label}</button>
                 ))}
@@ -820,6 +840,105 @@ function ConexionEditor({ conexiones, onChange }: {
             </button>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function slug(texto: string): string {
+  return texto.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'relacion';
+}
+
+/**
+ * Edita la lista de tipos de relación. Renombrar mantiene el id, así las
+ * personas que ya la tienen siguen asociadas. Borrar un tipo en uso deja a
+ * esas personas con el id como texto libre.
+ */
+function RelacionesEditor({ relaciones, personas, onGuardar, onCancelar }: {
+  relaciones: FSRelacion[];
+  personas:   FSPersona[];
+  onGuardar:  (lista: FSRelacion[]) => Promise<void>;
+  onCancelar: () => void;
+}) {
+  const [draft, setDraft]   = useState<FSRelacion[]>(relaciones);
+  const [nuevo, setNuevo]   = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError]   = useState<string | null>(null);
+
+  const usos = (id: string) => personas.filter(p => p.relacion === id).length;
+  const patch = (id: string, campos: Partial<FSRelacion>) =>
+    setDraft(d => d.map(r => r.id === id ? { ...r, ...campos } : r));
+
+  function agregar() {
+    const label = nuevo.trim();
+    if (!label) return;
+    let id = slug(label);
+    for (let i = 2; draft.some(r => r.id === id); i++) id = `${slug(label)}-${i}`;
+    const color = RELACION_COLORES[draft.length % RELACION_COLORES.length];
+    setDraft(d => [...d, { id, label, icon: '👤', color }]);
+    setNuevo('');
+  }
+
+  async function guardar() {
+    const lista = draft.map(r => ({ ...r, label: r.label.trim(), icon: r.icon.trim() || '👤' })).filter(r => r.label);
+    setSaving(true);
+    setError(null);
+    try {
+      await onGuardar(lista);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudo guardar');
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="mb-3 p-3 rounded-lg bg-surface-container-high space-y-2">
+      {draft.map(r => {
+        const n = usos(r.id);
+        return (
+          <div key={r.id} className="flex flex-wrap items-center gap-2 p-2 rounded-lg bg-surface-container-lowest">
+            <input value={r.icon} onChange={e => patch(r.id, { icon: e.target.value })} aria-label="Emoji"
+              className="w-10 px-1 py-1.5 rounded-md bg-surface-container-high text-center text-sm outline-none focus:ring-2 focus:ring-primary" />
+            <input value={r.label} onChange={e => patch(r.id, { label: e.target.value })} aria-label="Nombre"
+              className="flex-1 min-w-[8rem] px-2 py-1.5 rounded-md bg-surface-container-high text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary" />
+            <div className="flex flex-wrap gap-1">
+              {RELACION_COLORES.map(c => (
+                <button key={c} type="button" onClick={() => patch(r.id, { color: c })} aria-label={`Color ${c}`}
+                  className={cn('w-4 h-4 rounded-full', c, r.color === c && 'ring-2 ring-offset-1 ring-offset-surface-container-lowest ring-on-surface')} />
+              ))}
+            </div>
+            <span className="w-16 text-right font-label text-[10px] text-on-surface-variant tabular-nums">{n > 0 && `${n} persona${n > 1 ? 's' : ''}`}</span>
+            <button type="button" onClick={() => setDraft(d => d.filter(x => x.id !== r.id))}
+              aria-label={`Borrar ${r.label}`} title={n > 0 ? `Lo usan ${n} persona(s): les queda "${r.id}" como texto` : 'Borrar'}
+              className="p-1.5 rounded-md text-outline hover:text-error hover:bg-error-container/30 transition-colors">
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        );
+      })}
+
+      <div className="flex gap-2">
+        <input value={nuevo} onChange={e => setNuevo(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); agregar(); } }}
+          placeholder="Nuevo tipo, ej: Primo, Mejor amigo"
+          className="flex-1 px-3 py-2 rounded-lg bg-surface-container-lowest text-sm text-on-surface placeholder:text-outline outline-none focus:ring-2 focus:ring-primary" />
+        <button type="button" onClick={agregar} disabled={!nuevo.trim()}
+          className="flex items-center gap-1 px-3 py-2 rounded-lg bg-primary-container hover:opacity-90 text-white text-xs font-bold disabled:opacity-40">
+          <Plus className="w-3.5 h-3.5" /> Agregar
+        </button>
+      </div>
+
+      {error && <p className="text-xs text-error">{error}</p>}
+
+      <div className="flex justify-end gap-2 pt-1">
+        <button type="button" onClick={onCancelar} className="px-3 py-1.5 rounded-lg text-xs font-semibold text-on-surface-variant hover:bg-surface-container-highest">
+          Cancelar
+        </button>
+        <button type="button" onClick={guardar} disabled={saving}
+          className="px-3 py-1.5 rounded-lg bg-primary-container hover:opacity-90 text-white text-xs font-bold disabled:opacity-50">
+          {saving ? 'Guardando…' : 'Guardar tipos'}
+        </button>
       </div>
     </div>
   );

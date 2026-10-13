@@ -82,12 +82,15 @@ export type FSConexion = {
   notas?: string;
 };
 
+// Tipo de relación editable por el usuario (Familia, Primo, Mejor amigo…)
+export type FSRelacion = { id: string; label: string; icon: string; color: string };
+
 export type FSPersona = {
   id:              string;
   nombre:          string;
   apodo?:          string;
   avatar?:         string;  // emoji — no hay storage de imágenes
-  relacion?:       string;  // sugerido por RELACION_META, texto libre
+  relacion?:       string;  // id de una FSRelacion o texto libre
   comoLaConoci?:   string;
   dondeLaConoci?:  string;
   telefono?:       string;
