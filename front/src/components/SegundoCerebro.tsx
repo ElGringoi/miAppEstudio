@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { FSEntradaDiario, FSPersona, FSGrupo, FSInboxItem, InboxDestino } from '../types';
+import type { FSEntradaDiario, FSPersona, FSGrupo, FSRelacion, FSInboxItem, InboxDestino } from '../types';
 import { cn } from '../lib/utils';
 import { CEREBRO_SECCIONES } from '../utils/constants';
 import { CerebroNotas } from './CerebroNotas';
@@ -24,6 +24,8 @@ interface SegundoCerebroProps {
   onPatchPersona:  (id: string, campos: Pick<FSPersona, 'pendientes' | 'fechasClave'>) => Promise<void>;
   onPatchGrupo:    (id: string, campos: Pick<FSGrupo, 'pendientes' | 'fechasClave'>) => Promise<void>;
   onRenombrarTag:  (viejo: string, nuevo: string | null) => Promise<void>;
+  relaciones:      FSRelacion[];
+  onGuardarRelaciones: (lista: FSRelacion[]) => Promise<void>;
   inbox:           FSInboxItem[];
   onCapturarInbox: (texto: string) => Promise<void>;
   onProcesarInbox: (item: FSInboxItem, destino: InboxDestino, opts: { titulo: string; texto: string; fecha?: string; targetId?: string }) => Promise<void>;
@@ -72,6 +74,8 @@ export function SegundoCerebro(props: SegundoCerebroProps) {
       onSave={props.onSavePersona}
       onDelete={props.onDeletePersona}
       onPatch={props.onPatchPersona}
+      relaciones={props.relaciones}
+      onGuardarRelaciones={props.onGuardarRelaciones}
     />
   );
 

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Dumbbell, Heart, Brain, Zap, Sparkles, Star } from 'lucide-react';
-import type { FSStatKey, EstadoLibro, TipoMaterial, Stat } from '../types';
+import type { FSStatKey, EstadoLibro, TipoMaterial, Stat, FSRelacion } from '../types';
 
 export const APP_VERSION = '1.2.0';
 export const HOY = new Date().toISOString().slice(0, 10);
@@ -93,7 +93,8 @@ export const CEREBRO_SECCIONES = [
 
 // Sugerencias para el campo `relacion` de una persona. Es texto libre: estas
 // son atajos, el usuario puede escribir cualquier cosa.
-export const RELACION_META = [
+// Relaciones por defecto: se usan hasta que el usuario guarde su propia lista.
+export const RELACION_META: FSRelacion[] = [
   { id: 'familia',  label: 'Familia',  icon: '👨‍👩‍👧', color: 'bg-rose-500'    },
   { id: 'amigo',    label: 'Amigo',    icon: '🤝',      color: 'bg-blue-500'    },
   { id: 'pareja',   label: 'Pareja',   icon: '❤️',      color: 'bg-pink-500'    },
@@ -101,6 +102,12 @@ export const RELACION_META = [
   { id: 'facultad', label: 'Facultad', icon: '🎓',      color: 'bg-indigo-500'  },
   { id: 'gym',      label: 'Gym',      icon: '🏋️',      color: 'bg-emerald-500' },
   { id: 'conocido', label: 'Conocido', icon: '👋',      color: 'bg-slate-400'   },
+];
+
+// Clases literales para que Tailwind las genere; son los colores elegibles para una relación.
+export const RELACION_COLORES = [
+  'bg-rose-500', 'bg-pink-500', 'bg-orange-500', 'bg-amber-500', 'bg-emerald-500', 'bg-teal-500',
+  'bg-blue-500', 'bg-indigo-500', 'bg-violet-500', 'bg-slate-600', 'bg-slate-400',
 ];
 
 export const TIPO_FECHA_META = [

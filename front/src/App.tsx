@@ -32,7 +32,7 @@ import type {
   FSStatKey, FSStatsDoc, FSHabito, FSEvento, FSMision, FSTarea,
   GCalEvent, FSEjercicio, FSRutina, EstadoLibro, FSCapitulo, FSLibro,
   TipoMaterial, FSMaterial, FSTareaFac, FSExamen, FSMateria,
-  FSEntradaDiario, FSObjetivoCHA, FSPersona, FSGrupo, FSInboxItem, InboxDestino, FSTransaccion, Habit, Task, HabitRecurrence, TabId, Moneda, LevelUpEvent, MisionPrioridad, SetLog, FSRoca,
+  FSEntradaDiario, FSObjetivoCHA, FSPersona, FSGrupo, FSRelacion, FSInboxItem, InboxDestino, FSTransaccion, Habit, Task, HabitRecurrence, TabId, Moneda, LevelUpEvent, MisionPrioridad, SetLog, FSRoca,
   DiarioReaction, FSDiarioPrefs, FSSueldoMeta, FSPresupuesto, FSMetaAhorro,
   ArticuloEdicion, ArticuloGuardado, DeporteId, EdicionDiaria,
 } from './types';
@@ -50,7 +50,7 @@ import { GymWeeklyRoutines } from './components/GymWeeklyRoutines';
 import confetti from 'canvas-confetti';
 
 const DEFAULT_TASK_COLOR = '#3b82f6';
-import { HOY, getToday, FS_KEYS, STAT_META, DIAS_CORTO, DIAS_LETRA, ESTADO_LIBRO_META, MATERIAL_ICON, CATEGORIAS_GASTO, CATEGORIAS_INGRESO, CLASS_META, RANK_META, MONEDA_META, PRIORIDAD_META, APP_VERSION } from './utils/constants';
+import { HOY, getToday, FS_KEYS, STAT_META, DIAS_CORTO, DIAS_LETRA, ESTADO_LIBRO_META, MATERIAL_ICON, CATEGORIAS_GASTO, CATEGORIAS_INGRESO, CLASS_META, RANK_META, RELACION_META, MONEDA_META, PRIORIDAD_META, APP_VERSION } from './utils/constants';
 import { xpLevel, statsFromDoc, buildTree, youtubeEmbedUrl, isHabitActiveToday, isHabitDoneToday, isDateInCurrentWeek, habitRecurrenceLabel, calcStreak, calcMainLevel, rankFromLevel, assignClass, calcXpPerDay, streakMultiplier, calcXpBySource, mesAnterior } from './utils/helpers';
 import { ProgressBar } from './components/ProgressBar';
 import { MisionCard } from './components/MisionCard';
@@ -192,6 +192,7 @@ export default function App() {
   const [fsPersonas,        setFsPersonas]        = useState<FSPersona[]>([]);
   const [fsGrupos,          setFsGrupos]          = useState<FSGrupo[]>([]);
   const [fsInbox,           setFsInbox]           = useState<FSInboxItem[]>([]);
+  const [fsRelaciones,      setFsRelaciones]      = useState<FSRelacion[]>(RELACION_META);
   const [fsRocas,           setFsRocas]           = useState<FSRoca[]>([]);
 
   // ── Nuevas mejoras ────────────────────────────────────────────────────────
@@ -327,11 +328,15 @@ export default function App() {
     const u13 = onSnapshot(collection(db, 'usuarios', uid, 'sueldos_meta'),  s => { setFsSueldosMeta(s.docs.map(d => ({ id: d.id, ...d.data() } as FSSueldoMeta))); markLoaded(); });
     const u14 = onSnapshot(collection(db, 'usuarios', uid, 'presupuestos'),  s => { setFsPresupuestos(s.docs.map(d => ({ id: d.id, ...d.data() } as FSPresupuesto))); markLoaded(); });
     const u15 = onSnapshot(collection(db, 'usuarios', uid, 'metas_ahorro'), s => { setFsMetas(s.docs.map(d => ({ id: d.id, ...d.data() } as FSMetaAhorro))); markLoaded(); });
+    const uRel = onSnapshot(doc(db, 'usuarios', uid, 'cerebro_prefs', 'main'), snap => {
+      const lista = snap.data()?.relaciones as FSRelacion[] | undefined;
+      setFsRelaciones(lista?.length ? lista : RELACION_META);
+    });
     const u16 = onSnapshot(collection(db, 'usuarios', uid, 'personas'),     s => { setFsPersonas(s.docs.map(d => ({ id: d.id, ...d.data() } as FSPersona))); markLoaded(); });
     const u17 = onSnapshot(collection(db, 'usuarios', uid, 'grupos'),       s => { setFsGrupos(s.docs.map(d => ({ id: d.id, ...d.data() } as FSGrupo))); markLoaded(); });
     const u18 = onSnapshot(collection(db, 'usuarios', uid, 'inbox'),        s => { setFsInbox(s.docs.map(d => ({ id: d.id, ...d.data() } as FSInboxItem))); markLoaded(); });
     const u19 = onSnapshot(collection(db, 'usuarios', uid, 'rocas'),        s => { setFsRocas(s.docs.map(d => ({ id: d.id, ...d.data() } as FSRoca))); markLoaded(); });
-    return () => { unsubStats(); u2(); u3(); u4(); u5(); u6(); u7(); u8(); u9(); u10(); u11(); u12(); u13(); u14(); u15(); u16(); u17(); u18(); u19(); };
+    return () => { unsubStats(); uRel(); u2(); u3(); u4(); u5(); u6(); u7(); u8(); u9(); u10(); u11(); u12(); u13(); u14(); u15(); u16(); u17(); u18(); u19(); };
   }, [user?.uid]);
 
   // Cierre del día — mostrar modal si es después de las 21:00 y no se mostró hoy
@@ -1609,6 +1614,11 @@ export default function App() {
   // Renombra un tag (o lo borra, con `nuevo` = null) en todas las notas,
   // personas y grupos que lo tienen. Renombrar a un tag que ya existe los
   // fusiona sin dejar duplicados. Solo escribe los documentos afectados.
+  async function guardarRelaciones(lista: FSRelacion[]) {
+    if (!user?.uid) return;
+    await setDoc(doc(db, 'usuarios', user.uid, 'cerebro_prefs', 'main'), { relaciones: lista }, { merge: true });
+  }
+
   async function renombrarTag(viejo: string, nuevo: string | null) {
     if (!user?.uid) return;
     const uid = user.uid;
@@ -4027,6 +4037,8 @@ export default function App() {
                 onPatchPersona={(id, campos) => patchCerebro('personas', id, campos)}
                 onPatchGrupo={(id, campos) => patchCerebro('grupos', id, campos)}
                 onRenombrarTag={renombrarTag}
+                relaciones={fsRelaciones}
+                onGuardarRelaciones={guardarRelaciones}
                 inbox={fsInbox}
                 onCapturarInbox={capturarInbox}
                 onProcesarInbox={procesarInbox}
