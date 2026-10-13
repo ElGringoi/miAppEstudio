@@ -35,8 +35,9 @@ function hashTexto(s: string): string {
   return (h >>> 0).toString(36);
 }
 
+// Título normalizado completo (sin cortar: "Dólar hoy… martes" y "… miércoles" son notas distintas).
 const claveTitulo = (t: string) =>
-  t.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim().slice(0, 70);
+  t.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
 
 function normalizarItem(item: ItemCrudo, fuente: Fuente, ahora: number): ArticuloEdicion | null {
   const titulo = limpiarTexto(item.titulo);
@@ -51,7 +52,7 @@ function normalizarItem(item: ItemCrudo, fuente: Fuente, ahora: number): Articul
   const textoDesc = limpiarTexto(item.descripcion);
   const textoCont = limpiarTexto(item.contenido);
   let bajada = cortarBajada(textoDesc || textoCont);
-  if (claveTitulo(bajada) === claveTitulo(titulo)) bajada = '';
+  if (bajada && claveTitulo(bajada) === claveTitulo(titulo)) bajada = '';
 
   const muestra = `${titulo} ${bajada} ${item.categorias.join(' ')}`;
   if (fuente.incluir && !fuente.incluir.test(muestra)) return null;
@@ -159,24 +160,28 @@ export async function armarEdicion(): Promise<ResultadoEdicion> {
     secciones[fuente.seccion].push(...notas);
   }
 
-  // Sin duplicados entre secciones (la primera sección en el orden gana).
+  // Sin duplicados entre secciones (la primera sección en el orden gana). Solo se
+  // marcan como vistas las notas que entran: lo que el tope deja afuera de una
+  // sección todavía puede aparecer en otra.
   const vistas = new Set<string>();
   for (const s of SECCIONES) {
-    secciones[s] = intercalar(secciones[s])
-      .filter(n => {
-        const claves = [n.url, claveTitulo(n.titulo)];
-        if (claves.some(c => vistas.has(c))) return false;
-        claves.forEach(c => vistas.add(c));
-        return true;
-      })
-      .slice(0, POR_SECCION);
+    const elegidas: ArticuloEdicion[] = [];
+    for (const n of intercalar(secciones[s])) {
+      if (elegidas.length >= POR_SECCION) break;
+      const claves = [n.url, claveTitulo(n.titulo)].filter(Boolean);
+      if (claves.some(c => vistas.has(c))) continue;
+      claves.forEach(c => vistas.add(c));
+      elegidas.push(n);
+    }
+    secciones[s] = elegidas;
   }
 
   await completarImagenes(secciones, limite);
 
   const degradada =
     fuentesOk < FUENTES.length / 2 ||
-    SECCIONES_CLAVE.some(s => secciones[s].length < 2);
+    SECCIONES_CLAVE.some(s => secciones[s].length < 2) ||
+    deportes.resultados.length + deportes.proximos.length === 0; // ESPN/Jolpica caídos
 
   return {
     degradada,

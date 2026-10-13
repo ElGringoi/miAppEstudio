@@ -49,7 +49,7 @@ export function decodificarEntidades(s: string): string {
       const cod = ent[1].toLowerCase() === 'x' ? parseInt(ent.slice(2), 16) : parseInt(ent.slice(1), 10);
       return Number.isFinite(cod) && cod > 0 && cod < 0x110000 ? String.fromCodePoint(cod) : todo;
     }
-    return ENTIDADES[ent] ?? todo;
+    return Object.hasOwn(ENTIDADES, ent) ? ENTIDADES[ent] : todo;
   });
 }
 

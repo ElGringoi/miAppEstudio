@@ -482,16 +482,14 @@ export function VistaGuardados({ idTitulo }: { idTitulo: string }) {
       {guardados.map(g => (
         <article key={g.id} className="g-pieza">
           <div className="g-secundaria">
-            {g.imagen
-              ? <img className="g-foto" src={g.imagen} alt="" loading="lazy" referrerPolicy="no-referrer" style={{ aspectRatio: '4/3' }} />
-              : <div className="g-foto" style={{ aspectRatio: '4/3' }} aria-hidden="true" />}
+            <Foto key={g.id} art={g} className="" />
             <div>
               <p className="g-meta">{g.fuente} · {new Date(g.fecha).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })}</p>
               <h3 className="g-titular g-titular-breve">{g.titulo}</h3>
               {g.bajada && <p className="g-bajada" style={{ fontSize: 15 }}>{g.bajada}</p>}
               {g.url && <a className="g-link" href={g.url} target="_blank" rel="noopener noreferrer">Leer en {g.fuente} ↗</a>}
               <div className="g-acciones">
-                <button type="button" className="g-accion" onClick={() => onGuardar(g)}><X size={18} aria-hidden="true" /> <span>Quitar</span></button>
+                <button type="button" className="g-accion" aria-label={`Quitar de guardados: ${g.titulo}`} onClick={() => onGuardar(g)}><X size={18} aria-hidden="true" /> <span>Quitar</span></button>
               </div>
             </div>
           </div>

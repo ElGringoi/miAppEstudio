@@ -9,7 +9,10 @@ import { useDiario } from './contexto';
 
 // ── Imagen: foto del medio o, si falta o no carga, ilustración generada ─────
 
-function Ilustracion({ art, className }: { art: ArticuloEdicion; className: string }) {
+// Lo mínimo para mostrar una imagen: sirve para notas de la edición y guardadas.
+type ConImagen = Pick<ArticuloEdicion, 'id' | 'imagen' | 'fuente'> & { seccion?: ArticuloEdicion['seccion'] };
+
+function Ilustracion({ art, className }: { art: ConImagen; className: string }) {
   const arte = arteDeArticulo(art.id, art.seccion === 'deportes' ? 'deporte' : art.seccion === 'cultura' ? 'entretenimiento' : undefined);
   return (
     <svg viewBox={`0 0 ${arte.ancho} ${arte.alto}`} preserveAspectRatio="xMidYMid slice" aria-hidden="true" className={className}>
@@ -29,7 +32,7 @@ function Ilustracion({ art, className }: { art: ArticuloEdicion; className: stri
 }
 
 /** Usar con key={art.id}: así el estado de error no pasa de una nota a otra. */
-export function Foto({ art, className, pie = false }: { art: ArticuloEdicion; className: string; pie?: boolean }) {
+export function Foto({ art, className, pie = false }: { art: ConImagen; className: string; pie?: boolean }) {
   const [fallo, setFallo] = useState(false);
   const usarArte = !art.imagen || fallo;
   return (

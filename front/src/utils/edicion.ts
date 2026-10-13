@@ -246,7 +246,6 @@ export function edicionDeRespaldo(fecha: string): EdicionDiaria {
 
 const CLAVE_CACHE = 'diario_edicion_v1';
 const SECCIONES_CLAVE: SeccionId[] = ['argentina', 'tecnologia', 'internacional', 'deportes', 'ciencia', 'cultura'];
-const VIGENCIA_MS = 30 * 60_000;
 
 export function leerEdicionCache(): EdicionDiaria | null {
   try {
@@ -266,10 +265,6 @@ function guardarEdicionCache(e: EdicionDiaria): void {
     // Sin almacenamiento disponible: la edición sigue en memoria.
   }
 }
-
-/** La edición en caché es reciente: no hace falta pedir otra. */
-export const edicionVigente = (e: EdicionDiaria | null, hoy: string): boolean =>
-  !!e && e.origen === 'red' && e.fecha === hoy && Date.now() - Date.parse(e.generadaEn) < VIGENCIA_MS;
 
 /**
  * Decide entre la edición actual y la recién llegada. Una respuesta degradada

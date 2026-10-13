@@ -53,7 +53,7 @@ import { CapituloRow } from './components/CapituloRow';
 import { EjercicioRow } from './components/EjercicioRow';
 import { DiarioEdicion } from './components/DiarioEdicion';
 import {
-  aGuardado, edicionDeRespaldo, edicionVigente, elegirEdicion, hoyArgentina, leerEdicionCache,
+  aGuardado, edicionDeRespaldo, elegirEdicion, hoyArgentina, leerEdicionCache,
   MAX_GUARDADOS, pedirEdicion,
 } from './utils/edicion';
 import { MissionNodeComp } from './components/MissionNodeComp';
@@ -320,7 +320,8 @@ export default function App() {
     const u10 = onSnapshot(collection(db, 'usuarios', uid, 'objetivos_cha'), s => { setFsObjetivosCHA(s.docs.map(d => ({ id: d.id, ...d.data() } as FSObjetivoCHA))); markLoaded(); });
     const u11 = onSnapshot(collection(db, 'usuarios', uid, 'transacciones'), s => { setFsTransacciones(s.docs.map(d => ({ id: d.id, ...d.data() } as FSTransaccion))); markLoaded(); });
     const u12 = onSnapshot(doc(db, 'usuarios', uid, 'diario_prefs', 'main'), snap => {
-      if (snap.exists()) setFsDiarioPrefs(snap.data() as FSDiarioPrefs);
+      // El doc puede haberse creado con un solo campo (por ejemplo, al guardar una nota).
+      if (snap.exists()) setFsDiarioPrefs({ reactions: {}, tagScores: {}, ...(snap.data() as Partial<FSDiarioPrefs>) });
       markLoaded();
     });
     const u13 = onSnapshot(collection(db, 'usuarios', uid, 'sueldos_meta'),  s => { setFsSueldosMeta(s.docs.map(d => ({ id: d.id, ...d.data() } as FSSueldoMeta))); markLoaded(); });
@@ -353,10 +354,10 @@ export default function App() {
     diasSemana: h.diasSemana ?? [],
   })), [fsHabitos]);
 
-  // Diario: al entrar se pide la edición, salvo que la del caché sea reciente.
+  // Diario: al entrar se pide la edición (el CDN la sirve cacheada; así una
+  // pestaña que quedó abierta de ayer no muestra la edición vieja).
   useEffect(() => {
     if (tab !== 'diario') return;
-    if (edicionVigente(leerEdicionCache(), hoyArgentina())) return;
     let vigente = true;
     pedirEdicion()
       .then(nueva => {
@@ -1364,9 +1365,10 @@ export default function App() {
     for (const tag of tags) newTagScores[tag] = (newTagScores[tag] ?? 0) + delta;
     setFsDiarioPrefs(p => ({ ...p, reactions: newReactions, tagScores: newTagScores }));
     try {
+      // Incrementos, no valores absolutos: otro dispositivo pudo haber sumado puntos.
       await setDoc(diarioPrefsRef(), {
         reactions: { [artId]: quitar ? deleteField() : reaction },
-        tagScores: Object.fromEntries(tags.map(t => [t, newTagScores[t]])),
+        ...(delta !== 0 && tags.length ? { tagScores: Object.fromEntries(tags.map(t => [t, increment(delta)])) } : {}),
       }, { merge: true });
     } catch (e) {
       console.error(e);

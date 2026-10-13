@@ -193,7 +193,8 @@ const porFecha = (a: EncuentroDeportivo, b: EncuentroDeportivo) => Date.parse(a.
 
 export async function obtenerDeportes(limite: number): Promise<DeportesEdicion> {
   const hoy = hoyArgentina();
-  const dias = Array.from({ length: 11 }, (_, i) => sumarDias(hoy, i - 3).replace(/-/g, ''));
+  // De -4 a +8 días: lo mismo que aceptan los filtros de resultados y próximos.
+  const dias = Array.from({ length: 13 }, (_, i) => sumarDias(hoy, i - 4).replace(/-/g, ''));
 
   const pedidos: Array<{ url: string; armar: (json: unknown) => EncuentroDeportivo[] }> = [
     ...dias.map(d => ({ url: `${ESPN}/soccer/arg.1/scoreboard?dates=${d}`, armar: partidosFutbol })),

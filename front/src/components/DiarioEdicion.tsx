@@ -7,7 +7,9 @@ import type {
   ArticuloEdicion, ArticuloGuardado, DeporteId, DiarioReaction, EdicionDiaria,
   FSDiarioPrefs, FSEntradaDiario, FSEvento, FSHabito, FSMision, FSTarea,
 } from '../types';
-import { armarSeleccion, hoyArgentina, numeroEdicion, terminosFavoritos } from '../utils/edicion';
+import { armarSeleccion, numeroEdicion, terminosFavoritos } from '../utils/edicion';
+// "Tu día" usa el mismo HOY con el que la app guarda eventos, tareas y notas.
+import { HOY } from '../utils/constants';
 import { CSS_GACETA, NOMBRE_DIARIO } from './diario/estilos';
 import { DiarioContexto, type DiarioAcciones } from './diario/contexto';
 import {
@@ -40,7 +42,15 @@ function fechaCabecera(fecha: string): string {
 }
 
 export function DiarioEdicion(props: Props) {
-  const { edicion, diarioPrefs, visitadas, onVisitar } = props;
+  const { diarioPrefs, visitadas, onVisitar } = props;
+
+  // La edición queda fija desde que empezás a navegar: si llega una más nueva
+  // mientras leés, se usa en la próxima apertura (no te saca de la página).
+  const [navego, setNavego] = useState(false);
+  const [edicion, setEdicion] = useState(props.edicion);
+  if (props.edicion && props.edicion !== edicion && (!edicion || !navego || edicion.origen !== 'red')) {
+    setEdicion(props.edicion);
+  }
 
   // La selección se fija al abrir la edición: valorar una nota no la saca de
   // su lugar mientras leés. Las valoraciones pesan en la próxima carga.
@@ -75,6 +85,7 @@ export function DiarioEdicion(props: Props) {
 
   const irA = (key: string) => {
     navegoRef.current = true;
+    setNavego(true);
     setVerGuardados(false);
     setIndiceAbierto(false);
     setActual(key);
@@ -101,7 +112,7 @@ export function DiarioEdicion(props: Props) {
   // ← / → para pasar de página (sin interferir con campos de texto).
   useEffect(() => {
     const alPresionar = (e: KeyboardEvent) => {
-      if (e.altKey || e.ctrlKey || e.metaKey) return;
+      if (e.altKey || e.ctrlKey || e.metaKey || verGuardados) return;
       const el = e.target as HTMLElement | null;
       if (el && (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName))) return;
       if (e.key === 'ArrowRight') mover(1);
@@ -120,7 +131,7 @@ export function DiarioEdicion(props: Props) {
   const alSoltar = (e: TouchEvent) => {
     const ini = toqueRef.current;
     toqueRef.current = null;
-    if (!ini) return;
+    if (!ini || verGuardados) return;
     const t = e.changedTouches[0];
     const dx = t.clientX - ini.x;
     const dy = t.clientY - ini.y;
@@ -142,7 +153,7 @@ export function DiarioEdicion(props: Props) {
     if (!seleccion || !edicion || !pagina) return null;
     switch (pagina.key) {
       case 'portada':    return <PaginaPortada sel={seleccion} paginas={paginas} onIr={irA} idTitulo={ID_TITULO} />;
-      case 'dia':        return <PaginaDia fsHabitos={props.fsHabitos} fsEventos={props.fsEventos} fsTareas={props.fsTareas} fsMisiones={props.fsMisiones} fsEntradas={props.fsEntradas} hoy={hoyArgentina()} idTitulo={ID_TITULO} />;
+      case 'dia':        return <PaginaDia fsHabitos={props.fsHabitos} fsEventos={props.fsEventos} fsTareas={props.fsTareas} fsMisiones={props.fsMisiones} fsEntradas={props.fsEntradas} hoy={HOY} idTitulo={ID_TITULO} />;
       case 'argentina':  return <PaginaArgentina sel={seleccion} idTitulo={ID_TITULO} />;
       case 'mundo':      return <PaginaMundo sel={seleccion} idTitulo={ID_TITULO} />;
       case 'deportes':   return <PaginaDeportes sel={seleccion} edicion={edicion} onPrefsDeportes={props.onPrefsDeportes} idTitulo={ID_TITULO} />;
@@ -185,7 +196,7 @@ export function DiarioEdicion(props: Props) {
                 ))}
                 <li>
                   <button type="button" aria-current={verGuardados ? 'page' : undefined}
-                    onClick={() => { navegoRef.current = true; setIndiceAbierto(false); setVerGuardados(true); }}>
+                    onClick={() => { navegoRef.current = true; setNavego(true); setIndiceAbierto(false); setVerGuardados(true); }}>
                     <Bookmark size={18} aria-hidden="true" className="g-num" /> Guardados ({cantidadGuardados})
                   </button>
                 </li>
