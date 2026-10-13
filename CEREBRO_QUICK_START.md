@@ -1,78 +1,46 @@
 # 🚀 Segundo Cerebro — Quick Start
 
-## En 5 minutos: Pon el chat funcionando
+## En 3 pasos: pon el chat funcionando
 
-### 1️⃣ API Key
+### 1️⃣ API Key de Groq (gratis)
 
-```bash
-# Obtén una de https://console.anthropic.com/api-keys
-# Copia a .env.local:
-VITE_CLAUDE_API_KEY=sk-ant-xxxxx...
-```
+Creá una en https://console.groq.com/keys
 
-### 2️⃣ Dependencias de Cloud Function
+### 2️⃣ Cargarla en Vercel
 
-```bash
-cd functions
-npm install
-npm run build
-```
+Proyecto `mi-app-estudio` → **Settings → Environment Variables**:
 
-### 3️⃣ Desplegar Functions
+| Variable | Valor |
+|---|---|
+| `GROQ_API_KEY` | `gsk_...` |
+| `VITE_FIREBASE_API_KEY` | La misma que usa el front (ya debería estar) |
 
-```bash
-# Requiere: firebase CLI + autenticación
-firebase deploy --only functions
-```
+Sin prefijo `VITE_` en la key de Groq: todo lo que empieza con `VITE_` se publica en el bundle del navegador.
 
-### 4️⃣ Configurar variables en Firebase
+### 3️⃣ Re-desplegar y usar
 
-```bash
-firebase functions:config:set claude.api_key="sk-ant-xxxxx..."
-```
-
-### 5️⃣ Usar
-
-- Abre la app → **Segundo Cerebro** → **Chat**
-- Escribe: `"¿Qué noté sobre productividad?"`
-- 💬 El IA responde basándose en tus notas/personas/grupos
+- Re-desplegá para que la función tome la variable
+- Abrí la app → **Segundo Cerebro** → **Chat**
+- Escribí: `"¿Qué noté sobre productividad?"`
 
 ---
 
-## Archivos creados
+## Archivos
 
 | Archivo | Propósito |
 |---|---|
-| `front/src/types.ts` | `ChatMessage`, `ContextoCerebro` |
-| `front/src/utils/cerebro-prompts.ts` | Prompts del sistema |
-| `front/src/lib/claude-client.ts` | Cliente para Cloud Function |
-| `front/src/hooks/useCerebroChat.ts` | Hook del chat (estado + lógica) |
+| `api/cerebro-chat.ts` | Función de Vercel: verifica la sesión y llama a Groq |
+| `front/src/lib/cerebro-api.ts` | Cliente: POST a `/api/cerebro-chat` con el token de Firebase |
+| `front/src/hooks/useCerebroChat.ts` | Hook del chat (estado, historial, fallback local) |
+| `front/src/utils/cerebro-busqueda.ts` | Búsqueda local de notas/personas/grupos relevantes |
 | `front/src/components/CerebroChat.tsx` | Componente UI |
-| `functions/src/index.ts` | Cloud Function (backend) |
-| `functions/package.json` | Dependencias de functions |
-| `.env.local.example` | Template de variables |
-| `firebase.json` | Config de Firebase + hosting |
-
----
-
-## Estado actual
-
-✅ **Texto**: Chat conversacional
-⏳ **Fase 2**: Cámara + micrófono (próximo)
 
 ---
 
 ## Troubleshooting rápido
 
-```bash
-# Ver logs
-firebase functions:log
-
-# Verificar config
-firebase functions:config:get
-
-# Re-desplegar
-firebase deploy --only functions
-```
+- **"⚠️ La IA no respondió (Falta GROQ_API_KEY en el servidor)"** → falta la variable en Vercel o no re-desplegaste.
+- **"⚠️ La IA no respondió (Error 404)"** → estás en `npm run dev`, que no sirve `/api/cerebro-chat`. Ver `SEGUNDO_CEREBRO_SETUP.md`.
+- **Logs** → Vercel → proyecto → **Logs**, filtrá por `/api/cerebro-chat`.
 
 Para más detalles, lee `SEGUNDO_CEREBRO_SETUP.md`.
