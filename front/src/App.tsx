@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useRef, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, useMemo, useRef, type ReactNode } from 'react';
 import {
   LayoutDashboard, Calendar as CalendarIcon, Zap, Settings,
   CheckCircle2, Plus, Target, Sword, Flame, Dumbbell,
@@ -34,6 +34,7 @@ import type {
   TipoMaterial, FSMaterial, FSTareaFac, FSExamen, FSMateria,
   FSEntradaDiario, FSObjetivoCHA, FSPersona, FSGrupo, FSTransaccion, Habit, Task, HabitRecurrence, TabId, Moneda, LevelUpEvent, MisionPrioridad, SetLog,
   DiarioReaction, FSDiarioPrefs, FSSueldoMeta, FSPresupuesto, FSMetaAhorro,
+  ArticuloEdicion, ArticuloGuardado, DeporteId, EdicionDiaria,
 } from './types';
 import { SegundoCerebro } from './components/SegundoCerebro';
 import { BodyMap } from './components/BodyMap';
@@ -51,6 +52,10 @@ import { StatCard } from './components/StatCard';
 import { CapituloRow } from './components/CapituloRow';
 import { EjercicioRow } from './components/EjercicioRow';
 import { DiarioEdicion } from './components/DiarioEdicion';
+import {
+  aGuardado, edicionDeRespaldo, edicionVigente, elegirEdicion, hoyArgentina, leerEdicionCache,
+  MAX_GUARDADOS, pedirEdicion,
+} from './utils/edicion';
 import { MissionNodeComp } from './components/MissionNodeComp';
 import { LoginScreen } from './components/LoginScreen';
 
@@ -176,6 +181,10 @@ export default function App() {
   const [fsDiario,          setFsDiario]          = useState<FSEntradaDiario[]>([]);
   const [_fsObjetivosCHA,   setFsObjetivosCHA]    = useState<FSObjetivoCHA[]>([]);
   const [fsDiarioPrefs,     setFsDiarioPrefs]     = useState<FSDiarioPrefs>({ reactions: {}, tagScores: {} });
+  // Diario: edición del día (caché local primero, después la red) y páginas leídas
+  const [edicion,           setEdicion]           = useState<EdicionDiaria | null>(() => leerEdicionCache());
+  const [edicionError,      setEdicionError]      = useState(false);
+  const [diarioVisitadas,   setDiarioVisitadas]   = useState<{ fecha: string; paginas: string[] }>({ fecha: '', paginas: [] });
   const [fsPersonas,        setFsPersonas]        = useState<FSPersona[]>([]);
   const [fsGrupos,          setFsGrupos]          = useState<FSGrupo[]>([]);
 
@@ -344,6 +353,38 @@ export default function App() {
     diasSemana: h.diasSemana ?? [],
   })), [fsHabitos]);
 
+  // Diario: al entrar se pide la edición, salvo que la del caché sea reciente.
+  useEffect(() => {
+    if (tab !== 'diario') return;
+    if (edicionVigente(leerEdicionCache(), hoyArgentina())) return;
+    let vigente = true;
+    pedirEdicion()
+      .then(nueva => {
+        if (!vigente) return;
+        setEdicion(actual => elegirEdicion(actual, nueva));
+        setEdicionError(false);
+      })
+      .catch(e => {
+        console.error('[diario]', e);
+        if (vigente) setEdicionError(true);
+      });
+    return () => { vigente = false; };
+  }, [tab]);
+
+  // Sin red ni caché: edición de respaldo con los ensayos del archivo.
+  const edicionMostrada = useMemo(
+    () => edicion ?? (edicionError ? edicionDeRespaldo(hoyArgentina()) : null),
+    [edicion, edicionError],
+  );
+
+  const fechaEdicion = edicionMostrada?.fecha ?? '';
+  const visitarPaginaDiario = useCallback((pagina: string) => {
+    setDiarioVisitadas(v => {
+      const paginas = v.fecha === fechaEdicion ? v.paginas : [];
+      return paginas.includes(pagina) ? v : { fecha: fechaEdicion, paginas: [...paginas, pagina] };
+    });
+  }, [fechaEdicion]);
+
   const todayEventos = useMemo(() => fsEventos.filter(e => e.fecha === HOY), [fsEventos]);
 
   const txStats = useMemo(() => {
@@ -505,7 +546,8 @@ export default function App() {
   const totalXp                                   = fsStats ? FS_KEYS.reduce((s, k) => s + (fsStats[k]?.xp ?? 0), 0) : 0;
   const { level: heroLevel, xpInLevel, xpForNext: heroXpForNext } = xpLevel(totalXp);
   const initials   = (user?.displayName ?? 'H').split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
-  const pageSub    = useMemo(() => getPageSub(user?.displayName?.split(' ')[0] ?? 'Hero'), [user?.displayName]);
+  const primerNombre = user?.displayName?.split(' ')[0] ?? 'Hero';
+  const pageSub    = useMemo(() => getPageSub(primerNombre), [primerNombre]);
 
   // ── Firestore writes ──────────────────────────────────────────────────────
 
@@ -1304,24 +1346,81 @@ export default function App() {
     }
   }
 
+  // Diario: valoraciones, guardados y preferencias viven en diario_prefs/main.
+  // Siempre setDoc con merge: el documento puede no existir y no hay que pisar
+  // los campos que no se tocan.
+  const diarioPrefsRef = () => doc(db, 'usuarios', user!.uid, 'diario_prefs', 'main');
+
   async function reactArticulo(artId: string, reaction: DiarioReaction, tags: string[]) {
     if (!user?.uid) return;
     const prev = fsDiarioPrefs;
     const prevReaction = prev.reactions[artId];
-    const newReactions = { ...prev.reactions, [artId]: reaction };
+    const quitar = prevReaction === reaction; // tocar de nuevo deshace la valoración
+    const valor = (r?: DiarioReaction) => (r === 'like' ? 3 : r === 'dislike' ? -3 : 0);
+    const delta = (quitar ? 0 : valor(reaction)) - valor(prevReaction);
+    const newReactions = { ...prev.reactions };
+    if (quitar) delete newReactions[artId]; else newReactions[artId] = reaction;
     const newTagScores = { ...prev.tagScores };
-    const delta = reaction === 'like' ? 3 : -3;
-    const prevDelta = prevReaction === 'like' ? 3 : prevReaction === 'dislike' ? -3 : 0;
-    for (const tag of tags) {
-      newTagScores[tag] = (newTagScores[tag] ?? 0) - prevDelta + delta;
-    }
-    const newPrefs: FSDiarioPrefs = { reactions: newReactions, tagScores: newTagScores };
-    setFsDiarioPrefs(newPrefs);
+    for (const tag of tags) newTagScores[tag] = (newTagScores[tag] ?? 0) + delta;
+    setFsDiarioPrefs(p => ({ ...p, reactions: newReactions, tagScores: newTagScores }));
     try {
-      await setDoc(doc(db, 'usuarios', user.uid, 'diario_prefs', 'main'), newPrefs);
+      await setDoc(diarioPrefsRef(), {
+        reactions: { [artId]: quitar ? deleteField() : reaction },
+        tagScores: Object.fromEntries(tags.map(t => [t, newTagScores[t]])),
+      }, { merge: true });
     } catch (e) {
       console.error(e);
-      setFsDiarioPrefs(prev);
+      setFsDiarioPrefs(p => ({ ...p, reactions: prev.reactions, tagScores: prev.tagScores }));
+      showToast('No se pudo guardar la valoración');
+    }
+  }
+
+  async function toggleGuardado(art: ArticuloEdicion | ArticuloGuardado) {
+    if (!user?.uid) return;
+    const prev = fsDiarioPrefs.guardados ?? {};
+    const yaEsta = Boolean(prev[art.id]);
+    if (!yaEsta && Object.keys(prev).length >= MAX_GUARDADOS) {
+      showToast(`Llegaste al máximo de ${MAX_GUARDADOS} notas guardadas`);
+      return;
+    }
+    const nuevo = yaEsta ? undefined : 'seccion' in art ? aGuardado(art) : { ...art, guardadoEn: new Date().toISOString() };
+    setFsDiarioPrefs(p => {
+      const guardados = { ...(p.guardados ?? {}) };
+      if (nuevo) guardados[art.id] = nuevo; else delete guardados[art.id];
+      return { ...p, guardados };
+    });
+    try {
+      await setDoc(diarioPrefsRef(), { guardados: { [art.id]: nuevo ?? deleteField() } }, { merge: true });
+      if (nuevo) showToast('Guardado en tu diario', true);
+    } catch (e) {
+      console.error(e);
+      setFsDiarioPrefs(p => ({ ...p, guardados: prev }));
+      showToast('No se pudo guardar la nota');
+    }
+  }
+
+  async function guardarPrefsDeportes(deportes: DeporteId[], equipos: string[]) {
+    if (!user?.uid) return;
+    const prev = { deportes: fsDiarioPrefs.deportes, equipos: fsDiarioPrefs.equipos };
+    setFsDiarioPrefs(p => ({ ...p, deportes, equipos }));
+    try {
+      await setDoc(diarioPrefsRef(), { deportes, equipos }, { merge: true });
+    } catch (e) {
+      console.error(e);
+      setFsDiarioPrefs(p => ({ ...p, ...prev }));
+      showToast('No se pudieron guardar tus deportes');
+    }
+  }
+
+  async function terminarEdicion(fecha: string) {
+    if (!user?.uid) return;
+    setFsDiarioPrefs(p => ({ ...p, edicionTerminada: fecha }));
+    try {
+      await setDoc(diarioPrefsRef(), { edicionTerminada: fecha }, { merge: true });
+      showToast('Edición terminada. Hasta mañana.', true);
+    } catch (e) {
+      console.error(e);
+      showToast('No se pudo marcar la edición');
     }
   }
 
@@ -3817,15 +3916,22 @@ export default function App() {
           {/* ══ DIARIO ══ */}
           {tab === 'diario' && (
             <motion.div key="diario" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <div className="-mx-4 -mt-4 md:-mx-8 md:-mt-8">
+              {/* -mb compensa el pb-24 del main para que el papel llegue hasta abajo */}
+              <div className="-mx-4 -mt-4 -mb-24 md:-mx-8 md:-mt-8 md:-mb-8">
                 <DiarioEdicion
+                  edicion={edicionMostrada}
                   fsHabitos={fsHabitos}
                   fsEventos={fsEventos}
                   fsTareas={fsTareas}
                   fsMisiones={fsMisiones}
                   fsEntradas={fsDiario}
                   diarioPrefs={fsDiarioPrefs}
+                  visitadas={edicionMostrada && diarioVisitadas.fecha === edicionMostrada.fecha ? diarioVisitadas.paginas : []}
+                  onVisitar={visitarPaginaDiario}
                   onReact={reactArticulo}
+                  onGuardar={toggleGuardado}
+                  onPrefsDeportes={guardarPrefsDeportes}
+                  onTerminar={terminarEdicion}
                 />
               </div>
             </motion.div>

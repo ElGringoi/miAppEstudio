@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import type { DeporteId } from '../../server/diario/tipos';
 
 // ─── Firestore types ──────────────────────────────────────────────────────────
 
@@ -114,7 +115,29 @@ export type LogroId =
   | 'primer_libro' | 'primer_examen' | 'todos_hoy' | 'xp_100_dia';
 export type FSLogro = { id: LogroId; fecha: string };
 export type DiarioReaction = 'like' | 'dislike';
-export type FSDiarioPrefs = { reactions: Record<string, DiarioReaction>; tagScores: Record<string, number> };
+export type FSDiarioPrefs = {
+  reactions:         Record<string, DiarioReaction>;
+  tagScores:         Record<string, number>;
+  guardados?:        Record<string, ArticuloGuardado>;
+  deportes?:         DeporteId[];
+  equipos?:          string[];
+  edicionTerminada?: string;   // YYYY-MM-DD de la última edición terminada
+};
+// Copia mínima de una nota guardada: el pool de la edición cambia cada día.
+export type ArticuloGuardado = {
+  id:         string;
+  titulo:     string;
+  bajada:     string;
+  url:        string;
+  fuente:     string;
+  imagen?:    string;
+  fecha:      string;
+  tags:       string[];
+  guardadoEn: string;
+};
+export type {
+  ArticuloEdicion, EdicionDiaria, SeccionId, DeporteId, Competidor, EncuentroDeportivo, DeportesEdicion,
+} from '../../server/diario/tipos';
 
 // ─── UI types ─────────────────────────────────────────────────────────────────
 

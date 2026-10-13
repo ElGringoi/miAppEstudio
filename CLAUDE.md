@@ -16,6 +16,7 @@ Módulos principales:
 - **Habits (Quests):** hábitos con recurrencia y XP configurable
 - **Missions:** árbol de misiones jerárquico (epic → milestone → task)
 - **Settings:** configuración + conexión Google Calendar
+- **Diario (La Gaceta):** edición diaria por páginas con noticias en vivo (RSS de medios + resultados deportivos), personalizada con 👍/👎 y guardados
 
 **Estado:** Prototipo activo. Sin tests, sin CI/CD. Usa Firebase directamente desde el cliente.
 
@@ -104,7 +105,8 @@ Todas las colecciones viven bajo `usuarios/{uid}/`:
 | `rutinas` | `FSRutina[]` | Ejercicios embebidos en el doc |
 | `libros` | `FSLibro[]` | Capítulos embebidos; `xpPorCapitulo` configurable |
 | `materias` | `FSMateria[]` | Materiales, tareas y exámenes embebidos |
-| `diario` | `FSEntradaDiario[]` | UI pendiente de implementar |
+| `diario` | `FSEntradaDiario[]` | Notas; se editan desde Segundo Cerebro |
+| `diario_prefs/main` | `FSDiarioPrefs` | Doc único: reacciones, tagScores, guardados, deportes/equipos. Escribir siempre con `setDoc(..., { merge: true })` |
 | `objetivos_cha` | `FSObjetivoCHA[]` | Objetivos de Carisma |
 
 ### Tipos (en `types.ts`)
@@ -149,6 +151,16 @@ CSS usa `@import "tailwindcss"` en `App.css`.
 - Tests
 - CI/CD
 - Variables de entorno (`.env`)
-- Backend propio / REST API
+- Backend propio (la única función serverless es `api/edicion.ts` en Vercel, ver abajo)
 - i18n
 - Custom hooks (toda la lógica está en `App.tsx`)
+
+---
+
+## Diario: edición en vivo
+
+- `api/edicion.ts` — función serverless de Vercel (`GET /api/edicion`). Cacheada en el CDN 30 min (`s-maxage`), igual para todos los usuarios.
+- `server/diario/` — lógica compartida: `fuentes.ts` (feeds por sección), `xml.ts` (parser RSS/Atom con `fast-xml-parser`), `red.ts` (timeouts, pool), `deportes.ts` (ESPN + Jolpica F1), `edicion.ts` (armado), `tipos.ts` y `fecha.ts` (también los usa el cliente).
+- En `npm run dev` la misma ruta la sirve un middleware de `vite.config.ts`. Imports relativos dentro de `api/` y `server/` con extensión `.js` (proyecto ESM).
+- Cliente: `front/src/utils/edicion.ts` (caché local, respaldo con `diarioSeed.ts`, ranking y selección por página) y `front/src/components/diario/` (piezas y páginas).
+
