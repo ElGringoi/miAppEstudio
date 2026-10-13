@@ -83,6 +83,7 @@ export const AREA_META = [
 ];
 
 export const CEREBRO_SECCIONES = [
+  { id: 'inbox'    as const, label: 'Inbox',    icon: '📥' },
   { id: 'notas'    as const, label: 'Notas',    icon: '📝' },
   { id: 'ideas'    as const, label: 'Ideas',    icon: '💡' },
   { id: 'personas' as const, label: 'Personas', icon: '👤' },

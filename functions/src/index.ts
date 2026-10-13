@@ -5,17 +5,16 @@
  */
 
 import { onRequest } from 'firebase-functions/v2/https';
-import { initializeApp, cert } from 'firebase-admin/app';
+import { defineSecret } from 'firebase-functions/params';
+import { initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import Anthropic from '@anthropic-ai/sdk';
 
 // Inicializar Firebase Admin
 initializeApp();
 
-// Crear cliente de Anthropic
-const anthropic = new Anthropic({
-  apiKey: process.env.CLAUDE_API_KEY,
-});
+// API key guardada como secreto de Firebase: `firebase functions:secrets:set CLAUDE_API_KEY`
+const claudeApiKey = defineSecret('CLAUDE_API_KEY');
 
 interface ChatRequest {
   userMessage: string;
@@ -78,7 +77,7 @@ Comunicación:
  * HTTP Cloud Function: procesa mensajes del Segundo Cerebro
  */
 export const cerebroChatFunction = onRequest(
-  { region: 'us-central1', memory: '256MB', timeoutSeconds: 30 },
+  { region: 'us-central1', memory: '256MiB', timeoutSeconds: 30, secrets: [claudeApiKey] },
   async (req, res) => {
     // Habilitar CORS para desarrollo local
     res.set('Access-Control-Allow-Origin', '*');
@@ -125,8 +124,9 @@ export const cerebroChatFunction = onRequest(
       const systemPrompt = buildSystemPrompt(body.contexto);
 
       // Llamar a Claude API
+      const anthropic = new Anthropic({ apiKey: claudeApiKey.value() });
       const response = await anthropic.messages.create({
-        model: 'claude-3-5-sonnet-20241022',
+        model: 'claude-sonnet-5-5',
         max_tokens: 1024,
         system: systemPrompt,
         messages: body.conversationHistory.map(m => ({

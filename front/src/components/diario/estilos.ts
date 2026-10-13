@@ -6,7 +6,7 @@ export const NOMBRE_DIARIO = 'La Gaceta';
 export const CSS_GACETA = `
 .gaceta { --papel:#f4f1ea; --papel-2:#ebe5d9; --blanco:#faf8f3; --tinta:#141414; --gris:#4a453e; --gris-2:#6b655c;
   --linea:#d3c8b8; --bordo:#7a1f2b; --serif:'Newsreader', Georgia, 'Times New Roman', serif;
-  --sans:'Work Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --sans:'Plus Jakarta Sans', 'Work Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
   background:var(--papel); color:var(--tinta); font-family:var(--sans); min-height:100vh; }
 .gaceta *, .gaceta *::before, .gaceta *::after { box-sizing:border-box; }
 .gaceta button { font-family:var(--sans); color:inherit; }
