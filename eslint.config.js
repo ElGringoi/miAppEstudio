@@ -19,4 +19,11 @@ export default defineConfig([
       globals: globals.browser,
     },
   },
+  {
+    // Código que corre en Node: la función de Vercel, su lógica y la config de Vite.
+    files: ['api/**/*.ts', 'server/**/*.ts', 'vite.config.ts'],
+    languageOptions: {
+      globals: globals.node,
+    },
+  },
 ])
