@@ -1,73 +1,44 @@
-# 🧠 Segundo Cerebro Multimodal — Guía de Setup
+# 🧠 Segundo Cerebro — Guía de Setup
 
-## Estado: Fase 1 (Chat conversacional con Claude API) ✅
+## Estado: Fase 1 (Chat conversacional con Groq) ✅
 
-Este documento explica cómo configurar y usar el Segundo Cerebro en miAppEstudio.
+Este documento explica cómo configurar y usar el chat del Segundo Cerebro en miAppEstudio.
 
 ---
 
 ## 📋 Fase 1: Chat conversacional (Texto)
 
-### 1. Obtener API Key de Claude
+### 1. Obtener API Key de Groq
 
-1. Ve a [Anthropic Console](https://console.anthropic.com)
+1. Ve a [Groq Console](https://console.groq.com/keys)
 2. Crea una cuenta o inicia sesión
-3. Ve a **API Keys** → **Create key**
-4. Copia la clave (formato: `sk-ant-...`)
+3. **Create API Key** y copiala (formato: `gsk_...`)
 
-### 2. Configurar variables de entorno
+El plan gratis alcanza para uso personal.
 
-#### En desarrollo local:
+### 2. Configurar variables en Vercel
 
-```bash
-# Copia el archivo de ejemplo
-cp .env.local.example .env.local
+Proyecto `mi-app-estudio` → **Settings → Environment Variables**:
 
-# Edita .env.local y agrega:
-VITE_CLAUDE_API_KEY=sk-ant-xxx...
-```
+| Variable | Obligatoria | Para qué |
+|---|---|---|
+| `GROQ_API_KEY` | Sí | La usa `api/cerebro-chat.ts` para llamar a Groq |
+| `VITE_FIREBASE_API_KEY` | Sí | La función la usa para verificar el token de sesión (ya está para el front) |
+| `GROQ_MODEL` | No | Cambia el modelo; por defecto `llama-3.3-70b-versatile` |
 
-#### En la Cloud Function (Firebase):
+⚠️ **Nunca** pongas la key de la IA con prefijo `VITE_`: Vite mete todas las `VITE_*` en el bundle del navegador y quedaría pública.
 
-La API Key debe estar configurada como variable de entorno de Firebase Functions:
+Después de cargar las variables, re-desplegá (Vercel → Deployments → **Redeploy**).
 
-```bash
-# Si tienes Firebase CLI instalado:
-firebase functions:config:set claude.api_key="sk-ant-xxx..."
+### 3. En desarrollo local
 
-# O edita en: Firebase Console → Project Settings → Cloud Functions → Runtime environment variables
-```
+`npm run dev` sirve el front y `/api/edicion`, pero **no** `/api/cerebro-chat`. El chat igual funciona: cuando la IA no responde, contesta con la búsqueda local y avisa con "⚠️ La IA no respondió".
 
-### 3. Instalar dependencias de Cloud Function
+Para probar la IA en local, usá Vercel CLI, que corre las funciones de `api/`:
 
 ```bash
-cd functions
-npm install
-```
-
-### 4. Desplegar Cloud Function
-
-```bash
-# Build
-npm run build
-
-# Deploy (requiere autenticación con Firebase CLI)
-firebase deploy --only functions
-
-# Ver logs
-firebase functions:log
-```
-
-### 5. En desarrollo local (opcional)
-
-Si quieres testear la Cloud Function localmente:
-
-```bash
-# En una terminal:
-firebase emulators:start --only functions
-
-# La Cloud Function estará en:
-# http://localhost:5001/PROJECT_ID/us-central1/cerebroChatFunction
+vercel env pull .env.local   # baja las variables del proyecto
+vercel dev                   # front + funciones en http://localhost:3000
 ```
 
 ---
@@ -78,10 +49,10 @@ firebase emulators:start --only functions
 
 1. Abre la app → **Segundo Cerebro** → **Chat**
 2. Escribe una pregunta sobre tus notas, personas o grupos
-3. El IA:
-   - Extrae contexto relevante automáticamente
-   - Busca en tus notas/personas/grupos
-   - Responde basándose en tu base de conocimiento
+3. La app:
+   - Busca en tus notas/personas/grupos lo relevante (en el navegador)
+   - Le manda a la IA la pregunta, ese contexto y los últimos 10 mensajes
+   - Si la IA falla, responde solo con lo que encontró la búsqueda local
 4. El historial se guarda localmente (localStorage)
 
 ### Ejemplos de preguntas:
@@ -103,23 +74,24 @@ firebase emulators:start --only functions
 ```
 CerebroChat.tsx
   ↓ (usa)
-useCerebroChat.ts (hook custom)
-  ├─ Estado: mensajes, loading, error
-  ├─ Extrae contexto: palabras clave → notas/personas/grupos
-  └─ Llama: callCerebroChatFunction()
-    ↓
-claude-client.ts
-  └─ Llama Cloud Function con token autenticado
+useCerebroChat.ts
+  ├─ Estado: mensajes, loading
+  ├─ buscarRelevantes() (cerebro-busqueda.ts) → top 3 notas/personas/grupos
+  ├─ Llama: preguntarAlCerebro()
+  │   ↓
+  │ cerebro-api.ts → POST /api/cerebro-chat con token de Firebase
+  └─ Si falla: responderConMisDatos() (búsqueda local)
 ```
 
-### Backend (Firebase Cloud Function)
+### Backend (función serverless de Vercel)
 
 ```
-cerebroChatFunction (HTTP endpoint)
-  ├─ Verifica token de autenticación
-  ├─ Construye prompt del sistema con contexto
-  ├─ Llama Claude API
-  └─ Retorna respuesta al cliente
+api/cerebro-chat.ts
+  ├─ Verifica el ID token de Firebase (Identity Toolkit)
+  ├─ Limpia el historial (máx. 10 mensajes, 4000 caracteres c/u)
+  ├─ Construye el prompt del sistema con el contexto
+  ├─ Llama a Groq con GROQ_API_KEY
+  └─ Retorna { success, message } al cliente
 ```
 
 ### Persistencia
@@ -135,27 +107,25 @@ localStorage: cerebro_chat_history
 ## 🔐 Seguridad
 
 ✅ **API Key segura:**
-- La API Key de Claude está SOLO en la Cloud Function (backend)
-- El cliente NUNCA ve ni expone la API Key
-- Todas las llamadas se autentican con token de Firebase
+- La key de Groq vive SOLO en las variables de entorno de Vercel
+- El cliente NUNCA la ve: no tiene prefijo `VITE_`
 
 ✅ **Autenticación:**
-- Cada llamada a la Cloud Function requiere token de Firebase Auth
-- Se valida en backend antes de procesar
+- Cada llamada requiere el ID token de Firebase Auth (`Authorization: Bearer ...`)
+- Se valida en la función antes de llamar a Groq
 
 ---
 
 ## 📊 Búsqueda de contexto
 
-El hook `useCerebroChat` extrae contexto usando **palabras clave simples**:
+`buscarRelevantes()` en `front/src/utils/cerebro-busqueda.ts` puntúa por **palabras clave simples**:
 
 ```ts
 // El usuario pregunta: "¿Qué noté sobre productividad?"
 // Se extrae: ["productividad"]
 
 // Se busca en:
-// - Títulos de notas
-// - Contenido de notas
+// - Títulos y contenido de notas
 // - Tags de notas/personas/grupos
 // - Nombres de personas
 // - Notas de personas/grupos
@@ -169,18 +139,16 @@ El hook `useCerebroChat` extrae contexto usando **palabras clave simples**:
 
 ## 🐛 Debugging
 
-### Ver logs de Cloud Function:
+### Ver logs de la función:
 
-```bash
-firebase functions:log
-```
+Vercel → proyecto `mi-app-estudio` → **Logs**, filtrá por `/api/cerebro-chat`.
 
-### En desarrollo local:
+### En el navegador:
 
 - Abre DevTools → Console
-- Los errores de la Cloud Function aparecerán como:
+- Los errores aparecen como:
   ```
-  Error calling cerebro-chat function: ...
+  Error en useCerebroChat: ...
   ```
 
 ### Revisar historial guardado:
@@ -198,7 +166,7 @@ JSON.parse(localStorage.getItem('cerebro_chat_history'))
 
 - [ ] Componente `CameraCapture.tsx` para capturar fotos
 - [ ] Web Speech API para grabar voz (speech-to-text)
-- [ ] Integración con Claude Vision API
+- [ ] Modelo con visión para las fotos
 - [ ] Text-to-Speech para respuestas en voz
 - [ ] Modal de cámara + grabador en `CerebroChat`
 
@@ -214,29 +182,29 @@ JSON.parse(localStorage.getItem('cerebro_chat_history'))
 
 ## ⚠️ Troubleshooting
 
-### "CLAUDE_API_KEY not set"
+El chat muestra el motivo entre paréntesis: "⚠️ La IA no respondió (motivo)".
 
-- Verifica que `VITE_CLAUDE_API_KEY` está en `.env.local`
-- O que las variables de entorno de Firebase Functions están configuradas
+### "Falta GROQ_API_KEY en el servidor"
 
-### "Unauthorized" en la Cloud Function
+- Cargá `GROQ_API_KEY` en Vercel y re-desplegá
+
+### "Unauthorized" / "Invalid token"
 
 - Verifica que estés logueado en la app (Firebase Auth)
-- Revisa que el token de autenticación se envía correctamente
+- Revisa que `VITE_FIREBASE_API_KEY` esté cargada en Vercel
 
-### "No cloud function found"
+### "Error 404" en local
 
-- ¿Desplegaste las functions? `firebase deploy --only functions`
-- ¿Está correcta la URL en `VITE_CLOUD_FUNCTION_URL`?
+- `npm run dev` no sirve `/api/cerebro-chat`; usá `vercel dev` (ver arriba)
 
 ---
 
 ## 📚 Referencias
 
-- [Anthropic API Docs](https://docs.anthropic.com)
-- [Firebase Cloud Functions](https://firebase.google.com/docs/functions)
+- [Groq API Docs](https://console.groq.com/docs)
+- [Vercel Functions](https://vercel.com/docs/functions)
 - [Firebase Authentication](https://firebase.google.com/docs/auth)
 
 ---
 
-**Última actualización:** 2026-10-06
+**Última actualización:** 2026-10-13
