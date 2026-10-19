@@ -24,12 +24,20 @@ Módulos principales:
 
 ---
 
+## Planificación y documentación
+
+**Antes de cambiar algo, leer [`docs/CONTRATO-AGENTES.md`](docs/CONTRATO-AGENTES.md)**: roles, reglas no negociables, plantillas de handoff y Definition of Done para cualquier agente de IA.
+
+`docs/` tiene la planificación completa (hoy vs objetivo): producto, UX, design system, arquitectura, seguridad, calidad, operaciones y decisiones (ADRs). Índice en [`docs/README.md`](docs/README.md). Para verlo todo junto con los diagramas: `npm run docs:site` → `docs/site/index.html`.
+
+---
+
 ## Stack
 
 | Capa | Tecnología |
 |---|---|
 | Framework | Vite 8 + React 19.2 |
-| Lenguaje | TypeScript 6 (modo estricto) |
+| Lenguaje | TypeScript 6 (`strict` es el default de TS 6 y compila con 0 errores; no está declarado explícito en `tsconfig.app.json`) |
 | Estilos | Tailwind CSS v4 (`@tailwindcss/vite` plugin, sin config file) |
 | Animaciones | `motion/react` (standalone Motion, no framer-motion) |
 | Gráficos | Recharts (RadarChart) |
@@ -85,7 +93,9 @@ front/src/
 3. **Handlers async** — todas las escrituras a Firestore
 4. **Render condicional por tab** — `{tab === 'dashboard' && (...)}`
 
-Los componentes en `components/` son presentacionales puros; los componentes en `utils/` son helpers de lógica pura. No hay custom hooks.
+Los componentes en `components/` son presentacionales puros; los componentes en `utils/` son helpers de lógica pura. El único custom hook es `hooks/useCerebroChat.ts` (chat del Segundo Cerebro).
+
+Este patrón es el **estado actual**, no el objetivo: el plan para partir `App.tsx` en `features/`, `domain/`, `data/` y `ui/` está en [ADR-0005](docs/08-decisiones/ADR-0005-partir-app-tsx.md) y [`docs/04-arquitectura/carpetas-objetivo.md`](docs/04-arquitectura/carpetas-objetivo.md).
 
 ### Firebase
 
@@ -124,7 +134,7 @@ Progresión incremental: cada nivel requiere 100 XP más que el anterior (L1→L
 
 ### Google Calendar
 
-Integración opcional. El token OAuth se obtiene vía `reauthenticateWithPopup` con scope `calendar.readonly` y se almacena en `localStorage` con expiración (`gcal_token` + `gcal_token_exp`). Se usa para mostrar eventos en la vista Calendar junto a los eventos propios de Firestore.
+Integración opcional. El token OAuth se obtiene vía `reauthenticateWithPopup` con scope `calendar.readonly` y se almacena en `sessionStorage` con expiración (`gcal_token` + `gcal_token_exp` = ahora + 3500 s; no hay refresh token y se pierde al cerrar la pestaña). Se usa para mostrar eventos en la vista Calendar junto a los eventos propios de Firestore.
 
 ### Tailwind v4
 
@@ -143,6 +153,7 @@ Basado en el diseño de Stitch "RPG Productivity & Study System". **Solo modo os
 - Fuentes: `font-sans` = Plus Jakarta Sans (texto), `font-label` = Space Grotesk (números, chips, labels; usar `tabular-nums`).
 - Las paletas `slate`, `blue`, `emerald`/`green`, `violet`/`purple` y `red` están remapeadas a esos tonos para que el código viejo herede el look. **Código nuevo: usar los tokens semánticos**, no `slate-*`/`blue-*`.
 - Profundidad con capas de superficie y sombras, no con bordes. Recharts usa hex fijos: alinearlos con los tokens.
+- **Dirección aprobada para migrar: "Gremio"** (claymorphism oscuro, ámbar + verde, Nunito + DM Sans), ver [ADR-0004](docs/08-decisiones/ADR-0004-estilo-visual.md) y [`docs/03-design-system/`](docs/03-design-system/). La migración es la fase P3 del roadmap; hasta entonces, el código nuevo usa los tokens semánticos actuales (mantienen sus nombres) y el componente `Button` cuando exista. Botones rellenos: texto oscuro (`on-primary`) sobre el color claro, nunca `text-white` sobre `blue-600` (contraste 3,17:1).
 
 ---
 
@@ -160,10 +171,11 @@ Basado en el diseño de Stitch "RPG Productivity & Study System". **Solo modo os
 
 - Tests
 - CI/CD
-- Variables de entorno (`.env`)
-- Backend propio (la única función serverless es `api/edicion.ts` en Vercel, ver abajo)
+- `firestore.rules` en el repo (las reglas viven solo en la consola de Firebase; ver [ADR-0006](docs/08-decisiones/ADR-0006-firestore-rules.md))
+- Backend propio (solo dos funciones serverless en Vercel: `api/edicion.ts`, ver abajo, y `api/cerebro-chat.ts`, chat con Groq, ver [`docs/07-operaciones/segundo-cerebro.md`](docs/07-operaciones/segundo-cerebro.md))
 - i18n
-- Custom hooks (toda la lógica está en `App.tsx`)
+
+Variables de entorno: sí existen. `VITE_FIREBASE_*` (config web, va al navegador) en `.env.local`, y `GROQ_API_KEY` / `GROQ_MODEL` **solo en Vercel**. Ejemplo en `.env.local.example`. Nunca un secreto con prefijo `VITE_`.
 
 ---
 
