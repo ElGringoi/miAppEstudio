@@ -8,13 +8,13 @@ Línea base medida el **2026-10-19** sobre el commit `353aa7f`.
 
 | # | Criterio | Cómo se mide | Hoy | Meta |
 |---|---|---|---|---|
-| C1 | Errores de lint | `npm run lint` | **24** (11 `no-unused-vars`, 8 `no-explicit-any`, 4 `set-state-in-effect`, 1 `refs`) en `App.tsx` (13) y `CerebroPersonas.tsx` (11) | **0** |
-| C2 | Errores de TypeScript en modo estricto | `npx tsc -p tsconfig.app.json --noEmit --strict` | **0** (TS 6 ya trae `strict` por defecto, pero no está declarado en `tsconfig.app.json`) | 0, con `"strict": true` explícito |
+| C1 | Errores de lint | `npm run lint` | **0** desde P1 (antes 24). Quedan 7 `eslint-disable` con motivo: 6 de código de Gym sin UI (roadmap 4.7) y 1 falso positivo de `react-hooks/refs` | **0** |
+| C2 | Errores de TypeScript en modo estricto | `npx tsc -b` | **0**, con `"strict": true` explícito en los dos tsconfig | 0 |
 | C3 | Build | `npm run build` | ✅ pasa (con `npm install` al día) | pasa |
 | C4 | Archivo más grande de `front/src` | `wc -l` | **4744** (`App.tsx`) | ≤ 400 por archivo, `App.tsx` ≤ 150 |
 | C5 | Colores hex fuera de `index.css` | ver comando abajo | **108** | 0 en componentes de app (La Gaceta y Recharts pueden usar tokens propios declarados en un solo archivo) |
 | C6 | Usos de `any` | `grep -rn ": any\|as any" front/src` | 8 reportados por lint | 0 |
-| C7 | Cobertura de `domain/` (hoy `helpers.ts`) | `vitest run --coverage` | **0 %** (no hay tests) | ≥ 80 % líneas |
+| C7 | Cobertura de `domain/` (hoy `helpers.ts`, `fecha.ts`, `markdown.ts`, `server/cerebro/limites.ts`) | `npm run test:cov` | **92 %** de líneas, 56 tests | ≥ 80 % líneas |
 
 Comando de C5:
 
@@ -26,7 +26,7 @@ grep -rEo "#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b" front/src --include=*.tsx --incl
 
 | # | Criterio | Cómo se mide | Hoy | Meta |
 |---|---|---|---|---|
-| R1 | JS inicial (gzip) | `npm run build`, archivo `dist/assets/index-*.js` | **468 KB** gzip (1629 KB sin comprimir), **un solo chunk** | ≤ 250 KB gzip para la primera pantalla |
+| R1 | JS inicial (gzip) | `npm run build`, archivo `dist/assets/index-*.js` | **470 KB** gzip (1635 KB sin comprimir), **un solo chunk** | ≤ 250 KB gzip para la primera pantalla |
 | R2 | CSS (gzip) | idem, `index-*.css` | 13,8 KB | ≤ 20 KB |
 | R3 | LCP en móvil | Lighthouse móvil (throttling por defecto) sobre producción | a medir | ≤ 2,5 s |
 | R4 | INP | Chrome DevTools → Performance, tocar un hábito | a medir | ≤ 200 ms |
@@ -50,7 +50,7 @@ grep -rEo "#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b" front/src --include=*.tsx --incl
 
 | # | Criterio | Cómo se mide | Hoy | Meta |
 |---|---|---|---|---|
-| S1 | `onSnapshot` con callback de error | `grep` | **0 de 20** | 20 de 20 |
+| S1 | `onSnapshot` con callback de error | `grep -c ", fallo('" front/src/App.tsx` | **20 de 20** | 20 de 20 |
 | S2 | Reglas de Firestore en el repo con tests | existe `firestore.rules` + tests del emulador | ❌ | ✅ con los 11 casos de [firestore-rules.md](../05-seguridad/firestore-rules.md) |
 | S3 | Secretos con prefijo `VITE_` (salvo Firebase web config) | `grep VITE_ .env.local.example` | 1 (`VITE_CLAUDE_API_KEY`) | 0 |
 | S4 | `.env` ignorado por git | `git check-ignore .env` | ❌ | ✅ |

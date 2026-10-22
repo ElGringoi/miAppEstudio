@@ -42,15 +42,15 @@ P2 y P3 se pueden pisar: el design system se aplica a cada feature a medida que 
 
 | # | Tarea | Arregla | Criterio |
 |---|---|---|---|
-| 1.1 | Instalar Vitest; tests de `xpLevel`, `calcStreak`, `streakMultiplier`, recurrencia, `buildTree`, `renderMarkdown` | 0 tests | C7 ≥ 80 % |
-| 1.2 | Callback de error en los 20 `onSnapshot` + `ErrorState` con Reintentar; contar listeners con un `Set` | spinner infinito | S1, AC-SES-3 |
-| 1.3 | `hoyLocal()` ([ADR-0007](../08-decisiones/ADR-0007-fecha-local.md)) | "mañana" después de las 21:00 | AC-DASH-4 |
-| 1.4 | XP simétrico al desmarcar | XP de más con racha | AC-HAB-3 |
-| 1.5 | Borrar misión: cascada de hijas + limpiar prerequisitos | huérfanas y bloqueos eternos | AC-MIS-4, AC-MIS-5 |
-| 1.6 | `/api/cerebro-chat`: firebase-admin + `ALLOWED_UIDS` + rate limit + tope de body | cualquier cuenta usa Groq | [modelo-amenazas.md](../05-seguridad/modelo-amenazas.md) |
-| 1.7 | Reglas con validación + 11 tests del emulador | [ADR-0006](../08-decisiones/ADR-0006-firestore-rules.md) | S2 |
-| 1.8 | Lint en 0 y `"strict": true` explícito | 24 errores | C1, C2 |
-| 1.9 | Cerrar sesión limpia IndexedDB y `localStorage`; exportar todas las colecciones | privacidad | AC-SES-4, AC-AJU-2 |
+| 1.1 | ✅ Instalar Vitest; tests de `xpLevel`, `calcStreak`, `streakMultiplier`, recurrencia, `buildTree`, `renderMarkdown` | 0 tests | C7 ≥ 80 % |
+| 1.2 | ✅ Callback de error en los 20 `onSnapshot` + `ErrorState` con Reintentar; contar listeners con un `Set` | spinner infinito | S1, AC-SES-3 |
+| 1.3 | ✅ `hoyLocal()` en `utils/fecha.ts` para todo el front ([ADR-0007](../08-decisiones/ADR-0007-fecha-local.md)) | "mañana" después de las 21:00 | AC-DASH-4 |
+| 1.4 | ✅ XP simétrico al desmarcar (`xpPorFecha`) | XP de más con racha | AC-HAB-3 |
+| 1.5 | ✅ Borrar misión: cascada de hijas + limpiar prerequisitos y rocas | huérfanas y bloqueos eternos | AC-MIS-4, AC-MIS-5 |
+| 1.6 | ✅ `/api/cerebro-chat`: uid del token + `ALLOWED_UIDS` + 20 pedidos por minuto + tope de body (sin firebase-admin: el uid sale de `accounts:lookup`) | cualquier cuenta usa Groq | [modelo-amenazas.md](../05-seguridad/modelo-amenazas.md) |
+| 1.7 | ⏳ (sesión P0) Reglas con validación + 11 tests del emulador | [ADR-0006](../08-decisiones/ADR-0006-firestore-rules.md) | S2 |
+| 1.8 | ✅ Lint en 0 y `"strict": true` explícito | 24 errores → 0 | C1, C2 |
+| 1.9 | ✅ Cerrar sesión limpia IndexedDB y `localStorage`; exportar todas las colecciones | privacidad | AC-SES-4, AC-AJU-2 |
 
 ## P2 · Arquitectura (≈ 2 semanas)
 
@@ -80,6 +80,7 @@ Meta: `App.tsx` < 150 líneas · JS inicial ≤ 250 KB gzip · ≤ 6 listeners a
 | 4.4 | Copy: los 7 textos en inglés y el glosario | [ux-writing.md](../02-ux/ux-writing.md) |
 | 4.5 | Aviso de Calendar vencido; chip "Edición parcial" en La Gaceta | [flujos.md](../02-ux/flujos.md) |
 | 4.6 | Medir Lighthouse, axe y teclado; actualizar [criterios-objetivos.md](../06-calidad/criterios-objetivos.md) | |
+| 4.7 | Gym: volver a poder crear, editar y borrar rutinas y ejercicios. La UI se perdió en el rediseño de Gym (PR #31); `deleteRutina`, `deleteEjercicio` y el modal `ejercicio` siguen en `App.tsx` sin nada que los llame | [estados-y-excepciones.md](../02-ux/estados-y-excepciones.md) |
 
 ## Después
 

@@ -46,7 +46,7 @@ Riesgo: **A** alto · **M** medio · **B** bajo.
 | F1 | Tampering | El propio cliente manda datos inválidos (XP negativo, tipos rotos) | Sin validación; casts `as FSHabito` | M | Validación de tipos y rangos en reglas + conversores |
 | F1 | Elevation | Cualquier cuenta de Google crea usuario y usa la app | Login abierto | M | Lista de uids permitidos en reglas o bloquear sign-up en Auth (Identity Platform) |
 | F2/F3 | Information disclosure | Robo del token de Calendar por XSS | Token en `sessionStorage` (`App.tsx:276`), scope solo lectura, ~1 h | B | CSP estricta; mantener scope `readonly` |
-| F4 | Spoofing / DoS de costo | Cualquier cuenta de Google con ID token válido usa Groq y gasta la cuota | Solo verifica que el token sea válido (`api/cerebro-chat.ts:35-48`) | **A** | Verificar con firebase-admin y exigir uid en `ALLOWED_UIDS`; límite de pedidos por minuto |
+| F4 | Spoofing / DoS de costo | Cualquier cuenta de Google con ID token válido usa Groq y gasta la cuota | Desde P1: saca el uid del token, exige `ALLOWED_UIDS` (si está definida) y limita a 20 pedidos por minuto (`server/cerebro/limites.ts`) | M (hasta cargar `ALLOWED_UIDS` en Vercel) | Verificar con firebase-admin y exigir uid en `ALLOWED_UIDS`; límite de pedidos por minuto |
 | F4 | Tampering | Body gigante | Historial recortado a 10 mensajes × 4000 caracteres (`api/cerebro-chat.ts:31-32`); `contexto` sin tope | M | Tope de tamaño del body completo (p. ej. 32 KB) |
 | F5 | Information disclosure | Datos de terceros (notas de personas) salen a Groq | Por diseño, hasta 500/300 caracteres por ítem | M | Documentado en [privacidad.md](privacidad.md); opción para excluir personas |
 | F5 | Tampering (prompt injection) | Un mail del inbox convertido en nota manipula la respuesta del chat | El LLM no tiene herramientas: solo puede responder texto | B | Mantener sin herramientas; marcar contenido externo en el prompt |
@@ -56,7 +56,7 @@ Riesgo: **A** alto · **M** medio · **B** bajo.
 | F8 | Tampering | `url` maliciosa (`javascript:`) en un ítem del inbox | React 19 bloquea `javascript:` en `href`; `CerebroInbox.tsx:208` | B | Validar `http(s)` antes de renderizar |
 | Repo | Information disclosure | Secretos commiteados | `.env` **no está** en `.gitignore` (solo `*.local`); `.env.local.example` pide `VITE_CLAUDE_API_KEY` (un `VITE_` termina en el bundle) | **A** | Agregar `.env` y `.env.*` (menos `.example`) al `.gitignore`; sacar `VITE_CLAUDE_API_KEY` del ejemplo |
 | Notas | XSS | Markdown de notas con HTML | `renderMarkdown` escapa `& < >` antes de formatear (`utils/markdown.ts:7`); se usa con `dangerouslySetInnerHTML` en 3 lugares | B | Mantener el escape; si se agregan links, validar protocolo; test unitario de escape |
-| Dispositivo | Information disclosure | Compu compartida: la caché IndexedDB y el historial del chat quedan al cerrar sesión | Logout no limpia `persistentLocalCache` ni `cerebro_chat_history` | M | `clearIndexedDbPersistence` + borrar claves locales al cerrar sesión |
+| Dispositivo | Information disclosure | Compu compartida: la caché IndexedDB y el historial del chat quedan al cerrar sesión | Desde P1 `cerrarSesion` borra la caché de Firestore, el historial del chat y las claves del día | B | `clearIndexedDbPersistence` + borrar claves locales al cerrar sesión |
 
 ## Lo que está bien hoy
 

@@ -2,9 +2,10 @@
 
 ## Hoy (as-is)
 
-- **0 tests.** No hay Vitest, Jest ni Playwright, ni archivos `*.test.*` / `*.spec.*`, ni script `test` en `package.json`.
+- **Desde P1: Vitest con 56 tests unitarios** (`front/src/utils/*.test.ts`, `server/cerebro/limites.test.ts`), 92 % de líneas en la lógica pura. Scripts `test`, `test:watch` y `test:cov`.
+- No hay todavía tests de componentes, de reglas ni E2E.
 - **0 CI.** No existe `.github/`.
-- Lo único automático: `npm run lint` (24 errores hoy) y `tsc -b` dentro de `npm run build`.
+- Lo automático: `npm test`, `npm run lint` (0 errores) y `tsc -b` dentro de `npm run build`, todo a mano (sin CI).
 
 ## Objetivo (to-be)
 

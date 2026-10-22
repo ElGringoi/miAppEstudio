@@ -7,6 +7,7 @@ import { AREA_META } from '../utils/constants';
 import { renderMarkdown } from '../utils/markdown';
 import { shortDate } from '../utils/helpers';
 import { CerebroLayout, CerebroSearch, PanelActions, CerebroVacio, NuevoButton, FilaAcciones } from './CerebroLayout';
+import { hoyLocal } from '../utils/fecha';
 
 const areaMeta  = (area?: EntradaArea) => AREA_META.find(a => a.id === area);
 const areaColor = (area?: EntradaArea) => areaMeta(area)?.color ?? 'bg-slate-400';
@@ -119,7 +120,7 @@ export function CerebroNotas({ modo, header, entradas, personas, grupos, onSave,
     setIsSaving(true);
     try {
       const tags = form.tags.split(',').map(t => t.trim()).filter(Boolean);
-      const today = new Date().toISOString().slice(0, 10);
+      const today = hoyLocal();
       // Los arrays van siempre, aunque estén vacíos: con updateDoc una key
       // ausente deja el valor viejo, así que omitirlos impide vaciarlos.
       const data: Omit<FSEntradaDiario, 'id'> = {

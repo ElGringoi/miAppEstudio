@@ -10,7 +10,7 @@
 | [0004](ADR-0004-estilo-visual.md) | Estilo visual "Gremio" (claymorphism oscuro) | ✅ aceptada | 2026-10-19 |
 | [0005](ADR-0005-partir-app-tsx.md) | Partir `App.tsx` en features + domain + data + ui | 📝 propuesta | 2026-10-19 |
 | [0006](ADR-0006-firestore-rules.md) | Versionar `firestore.rules` y testearlas con el emulador | 📝 propuesta | 2026-10-19 |
-| [0007](ADR-0007-fecha-local.md) | Fecha "hoy" en hora de Argentina, no UTC | 📝 propuesta | 2026-10-19 |
+| [0007](ADR-0007-fecha-local.md) | Fecha "hoy" en hora de Argentina, no UTC | ✅ aceptada (P1) | 2026-10-19 |
 
 Estados: 📝 propuesta → ✅ aceptada → ♻️ reemplazada · ❌ rechazada.
 

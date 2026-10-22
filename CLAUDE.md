@@ -18,7 +18,7 @@ Módulos principales:
 - **Settings:** configuración + conexión Google Calendar
 - **Diario (La Gaceta):** edición diaria por páginas con noticias en vivo (RSS de medios + resultados deportivos), personalizada con 👍/👎 y guardados
 
-**Estado:** Prototipo activo. Sin tests, sin CI/CD. Usa Firebase directamente desde el cliente.
+**Estado:** Prototipo activo. Tests unitarios de la lógica pura con Vitest; sin CI/CD. Usa Firebase directamente desde el cliente.
 
 **Directorio raíz del proyecto:** `package.json` y todo el código fuente están en la raíz del repo (directorio `front/src/`). No existe carpeta `web/`.
 
@@ -37,7 +37,8 @@ Módulos principales:
 | Capa | Tecnología |
 |---|---|
 | Framework | Vite 8 + React 19.2 |
-| Lenguaje | TypeScript 6 (`strict` es el default de TS 6 y compila con 0 errores; no está declarado explícito en `tsconfig.app.json`) |
+| Lenguaje | TypeScript 6 con `"strict": true` (declarado en `tsconfig.app.json` y `tsconfig.node.json`) |
+| Tests | Vitest 5 (`vitest.config.ts`, entorno node): `*.test.ts` al lado del archivo, en `front/src/` y `server/` (nunca en `api/`: Vercel convierte cada archivo de `api/` en una función) |
 | Estilos | Tailwind CSS v4 (`@tailwindcss/vite` plugin, sin config file) |
 | Animaciones | `motion/react` (standalone Motion, no framer-motion) |
 | Gráficos | Recharts (RadarChart) |
@@ -52,8 +53,10 @@ Módulos principales:
 ```bash
 npm run dev      # Dev server en http://localhost:5173
 npm run build    # tsc -b && vite build
-npm run lint     # ESLint
+npm run lint     # ESLint (está en 0 errores: mantenerlo así)
 npm run preview  # Preview del build de producción
+npm test         # Vitest (lógica pura)
+npm run test:cov # Vitest con cobertura (meta ≥ 80 % en helpers, fecha, markdown, límites del chat)
 ```
 
 Los comandos se ejecutan desde la raíz del repo (donde está `package.json`).
@@ -75,7 +78,8 @@ front/src/
 │   └── utils.ts         # cn() con clsx + tailwind-merge
 ├── utils/
 │   ├── constants.tsx    # HOY, FS_KEYS, STAT_META, DIAS_CORTO, DIAS_LETRA, ESTADO_LIBRO_META, MATERIAL_ICON
-│   └── helpers.ts       # xpLevel, statsFromDoc, buildTree, isHabitActiveToday/Done, habitRecurrenceLabel, youtubeEmbedUrl
+│   ├── fecha.ts         # hoyLocal, isoDe, sumarDias, lunesDe: fechas en hora de Argentina (única fuente de "hoy")
+│   └── helpers.ts       # xpLevel, statsFromDoc, buildTree, isHabitActiveToday/Done, calcStreak, calcToggleHabito, planBorrarMision…
 └── components/
     ├── LoginScreen.tsx
     ├── MisionCard.tsx
@@ -132,6 +136,12 @@ type FSStatKey = 'fuerza' | 'salud' | 'inteligencia' | 'agilidad' | 'carisma' | 
 
 Progresión incremental: cada nivel requiere 100 XP más que el anterior (L1→L2: 100, L2→L3: 200, …). Implementado en `helpers.ts:xpLevel()`.
 
+Hábitos: `calcToggleHabito()` guarda en `xpPorFecha` cuánto XP dio cada fecha, así desmarcar resta exactamente eso (con o sin multiplicador de racha).
+
+### Fechas
+
+**Nunca `new Date().toISOString().slice(0, 10)`**: es UTC y desde las 21 h de Argentina ya da el día siguiente. Usar `hoyLocal()` / `isoDe(date)` / `sumarDias()` de `utils/fecha.ts` ([ADR-0007](docs/08-decisiones/ADR-0007-fecha-local.md)). `HOY` se fija al cargar la página; si cambia el día con la app abierta, `App.tsx` recarga.
+
 ### Google Calendar
 
 Integración opcional. El token OAuth se obtiene vía `reauthenticateWithPopup` con scope `calendar.readonly` y se almacena en `sessionStorage` con expiración (`gcal_token` + `gcal_token_exp` = ahora + 3500 s; no hay refresh token y se pierde al cerrar la pestaña). Se usa para mostrar eventos en la vista Calendar junto a los eventos propios de Firestore.
@@ -169,13 +179,13 @@ Basado en el diseño de Stitch "RPG Productivity & Study System". **Solo modo os
 
 ## Lo Que No Existe
 
-- Tests
+- Tests de componentes y E2E (sí hay tests unitarios con Vitest)
 - CI/CD
 - `firestore.rules` en el repo (las reglas viven solo en la consola de Firebase; ver [ADR-0006](docs/08-decisiones/ADR-0006-firestore-rules.md))
 - Backend propio (solo dos funciones serverless en Vercel: `api/edicion.ts`, ver abajo, y `api/cerebro-chat.ts`, chat con Groq, ver [`docs/07-operaciones/segundo-cerebro.md`](docs/07-operaciones/segundo-cerebro.md))
 - i18n
 
-Variables de entorno: sí existen. `VITE_FIREBASE_*` (config web, va al navegador) en `.env.local`, y `GROQ_API_KEY` / `GROQ_MODEL` **solo en Vercel**. Ejemplo en `.env.local.example`. Nunca un secreto con prefijo `VITE_`.
+Variables de entorno: sí existen. `VITE_FIREBASE_*` (config web, va al navegador) en `.env.local`, y `GROQ_API_KEY` / `GROQ_MODEL` / `ALLOWED_UIDS` **solo en Vercel**. Ejemplo en `.env.local.example`. Nunca un secreto con prefijo `VITE_`.
 
 ---
 

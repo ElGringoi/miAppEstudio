@@ -1,6 +1,6 @@
 # ADR-0007: Usar la fecha "hoy" en hora de Argentina, no UTC
 
-- **Estado:** 📝 propuesta
+- **Estado:** ✅ aceptada e implementada en P1 (`front/src/utils/fecha.ts`)
 - **Fecha:** 2026-10-19
 - **Decide:** Gastón
 - **Relacionado:** [estados-y-excepciones.md](../02-ux/estados-y-excepciones.md) casos 1 y 2, [rendimiento-confiabilidad.md](../06-calidad/rendimiento-confiabilidad.md)

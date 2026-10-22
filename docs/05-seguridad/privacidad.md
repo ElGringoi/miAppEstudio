@@ -43,7 +43,7 @@
 
 ### Exportar y borrar
 
-- **Exportar** (`exportarDatos`, `App.tsx:1802`) baja un JSON con **solo 5 de 20** fuentes de datos: hábitos, misiones, eventos, stats, transacciones. Faltan personas, notas, inbox, gym, libros, materias, billetera completa.
+- **Exportar** (`exportarDatos` en `App.tsx`) baja un JSON con **las 20 fuentes** de datos y `schemaVersion` (desde P1; antes eran 5).
 - **Borrar cuenta:** no existe.
 
 ## Objetivo (to-be)

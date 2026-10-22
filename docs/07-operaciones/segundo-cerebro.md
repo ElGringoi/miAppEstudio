@@ -31,8 +31,9 @@ Límites: 10 mensajes de historial, 4000 caracteres por mensaje (`api/cerebro-ch
 1. Crear una key en [console.groq.com](https://console.groq.com) → API Keys.
 2. Vercel → proyecto → Settings → Environment Variables → `GROQ_API_KEY` = la key (entornos Production y Preview). Opcional: `GROQ_MODEL`.
 3. Verificar que `VITE_FIREBASE_API_KEY` también esté en Vercel (la función la usa para validar tokens).
-4. Redeploy (Vercel → Deployments → Redeploy).
-5. Probar: Segundo Cerebro → Chat → "¿Qué notas tengo sobre productividad?".
+4. **`ALLOWED_UIDS`** = tu uid de Firebase (Firebase Console → Authentication → Users → User UID). Sin esta variable el chat atiende a cualquier cuenta de Google con sesión.
+5. Redeploy (Vercel → Deployments → Redeploy).
+6. Probar: Segundo Cerebro → Chat → "¿Qué notas tengo sobre productividad?".
 
 En `npm run dev` el chat **no** llega a Groq (no hay middleware): responde con búsqueda local. Para probarlo de verdad en local, ver [entornos-y-deploy.md](entornos-y-deploy.md#chat-en-desarrollo).
 
@@ -42,6 +43,9 @@ En `npm run dev` el chat **no** llega a Groq (no hay middleware): responde con b
 |---|---|---|
 | 401 `Unauthorized` | No llegó el header `Authorization` | Volver a iniciar sesión |
 | 401 `Invalid token` | Token vencido o de otro proyecto | Recargar la página |
+| 403 `Este chat es privado` | El uid no está en `ALLOWED_UIDS` | Agregar el uid en Vercel |
+| 429 `Demasiados pedidos seguidos` | Más de 20 pedidos por minuto (por instancia) | Esperar un minuto |
+| 413 `El pedido es demasiado grande` | Body de más de 32 000 caracteres | Acortar el mensaje |
 | 400 `userMessage is required` | Mensaje vacío | — |
 | 500 `Falta GROQ_API_KEY en el servidor` | Variable no configurada | Paso 2 del setup |
 | 500 `Falta VITE_FIREBASE_API_KEY en el servidor` | Variable no configurada en Vercel | Paso 3 |
@@ -54,4 +58,4 @@ En todos los casos el usuario igual recibe una respuesta armada con sus datos (`
 - Sincronizar el historial a Firestore (hoy solo en `localStorage`).
 - Búsqueda semántica con embeddings en vez de palabras clave.
 - Avisar en la UI cuando la respuesta es local y no de la IA.
-- Restringir el endpoint a los uids permitidos y agregar rate limit ([modelo de amenazas](../05-seguridad/modelo-amenazas.md)).
+- ✅ Hecho en P1: uids permitidos, 20 pedidos por minuto y tope de body (`server/cerebro/limites.ts`). El límite vive en memoria de cada instancia: es de mejor esfuerzo.
