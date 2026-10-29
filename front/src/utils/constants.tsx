@@ -1,10 +1,13 @@
 import React from 'react';
 import { Dumbbell, Heart, Brain, Zap, Sparkles, Star } from 'lucide-react';
 import type { FSStatKey, EstadoLibro, TipoMaterial, Stat, FSRelacion } from '../types';
+import { hoyLocal } from './fecha';
 
 export const APP_VERSION = '1.2.0';
-export const HOY = new Date().toISOString().slice(0, 10);
-export const getToday = () => new Date().toISOString().slice(0, 10);
+// Hoy en Argentina (utils/fecha.ts). HOY queda fijo al cargar: si cambia el día
+// con la app abierta, App.tsx recarga la página.
+export const HOY = hoyLocal();
+export const getToday = () => hoyLocal();
 export const PRIORIDAD_META: Record<string, { color: string; bg: string; label: string }> = {
   urgente: { color: 'text-red-100',    bg: 'bg-red-600',    label: '🔴 Urgente' },
   alta:    { color: 'text-orange-100', bg: 'bg-orange-500', label: '🟠 Alta'    },

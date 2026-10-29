@@ -1,6 +1,7 @@
-import type { FSStatsDoc, FSMision, FSHabito, Stat, MissionNode, FSStatKey } from '../types';
+import type { FSStatsDoc, FSMision, FSHabito, FSRoca, Stat, MissionNode, FSStatKey } from '../types';
 import type { HabitRecurrence } from '../types';
-import { FS_KEYS, STAT_META, getToday } from './constants';
+import { FS_KEYS, STAT_META } from './constants';
+import { hoyLocal, sumarDias, diaSemanaIso, lunesDe } from './fecha';
 
 // Cada nivel requiere 100 XP más que el anterior: L1→L2=100, L2→L3=200...
 export function xpLevel(totalXp: number) {
@@ -63,24 +64,14 @@ export function isImageUrl(url: string): boolean {
   return /\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i.test(url);
 }
 
-function getWeekStart(): Date {
-  const d = new Date();
-  const day = d.getDay();
-  d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
-  d.setHours(0, 0, 0, 0);
-  return d;
+// `hoy` es parámetro para poder testear; por defecto es hoy en Argentina.
+export function isDateInCurrentWeek(dateStr: string, hoy: string = hoyLocal()): boolean {
+  const lunes = lunesDe(hoy);
+  return dateStr >= lunes && dateStr <= sumarDias(lunes, 6);
 }
 
-export function isDateInCurrentWeek(dateStr: string): boolean {
-  const weekStart = getWeekStart();
-  const weekEnd   = new Date(weekStart);
-  weekEnd.setDate(weekEnd.getDate() + 7);
-  const d = new Date(dateStr + 'T00:00:00');
-  return d >= weekStart && d < weekEnd;
-}
-
-export function isHabitActiveToday(h: FSHabito): boolean {
-  const dow = new Date().getDay();
+export function isHabitActiveToday(h: FSHabito, hoy: string = hoyLocal()): boolean {
+  const dow = diaSemanaIso(hoy);
   const rec = h.recurrence ?? 'daily';
   if (rec === 'daily')     return true;
   if (rec === 'weekdays')  return dow >= 1 && dow <= 5;
@@ -89,13 +80,12 @@ export function isHabitActiveToday(h: FSHabito): boolean {
   return true;
 }
 
-export function isHabitDoneToday(h: FSHabito): boolean {
-  const today = getToday();
+export function isHabitDoneToday(h: FSHabito, hoy: string = hoyLocal()): boolean {
   if (h.recurrence === 'once_week') {
-    return (h.completedDates ?? []).some(d => isDateInCurrentWeek(d));
+    return (h.completedDates ?? []).some(d => isDateInCurrentWeek(d, hoy));
   }
-  if (h.fechaCompletado === today) return true;
-  return (h.completedDates ?? []).includes(today);
+  if (h.fechaCompletado === hoy) return true;
+  return (h.completedDates ?? []).includes(hoy);
 }
 
 export function habitRecurrenceLabel(recurrence: string, diasSemana: number[], diasCorto: string[]): string {
@@ -110,48 +100,44 @@ export function habitRecurrenceLabel(recurrence: string, diasSemana: number[], d
 }
 
 // ── Streak: días consecutivos completados ────────────────────────────────────
-export function calcStreak(completedDates: string[] = [], recurrence: HabitRecurrence = 'daily'): number {
+export function calcStreak(
+  completedDates: string[] = [],
+  recurrence: HabitRecurrence = 'daily',
+  hoy: string = hoyLocal(),
+): number {
   if (!completedDates.length) return 0;
 
   if (recurrence === 'daily' || recurrence === 'weekdays') {
     const dateSet = new Set(completedDates);
+    // Los hábitos de días hábiles no cortan la racha el fin de semana.
+    const cuenta = (iso: string) => {
+      const dow = diaSemanaIso(iso);
+      return recurrence === 'daily' || (dow >= 1 && dow <= 5);
+    };
+    let dia = hoy;
+    // Si hoy no está completo, la racha sigue viva desde ayer
+    if (!dateSet.has(dia)) dia = sumarDias(dia, -1);
+
     let streak = 0;
-    const check = new Date();
-
-    // Si hoy no está completo, el streak sigue vivo desde ayer
-    if (!dateSet.has(check.toISOString().slice(0, 10))) {
-      check.setDate(check.getDate() - 1);
-    }
-
-    for (let i = 0; i < 365; i++) {
-      const str = check.toISOString().slice(0, 10);
-      if (dateSet.has(str)) {
-        streak++;
-        check.setDate(check.getDate() - 1);
-      } else {
-        break;
-      }
+    for (let i = 0; i < 400; i++) {
+      if (!cuenta(dia)) { dia = sumarDias(dia, -1); continue; }
+      if (!dateSet.has(dia)) break;
+      streak++;
+      dia = sumarDias(dia, -1);
     }
     return streak;
   }
 
-  // Semanal: contar semanas consecutivas con al menos una fecha
-  const weekOf = (d: string) => {
-    const date = new Date(d + 'T00:00:00');
-    date.setDate(date.getDate() - ((date.getDay() + 6) % 7)); // lunes
-    return date.toISOString().slice(0, 10);
-  };
-  const weeks = [...new Set(completedDates.map(weekOf))].sort().reverse();
+  // Semanal: semanas consecutivas (lunes a domingo) con al menos una fecha.
+  // Igual que en los diarios, si esta semana todavía no está hecha la racha
+  // sigue viva desde la semana anterior.
+  const semanas = new Set(completedDates.map(lunesDe));
+  let esperada = lunesDe(hoy);
+  if (!semanas.has(esperada)) esperada = sumarDias(esperada, -7);
   let streak = 0;
-  const todayWeek = weekOf(new Date().toISOString().slice(0, 10));
-  let expected = todayWeek;
-  for (const w of weeks) {
-    if (w === expected) {
-      streak++;
-      const d = new Date(expected + 'T00:00:00');
-      d.setDate(d.getDate() - 7);
-      expected = d.toISOString().slice(0, 10);
-    } else break;
+  while (semanas.has(esperada)) {
+    streak++;
+    esperada = sumarDias(esperada, -7);
   }
   return streak;
 }
@@ -224,6 +210,81 @@ export function streakMultiplier(streak: number): number {
   return 1.0;
 }
 
+// ── Marcar / desmarcar un hábito ─────────────────────────────────────────────
+// Guarda cuánto XP dio cada fecha (xpPorFecha) para que desmarcar reste
+// exactamente eso, aunque el multiplicador de racha haya cambiado.
+export interface CambioHabito {
+  yaHecho: boolean;
+  completedDates: string[];
+  xpPorFecha: Record<string, number>;
+  /** XP a sumar (positivo) o restar (negativo) al stat. */
+  delta: number;
+  mult: number;
+}
+
+export const DIAS_HISTORIAL = 90;
+
+export function calcToggleHabito(h: FSHabito, hoy: string = hoyLocal()): CambioHabito {
+  const prev = h.completedDates ?? (h.fechaCompletado ? [h.fechaCompletado] : []);
+  const base = h.xpValue ?? 20;
+  const xpPrev = { ...(h.xpPorFecha ?? {}) };
+  const yaHecho = isHabitDoneToday(h, hoy);
+  let fechas: string[];
+  let delta: number;
+  let mult = 1;
+
+  if (yaHecho) {
+    const quitar = new Set(h.recurrence === 'once_week'
+      ? prev.filter(d => isDateInCurrentWeek(d, hoy))
+      : [hoy]);
+    delta = -[...quitar].filter(d => prev.includes(d)).reduce((s, d) => s + (xpPrev[d] ?? base), 0);
+    // Hecho solo por el campo viejo fechaCompletado: se resta el XP base, como antes.
+    if (delta === 0) delta = -base;
+    fechas = prev.filter(d => !quitar.has(d));
+  } else {
+    mult = streakMultiplier(calcStreak(prev, h.recurrence ?? 'daily', hoy));
+    const xp = Math.round(base * mult);
+    delta = xp;
+    fechas = [...prev, hoy];
+    xpPrev[hoy] = xp;
+  }
+
+  const corte = sumarDias(hoy, -DIAS_HISTORIAL);
+  const completedDates = fechas.filter(d => d >= corte);
+  const xpPorFecha = Object.fromEntries(
+    Object.entries(xpPrev).filter(([d]) => completedDates.includes(d)),
+  );
+  return { yaHecho, completedDates, xpPorFecha, delta, mult };
+}
+
+// ── Borrar una misión sin dejar referencias colgadas ─────────────────────────
+export interface PlanBorrado {
+  /** La misión y todas sus descendientes. */
+  borrar: string[];
+  /** Misiones que tenían alguna borrada como prerequisito, con la lista limpia. */
+  prerequisitos: { id: string; prerequisitos: string[] }[];
+  /** Rocas que la tenían vinculada, con la lista limpia. */
+  rocas: { id: string; linkedMisionIds: string[] }[];
+}
+
+export function planBorrarMision(misiones: FSMision[], id: string, rocas: FSRoca[] = []): PlanBorrado {
+  const borrar = new Set<string>([id]);
+  // Descendientes a cualquier profundidad (con tope por si hubiera un ciclo).
+  for (let cambio = true, vueltas = 0; cambio && vueltas < 1000; vueltas++) {
+    cambio = false;
+    for (const m of misiones) {
+      if (m.parentId && borrar.has(m.parentId) && !borrar.has(m.id)) { borrar.add(m.id); cambio = true; }
+    }
+  }
+  const prerequisitos = misiones
+    .filter(m => !borrar.has(m.id) && (m.prerequisitos ?? []).some(p => borrar.has(p)))
+    .map(m => ({ id: m.id, prerequisitos: (m.prerequisitos ?? []).filter(p => !borrar.has(p)) }));
+  const rocasLimpias = rocas
+    .filter(r => (r.linkedMisionIds ?? []).some(p => borrar.has(p)))
+    .map(r => ({ id: r.id, linkedMisionIds: (r.linkedMisionIds ?? []).filter(p => !borrar.has(p)) }));
+  return { borrar: [...borrar], prerequisitos, rocas: rocasLimpias };
+}
+
 // ── XP ganado por stat (fuentes de XP) ──────────────────────────────────────
 export function calcXpBySource(habitos: FSHabito[], statKey: FSStatKey): { nombre: string; xpTotal: number; veces: number }[] {
   return habitos
@@ -240,13 +301,12 @@ export function calcXpBySource(habitos: FSHabito[], statKey: FSStatKey): { nombr
 // ── XP ganado por día (últimos N días, de completedDates de hábitos) ─────────
 export function calcXpPerDay(
   habitos: FSHabito[],
-  days: number
+  days: number,
+  hoy: string = hoyLocal(),
 ): { date: string; xp: number }[] {
   const result: { date: string; xp: number }[] = [];
   for (let i = days - 1; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    const dateStr = d.toISOString().slice(0, 10);
+    const dateStr = sumarDias(hoy, -i);
     let xp = 0;
     for (const h of habitos) {
       if ((h.completedDates ?? []).includes(dateStr)) {
@@ -265,11 +325,10 @@ export function shortDate(iso?: string): string {
   return new Date(iso).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' });
 }
 
-/** Días desde hoy hasta una fecha ISO. Negativo si ya pasó. */
-export function diasHasta(iso: string): number {
-  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
-  const target = new Date(iso + 'T00:00:00');
-  return Math.round((target.getTime() - hoy.getTime()) / 86400000);
+/** Días desde hoy (en Argentina) hasta una fecha ISO. Negativo si ya pasó. */
+export function diasHasta(iso: string, hoy: string = hoyLocal()): number {
+  const t = (s: string) => { const [a, m, d] = s.split('-').map(Number); return Date.UTC(a, m - 1, d); };
+  return Math.round((t(iso) - t(hoy)) / 86400000);
 }
 
 /**
@@ -277,17 +336,16 @@ export function diasHasta(iso: string): number {
  * Si es anual, salta al año que viene cuando ya pasó este año.
  * Devuelve la fecha ISO y cuántos días faltan (null si no es anual y ya pasó).
  */
-export function proximaOcurrencia(fecha: string, anual: boolean): { iso: string; dias: number } | null {
+export function proximaOcurrencia(fecha: string, anual: boolean, hoy: string = hoyLocal()): { iso: string; dias: number } | null {
   if (!anual) {
-    const dias = diasHasta(fecha);
+    const dias = diasHasta(fecha, hoy);
     return dias >= 0 ? { iso: fecha, dias } : null;
   }
-  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
   const [, mes, dia] = fecha.split('-');
-  let año = hoy.getFullYear();
+  let año = Number(hoy.slice(0, 4));
   let iso = `${año}-${mes}-${dia}`;
-  if (diasHasta(iso) < 0) { año += 1; iso = `${año}-${mes}-${dia}`; }
-  return { iso, dias: diasHasta(iso) };
+  if (diasHasta(iso, hoy) < 0) { año += 1; iso = `${año}-${mes}-${dia}`; }
+  return { iso, dias: diasHasta(iso, hoy) };
 }
 
 /**

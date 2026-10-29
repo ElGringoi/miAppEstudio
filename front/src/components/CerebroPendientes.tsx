@@ -4,6 +4,7 @@ import { cn } from '../lib/utils';
 import { Plus, Trash2, Check, Pencil, X } from 'lucide-react';
 import { MONEDA_META, TIPO_FECHA_META } from '../utils/constants';
 import { proximaOcurrencia, saldoPendientes } from '../utils/helpers';
+import { hoyLocal } from '../utils/fecha';
 
 const MONEDAS: Moneda[] = ['ARS', 'USD', 'EUR', 'BRL', 'CLP', 'UYU'];
 
@@ -41,7 +42,7 @@ function armarPendiente(
 function toggleSaldado(p: FSPendiente): FSPendiente {
   const next: FSPendiente = { ...p, saldado: !p.saldado };
   // delete, no `= undefined`: Firestore rechaza undefined a cualquier nivel.
-  if (next.saldado) next.saldadoEn = new Date().toISOString().slice(0, 10);
+  if (next.saldado) next.saldadoEn = hoyLocal();
   else delete next.saldadoEn;
   return next;
 }
