@@ -5,6 +5,7 @@
 
 import type { FSEntradaDiario, FSEvento, FSGrupo, FSInboxItem, FSPersona } from '../../types';
 import { sumarDias } from '../../utils/edicion';
+import { proponerFecha, type PropuestaFecha } from '../../utils/inboxFecha';
 import { Kicker, TituloSeccion, Vacio } from './Piezas';
 
 const VENTANA_EVENTOS = 14;  // días
@@ -48,11 +49,14 @@ interface Props {
   fsEntradas: FSEntradaDiario[];
   hoy:        string;
   idTitulo:   string;
+  onAgendar:  (item: FSInboxItem, grupo: FSGrupo, propuesta: PropuestaFecha) => void;
 }
 
-interface Linea { id: string; orden: string; fecha: string; de?: string; texto: string }
+interface Linea { id: string; orden: string; fecha: string; de?: string; texto: string; item?: FSInboxItem }
 
-export function PaginaCirculos({ fsGrupos, fsPersonas, fsInbox, fsEventos, fsEntradas, hoy, idTitulo }: Props) {
+interface Proximo { id: string; fecha: string; hora?: string; titulo: string; propuesta?: { item: FSInboxItem; datos: PropuestaFecha } }
+
+export function PaginaCirculos({ fsGrupos, fsPersonas, fsInbox, fsEventos, fsEntradas, hoy, idTitulo, onAgendar }: Props) {
   const pendientesInbox = fsInbox.filter(i => !i.procesado);
   const limiteEventos = sumarDias(hoy, VENTANA_EVENTOS);
   const limiteFechas = sumarDias(hoy, VENTANA_FECHAS);
@@ -69,7 +73,7 @@ export function PaginaCirculos({ fsGrupos, fsPersonas, fsInbox, fsEventos, fsEnt
       .filter(i => coincide(`${i.texto} ${i.titulo ?? ''} ${i.remitente ?? ''}`))
       .map(i => ({
         id: `in-${i.id}`, orden: i.recibidoEn, fecha: i.recibidoEn.slice(0, 10),
-        de: i.remitente ? quitarSufijo(i.remitente) : undefined, texto: i.texto,
+        de: i.remitente ? quitarSufijo(i.remitente) : undefined, texto: i.texto, item: i,
       }));
 
     const vinculadas: Linea[] = (g.links ?? [])
@@ -82,10 +86,25 @@ export function PaginaCirculos({ fsGrupos, fsPersonas, fsInbox, fsEventos, fsEnt
 
     const lineas = [...whatsapp, ...vinculadas].sort((a, b) => b.orden.localeCompare(a.orden));
 
-    const eventos = fsEventos
-      .filter(e => e.fecha >= hoy && e.fecha <= limiteEventos && coincide(e.titulo))
+    // Eventos del grupo (los agendados desde el inbox) y, para los viejos sin
+    // grupo, los que mencionan el nombre de algún integrante.
+    const eventos: Proximo[] = fsEventos
+      .filter(e => e.fecha >= hoy && e.fecha <= limiteEventos && (e.grupoId ? e.grupoId === g.id : coincide(e.titulo)))
+      .map(e => ({ id: e.id, fecha: e.fecha, hora: e.hora, titulo: e.titulo }));
+
+    // Propuestas: mensajes sin procesar con una fecha (la del agente o la del texto).
+    const propuestas: Proximo[] = whatsapp.flatMap(l => {
+      if (!l.item) return [];
+      const datos = l.item.fechaSugerida
+        ? { fecha: l.item.fechaSugerida, hora: l.item.horaSugerida }
+        : proponerFecha(l.item.texto, hoy);
+      if (!datos || datos.fecha < hoy || datos.fecha > limiteEventos) return [];
+      return [{ id: `p-${l.item.id}`, fecha: datos.fecha, hora: datos.hora, titulo: recortar(l.item.texto, 90), propuesta: { item: l.item, datos } }];
+    });
+
+    const proximos = [...eventos, ...propuestas]
       .sort((a, b) => a.fecha.localeCompare(b.fecha) || (a.hora ?? '').localeCompare(b.hora ?? ''))
-      .slice(0, 3);
+      .slice(0, 4);
 
     const fechas = (g.fechasClave ?? [])
       .map(f => ({ f, cuando: proximaOcurrencia(f.fecha, f.anual, hoy) }))
@@ -94,7 +113,7 @@ export function PaginaCirculos({ fsGrupos, fsPersonas, fsInbox, fsEventos, fsEnt
 
     const pendientes = (g.pendientes ?? []).filter(p => !p.saldado);
     const ultima = lineas[0]?.orden ?? '';
-    return { g, miembros, lineas, eventos, fechas, pendientes, ultima };
+    return { g, miembros, lineas, proximos, fechas, pendientes, ultima };
   });
 
   tarjetas.sort((a, b) => b.ultima.localeCompare(a.ultima) || a.g.nombre.localeCompare(b.g.nombre, 'es'));
@@ -114,21 +133,27 @@ export function PaginaCirculos({ fsGrupos, fsPersonas, fsInbox, fsEventos, fsEnt
         <Vacio>Todavía no tenés grupos. Creá uno en el Cerebro (amigos, familia, cole) y lo vas a ver acá.</Vacio>
       )}
 
-      {tarjetas.map(({ g, miembros, lineas, eventos, fechas, pendientes }) => (
+      {tarjetas.map(({ g, miembros, lineas, proximos, fechas, pendientes }) => (
         <article key={g.id} className="g-pieza">
           <Kicker>{miembros.length ? miembros.map(m => m.nombre).join(' · ') : 'Sin integrantes asignados'}</Kicker>
           <h3 className="g-titular g-titular-secundario">{g.icono ? `${g.icono} ` : ''}{g.nombre}</h3>
           {g.descripcion && <p className="g-bajada">{g.descripcion}</p>}
 
-          {eventos.length > 0 && (
+          {proximos.length > 0 && (
             <>
               <p className="g-subrotulo">Próximo</p>
               <ul className="g-filas">
-                {eventos.map(e => (
-                  <li key={e.id} className="g-fila">
-                    <span className="g-fila-dia">{fechaCorta(e.fecha)}</span>
-                    <span className="g-fila-hora">{e.hora ?? ''}</span>
-                    <span className="g-fila-texto">{e.titulo}</span>
+                {proximos.map(p => (
+                  <li key={p.id} className="g-fila" style={p.propuesta ? { flexWrap: 'wrap' } : undefined}>
+                    <span className="g-fila-dia">{fechaCorta(p.fecha)}</span>
+                    <span className="g-fila-hora">{p.hora ?? ''}</span>
+                    <span className="g-fila-texto">{p.titulo}</span>
+                    {p.propuesta && (
+                      <button type="button" className="g-link" style={{ marginLeft: 'auto', background: 'none', border: 0, cursor: 'pointer' }}
+                        onClick={() => onAgendar(p.propuesta!.item, g, p.propuesta!.datos)}>
+                        Agendar
+                      </button>
+                    )}
                   </li>
                 ))}
               </ul>

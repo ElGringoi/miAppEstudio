@@ -11,6 +11,7 @@ import { armarSeleccion, numeroEdicion, terminosFavoritos } from '../utils/edici
 // "Mis círculos" usa el mismo HOY con el que la app guarda eventos y notas.
 import { HOY } from '../utils/constants';
 import { PaginaCirculos } from './diario/Circulos';
+import type { PropuestaFecha } from '../utils/inboxFecha';
 import { CSS_GACETA, NOMBRE_DIARIO } from './diario/estilos';
 import { DiarioContexto, type DiarioAcciones } from './diario/contexto';
 import {
@@ -32,6 +33,7 @@ interface Props {
   onGuardar:       (art: ArticuloEdicion | ArticuloGuardado) => void;
   onPrefsDeportes: (deportes: DeporteId[], equipos: string[]) => void;
   onTerminar:      (fecha: string) => void;
+  onAgendar:       (item: FSInboxItem, grupo: FSGrupo, propuesta: PropuestaFecha) => void;
 }
 
 const ID_TITULO = 'gaceta-titulo-pagina';
@@ -154,7 +156,7 @@ export function DiarioEdicion(props: Props) {
     if (!seleccion || !edicion || !pagina) return null;
     switch (pagina.key) {
       case 'portada':    return <PaginaPortada sel={seleccion} paginas={paginas} onIr={irA} idTitulo={ID_TITULO} />;
-      case 'dia':        return <PaginaCirculos fsGrupos={props.fsGrupos} fsPersonas={props.fsPersonas} fsInbox={props.fsInbox} fsEventos={props.fsEventos} fsEntradas={props.fsEntradas} hoy={HOY} idTitulo={ID_TITULO} />;
+      case 'dia':        return <PaginaCirculos fsGrupos={props.fsGrupos} fsPersonas={props.fsPersonas} fsInbox={props.fsInbox} fsEventos={props.fsEventos} fsEntradas={props.fsEntradas} hoy={HOY} idTitulo={ID_TITULO} onAgendar={props.onAgendar} />;
       case 'argentina':  return <PaginaArgentina sel={seleccion} idTitulo={ID_TITULO} />;
       case 'mundo':      return <PaginaMundo sel={seleccion} idTitulo={ID_TITULO} />;
       case 'deportes':   return <PaginaDeportes sel={seleccion} edicion={edicion} onPrefsDeportes={props.onPrefsDeportes} idTitulo={ID_TITULO} />;

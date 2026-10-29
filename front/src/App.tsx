@@ -236,7 +236,9 @@ export default function App() {
   });
   const [habitForm,      setHabitForm]      = useState({ nombre: '', stat: 'fuerza' as FSStatKey, recurrence: 'daily' as HabitRecurrence, diasSemana: [] as number[] });
   const [taskForm,     setTaskForm]     = useState({ titulo: '', hora: '', recurrence: 'once' as FSTarea['recurrence'], weekday: 1, date: HOY, color: DEFAULT_TASK_COLOR, detalle: '', origen: '' });
-  const [eventoForm,   setEventoForm]   = useState({ titulo: '', hora: '', fecha: HOY, detalle: '', origen: '' });
+  // grupoId e inboxId solo se llenan al agendar desde un mensaje de WhatsApp (ver agendarDesdeInbox).
+  const eventoVacio = { titulo: '', hora: '', fecha: HOY, detalle: '', origen: '', grupoId: '', inboxId: '' };
+  const [eventoForm,   setEventoForm]   = useState(eventoVacio);
   // Tarea/evento expandido en el calendario para ver detalle y origen
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
   const [rutinaForm,   setRutinaForm]   = useState({ nombre: '', diasSemana: [] as number[] });
@@ -845,6 +847,22 @@ export default function App() {
     }
   }
 
+  // Propuesta de un mensaje de WhatsApp en "Mis círculos": abre el formulario de
+  // evento con fecha, hora y grupo ya cargados. Se guarda recién al confirmar.
+  function agendarDesdeInbox(item: FSInboxItem, grupo: FSGrupo, propuesta: { fecha: string; hora?: string }) {
+    const titulo = item.texto.split(/[.\n]/)[0].trim().slice(0, 80) || 'Evento de WhatsApp';
+    setEventoForm({
+      titulo,
+      fecha: propuesta.fecha,
+      hora: propuesta.hora ?? '',
+      detalle: item.texto,
+      origen: 'whatsapp',
+      grupoId: grupo.id,
+      inboxId: item.id,
+    });
+    setModal('evento');
+  }
+
   async function addEvento() {
     if (!user?.uid || !eventoForm.titulo.trim()) return;
     const data: Omit<FSEvento, 'id'> = {
@@ -853,10 +871,22 @@ export default function App() {
       ...(eventoForm.hora ? { hora: eventoForm.hora } : {}),
       ...(eventoForm.detalle.trim() ? { detalle: eventoForm.detalle.trim() } : {}),
       ...(eventoForm.origen.trim() ? { origen: eventoForm.origen.trim() } : {}),
+      ...(eventoForm.grupoId ? { grupoId: eventoForm.grupoId } : {}),
     };
     try {
-      await addDoc(collection(db, 'usuarios', user.uid, 'eventos'), data);
-      setEventoForm({ titulo: '', hora: '', fecha: HOY, detalle: '', origen: '' });
+      const col = collection(db, 'usuarios', user.uid, 'eventos');
+      if (eventoForm.inboxId) {
+        // El evento y el mensaje procesado van juntos: no queda uno sin el otro.
+        const batch = writeBatch(db);
+        batch.set(doc(col), data);
+        batch.update(doc(db, 'usuarios', user.uid, 'inbox', eventoForm.inboxId), {
+          procesado: true, procesadoComo: 'grupo', procesadoEn: new Date().toISOString(),
+        });
+        await batch.commit();
+      } else {
+        await addDoc(col, data);
+      }
+      setEventoForm(eventoVacio);
       setModal(null);
     } catch (e: unknown) {
       setModalError((e as Error).message ?? 'Error al guardar');
@@ -2610,7 +2640,7 @@ export default function App() {
                   <section className={card}>
                     <div className="flex items-center justify-between">
                       <h3 className={cardTitle}><CalendarIcon className="w-5 h-5 text-primary" /> Agenda de Hoy</h3>
-                      <button onClick={() => { setEventoForm(p => ({ ...p, fecha: HOY })); setModal('evento'); }}
+                      <button onClick={() => { setEventoForm({ ...eventoVacio, fecha: HOY }); setModal('evento'); }}
                         className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-surface-container-high hover:bg-surface-bright font-label text-[11px] font-semibold text-primary transition-colors">
                         <Plus className="w-3.5 h-3.5" /> Evento
                       </button>
@@ -4015,6 +4045,7 @@ export default function App() {
                   onGuardar={toggleGuardado}
                   onPrefsDeportes={guardarPrefsDeportes}
                   onTerminar={terminarEdicion}
+                  onAgendar={agendarDesdeInbox}
                 />
               </div>
             </motion.div>
