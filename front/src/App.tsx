@@ -23,9 +23,11 @@ import {
   reauthenticateWithPopup,
 } from 'firebase/auth';
 import type { User } from 'firebase/auth';
+import type { FirestoreError, WriteBatch } from 'firebase/firestore';
 import {
   collection, doc, increment, onSnapshot, setDoc,
   updateDoc, addDoc, deleteDoc, writeBatch, runTransaction, deleteField,
+  terminate, clearIndexedDbPersistence,
 } from 'firebase/firestore';
 import { auth, db } from './lib/firebase';
 import type {
@@ -37,7 +39,6 @@ import type {
   ArticuloEdicion, ArticuloGuardado, DeporteId, EdicionDiaria,
 } from './types';
 import { SegundoCerebro } from './components/SegundoCerebro';
-import type { MuscleId } from './components/BodyMap';
 import { getMuscles } from './utils/muscleMap';
 import { HabitHeatmap } from './components/HabitHeatmap';
 import { Modal, ModalHeader } from './components/Modal';
@@ -51,7 +52,8 @@ import confetti from 'canvas-confetti';
 
 const DEFAULT_TASK_COLOR = '#3b82f6';
 import { HOY, getToday, FS_KEYS, STAT_META, DIAS_CORTO, DIAS_LETRA, ESTADO_LIBRO_META, MATERIAL_ICON, CATEGORIAS_GASTO, CATEGORIAS_INGRESO, CLASS_META, RANK_META, RELACION_META, MONEDA_META, PRIORIDAD_META, APP_VERSION } from './utils/constants';
-import { xpLevel, statsFromDoc, buildTree, youtubeEmbedUrl, isHabitActiveToday, isHabitDoneToday, isDateInCurrentWeek, habitRecurrenceLabel, calcStreak, calcMainLevel, rankFromLevel, assignClass, calcXpPerDay, streakMultiplier, calcXpBySource, mesAnterior } from './utils/helpers';
+import { xpLevel, statsFromDoc, buildTree, youtubeEmbedUrl, isHabitActiveToday, isHabitDoneToday, habitRecurrenceLabel, calcStreak, calcMainLevel, rankFromLevel, assignClass, calcXpPerDay, streakMultiplier, calcXpBySource, mesAnterior, calcToggleHabito, planBorrarMision } from './utils/helpers';
+import { isoDe, sumarDias } from './utils/fecha';
 import { ProgressBar } from './components/ProgressBar';
 import { MisionCard } from './components/MisionCard';
 import { CapituloRow } from './components/CapituloRow';
@@ -63,6 +65,7 @@ import {
 import { MissionNodeComp } from './components/MissionNodeComp';
 import { ExpandToggle, DetalleOrigenPanel } from './components/DetalleOrigen';
 import { LoginScreen } from './components/LoginScreen';
+import { ErrorCarga } from './components/ErrorCarga';
 import { CierreDia } from './components/CierreDia';
 import { BitacoraWidget } from './components/BitacoraWidget';
 import { RocasWidget } from './components/RocasWidget';
@@ -70,6 +73,9 @@ import { RocasWidget } from './components/RocasWidget';
 // ─── App ──────────────────────────────────────────────────────────────────────
 
 // ─── Constantes de módulo (no recrear en cada render) ────────────────────────
+
+// Listeners de Firestore que tienen que responder antes de mostrar la app.
+const TOTAL_LISTENERS = 20;
 
 const NAV: { id: TabId; icon: ReactNode; label: string }[] = [
   { id: 'dashboard',  icon: <LayoutDashboard className="w-5 h-5" />, label: 'Dashboard'  },
@@ -108,7 +114,13 @@ function getPageSub(firstName: string): Record<string, string> {
 export default function App() {
   const [user, setUser]           = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const [dataReady,   setDataReady]   = useState(false);
+  // Cada carga (uid + reintento) tiene su clave; dataReady y errorCarga valen para la carga actual.
+  const [reintentoCarga, setReintentoCarga] = useState(0);
+  const [cargaLista,     setCargaLista]     = useState<string | null>(null);
+  const [errorCargaEstado, setErrorCargaEstado] = useState<{ clave: string; coleccion: string; codigo: string } | null>(null);
+  const claveCarga = `${user?.uid ?? ''}:${reintentoCarga}`;
+  const dataReady  = cargaLista === claveCarga;
+  const errorCarga = errorCargaEstado?.clave === claveCarga ? errorCargaEstado : null;
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
 
   // Firestore raw state
@@ -120,19 +132,26 @@ export default function App() {
 
   // UI state
   const [tab,         setTab]         = useState<TabId>('dashboard');
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  // En celular arranca cerrado: abierto tapa toda la pantalla
+  const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth >= 768);
   const [selDate,     setSelDate]     = useState(new Date());
 
   const [attrStat, setAttrStat] = useState<FSStatKey>('fuerza');
 
   // Google Calendar state
-  const [gcalToken,  setGcalToken]  = useState<string | null>(null);
+  // Token guardado en sessionStorage (no persiste entre sesiones por seguridad)
+  const [gcalToken,  setGcalToken]  = useState<string | null>(() => {
+    const token = sessionStorage.getItem('gcal_token');
+    const exp   = parseInt(sessionStorage.getItem('gcal_token_exp') || '0');
+    return token && exp > Date.now() ? token : null;
+  });
   const [gcalEvents, setGcalEvents] = useState<GCalEvent[]>([]);
 
   // Rutinas state
   const [fsRutinas,      setFsRutinas]      = useState<FSRutina[]>([]);
   const [gymInnerTab,    setGymInnerTab]    = useState<'entreno' | 'comida'>('entreno');
   const [gymRestTimer,   setGymRestTimer]   = useState(0); // milisegundos
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- sin UI desde el rediseño de Gym (#31); se reconecta en el roadmap (Gym: crear, editar y borrar)
   const [targetRutinaId,    setTargetRutinaId]    = useState<string | null>(null);
   const [targetEjercicioId, setTargetEjercicioId] = useState<string | null>(null);
 
@@ -183,7 +202,7 @@ export default function App() {
 
   // Carisma — Diario + Objetivos
   const [fsDiario,          setFsDiario]          = useState<FSEntradaDiario[]>([]);
-  const [_fsObjetivosCHA,   setFsObjetivosCHA]    = useState<FSObjetivoCHA[]>([]);
+  const [fsObjetivosCHA,    setFsObjetivosCHA]    = useState<FSObjetivoCHA[]>([]);
   const [fsDiarioPrefs,     setFsDiarioPrefs]     = useState<FSDiarioPrefs>({ reactions: {}, tagScores: {} });
   // Diario: edición del día (caché local primero, después la red) y páginas leídas
   const [edicion,           setEdicion]           = useState<EdicionDiaria | null>(() => leerEdicionCache());
@@ -219,10 +238,6 @@ export default function App() {
 
   // Cierre del día
   const [showCierreDia, setShowCierreDia] = useState(false);
-  const [cierreDiaShownToday, setCierreDiaShownToday] = useState(() => {
-    const saved = localStorage.getItem(`cierre_dia_${HOY}`);
-    return saved === 'true';
-  });
 
   // Modal state
   const [modal, setModal] = useState<'habit' | 'task' | 'evento' | 'rutina' | 'ejercicio' | 'libro' | 'materia' | 'material' | 'tareaFac' | 'examen' | 'entrada_diario' | 'mision' | null>(null);
@@ -236,7 +251,9 @@ export default function App() {
   });
   const [habitForm,      setHabitForm]      = useState({ nombre: '', stat: 'fuerza' as FSStatKey, recurrence: 'daily' as HabitRecurrence, diasSemana: [] as number[] });
   const [taskForm,     setTaskForm]     = useState({ titulo: '', hora: '', recurrence: 'once' as FSTarea['recurrence'], weekday: 1, date: HOY, color: DEFAULT_TASK_COLOR, detalle: '', origen: '' });
-  const [eventoForm,   setEventoForm]   = useState({ titulo: '', hora: '', fecha: HOY, detalle: '', origen: '' });
+  // grupoId e inboxId solo se llenan al agendar desde un mensaje de WhatsApp (ver agendarDesdeInbox).
+  const eventoVacio = { titulo: '', hora: '', fecha: HOY, detalle: '', origen: '', grupoId: '', inboxId: '' };
+  const [eventoForm,   setEventoForm]   = useState(eventoVacio);
   // Tarea/evento expandido en el calendario para ver detalle y origen
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
   const [rutinaForm,   setRutinaForm]   = useState({ nombre: '', diasSemana: [] as number[] });
@@ -254,10 +271,33 @@ export default function App() {
   }
 
   // Clear modal error when modal type changes
-  useEffect(() => { setModalError(null); }, [modal]);
+  const [modalAnterior, setModalAnterior] = useState(modal);
+  if (modal !== modalAnterior) { setModalAnterior(modal); setModalError(null); }
 
   // Auth listener
-  useEffect(() => onAuthStateChanged(auth, u => { setUser(u); setAuthLoading(false); }), []);
+  useEffect(() => onAuthStateChanged(auth, u => {
+    setUser(u);
+    setAuthLoading(false);
+    // Cierre del día: después de las 21:00, una vez por día
+    if (u && new Date().getHours() >= 21 && localStorage.getItem(`cierre_dia_${HOY}`) !== 'true') {
+      setShowCierreDia(true);
+      localStorage.setItem(`cierre_dia_${HOY}`, 'true');
+    }
+  }), []);
+
+  // HOY se fija al cargar: si la app sigue abierta cuando cambia el día (en
+  // Argentina), se recarga para que hábitos, tareas y rachas usen la fecha nueva.
+  useEffect(() => {
+    const revisarDia = () => {
+      if (document.visibilityState === 'visible' && getToday() !== HOY) window.location.reload();
+    };
+    document.addEventListener('visibilitychange', revisarDia);
+    const intervalo = window.setInterval(revisarDia, 60_000);
+    return () => {
+      document.removeEventListener('visibilitychange', revisarDia);
+      window.clearInterval(intervalo);
+    };
+  }, []);
 
   // Detector de level-up del personaje principal
   useEffect(() => {
@@ -268,13 +308,6 @@ export default function App() {
     }
     prevMainLevel.current = current;
   }, [fsStats]);
-
-  // Load GCal token from sessionStorage (no persiste entre sesiones por seguridad)
-  useEffect(() => {
-    const token = sessionStorage.getItem('gcal_token');
-    const exp   = parseInt(sessionStorage.getItem('gcal_token_exp') || '0');
-    if (token && exp > Date.now()) setGcalToken(token);
-  }, []);
 
   // Fetch GCal events when token available
   useEffect(() => {
@@ -302,53 +335,49 @@ export default function App() {
   // Firestore listeners
   useEffect(() => {
     if (!user?.uid) return;
-    setDataReady(false);
     const uid = user.uid;
-    let loaded = 0;
-    const markLoaded = () => { if (++loaded === 19) setDataReady(true); };
+    const clave = `${uid}:${reintentoCarga}`;
+    // Lista cuando cada listener respondió al menos una vez. Se cuentan listeners, no
+    // callbacks: uno que dispara dos veces (caché y servidor) no completa el conteo solo.
+    const listos = new Set<string>();
+    const listo = (k: string) => { listos.add(k); if (listos.size === TOTAL_LISTENERS) setCargaLista(clave); };
+    const fallo = (k: string) => (e: FirestoreError) => {
+      console.error(`[firestore] ${k}: ${e.code}`, e.message);
+      setErrorCargaEstado(prev => (prev?.clave === clave ? prev : { clave, coleccion: k, codigo: e.code }));
+    };
     const unsubStats = onSnapshot(doc(db, 'usuarios', uid, 'stats', 'main'), snap => {
       setFsStats(snap.data() as FSStatsDoc ?? null);
-      markLoaded();
-    });
-    const u2  = onSnapshot(collection(db, 'usuarios', uid, 'habitos'),       s => { setFsHabitos(s.docs.map(d => ({ id: d.id, ...d.data() } as FSHabito))); markLoaded(); });
-    const u3  = onSnapshot(collection(db, 'usuarios', uid, 'eventos'),       s => { setFsEventos(s.docs.map(d => ({ id: d.id, ...d.data() } as FSEvento))); markLoaded(); });
-    const u4  = onSnapshot(collection(db, 'usuarios', uid, 'misiones'),      s => { setFsMisiones(s.docs.map(d => ({ id: d.id, ...d.data() } as FSMision))); markLoaded(); });
-    const u5  = onSnapshot(collection(db, 'usuarios', uid, 'tareas'),        s => { setFsTareas(s.docs.map(d => ({ id: d.id, ...d.data() } as FSTarea))); markLoaded(); });
-    const u6  = onSnapshot(collection(db, 'usuarios', uid, 'rutinas'),       s => { setFsRutinas(s.docs.map(d => ({ id: d.id, ...d.data() } as FSRutina))); markLoaded(); });
-    const u7  = onSnapshot(collection(db, 'usuarios', uid, 'libros'),        s => { setFsLibros(s.docs.map(d => ({ id: d.id, ...d.data() } as FSLibro))); markLoaded(); });
-    const u8  = onSnapshot(collection(db, 'usuarios', uid, 'materias'),      s => { setFsMaterias(s.docs.map(d => ({ id: d.id, ...d.data() } as FSMateria))); markLoaded(); });
-    const u9  = onSnapshot(collection(db, 'usuarios', uid, 'diario'),        s => { setFsDiario(s.docs.map(d => ({ id: d.id, ...d.data() } as FSEntradaDiario))); markLoaded(); });
-    const u10 = onSnapshot(collection(db, 'usuarios', uid, 'objetivos_cha'), s => { setFsObjetivosCHA(s.docs.map(d => ({ id: d.id, ...d.data() } as FSObjetivoCHA))); markLoaded(); });
-    const u11 = onSnapshot(collection(db, 'usuarios', uid, 'transacciones'), s => { setFsTransacciones(s.docs.map(d => ({ id: d.id, ...d.data() } as FSTransaccion))); markLoaded(); });
+      listo('stats');
+    }, fallo('stats'));
+    const u2  = onSnapshot(collection(db, 'usuarios', uid, 'habitos'),       s => { setFsHabitos(s.docs.map(d => ({ id: d.id, ...d.data() } as FSHabito))); listo('habitos'); }, fallo('habitos'));
+    const u3  = onSnapshot(collection(db, 'usuarios', uid, 'eventos'),       s => { setFsEventos(s.docs.map(d => ({ id: d.id, ...d.data() } as FSEvento))); listo('eventos'); }, fallo('eventos'));
+    const u4  = onSnapshot(collection(db, 'usuarios', uid, 'misiones'),      s => { setFsMisiones(s.docs.map(d => ({ id: d.id, ...d.data() } as FSMision))); listo('misiones'); }, fallo('misiones'));
+    const u5  = onSnapshot(collection(db, 'usuarios', uid, 'tareas'),        s => { setFsTareas(s.docs.map(d => ({ id: d.id, ...d.data() } as FSTarea))); listo('tareas'); }, fallo('tareas'));
+    const u6  = onSnapshot(collection(db, 'usuarios', uid, 'rutinas'),       s => { setFsRutinas(s.docs.map(d => ({ id: d.id, ...d.data() } as FSRutina))); listo('rutinas'); }, fallo('rutinas'));
+    const u7  = onSnapshot(collection(db, 'usuarios', uid, 'libros'),        s => { setFsLibros(s.docs.map(d => ({ id: d.id, ...d.data() } as FSLibro))); listo('libros'); }, fallo('libros'));
+    const u8  = onSnapshot(collection(db, 'usuarios', uid, 'materias'),      s => { setFsMaterias(s.docs.map(d => ({ id: d.id, ...d.data() } as FSMateria))); listo('materias'); }, fallo('materias'));
+    const u9  = onSnapshot(collection(db, 'usuarios', uid, 'diario'),        s => { setFsDiario(s.docs.map(d => ({ id: d.id, ...d.data() } as FSEntradaDiario))); listo('diario'); }, fallo('diario'));
+    const u10 = onSnapshot(collection(db, 'usuarios', uid, 'objetivos_cha'), s => { setFsObjetivosCHA(s.docs.map(d => ({ id: d.id, ...d.data() } as FSObjetivoCHA))); listo('objetivos_cha'); }, fallo('objetivos_cha'));
+    const u11 = onSnapshot(collection(db, 'usuarios', uid, 'transacciones'), s => { setFsTransacciones(s.docs.map(d => ({ id: d.id, ...d.data() } as FSTransaccion))); listo('transacciones'); }, fallo('transacciones'));
     const u12 = onSnapshot(doc(db, 'usuarios', uid, 'diario_prefs', 'main'), snap => {
       // El doc puede haberse creado con un solo campo (por ejemplo, al guardar una nota).
       if (snap.exists()) setFsDiarioPrefs({ reactions: {}, tagScores: {}, ...(snap.data() as Partial<FSDiarioPrefs>) });
-      markLoaded();
-    });
-    const u13 = onSnapshot(collection(db, 'usuarios', uid, 'sueldos_meta'),  s => { setFsSueldosMeta(s.docs.map(d => ({ id: d.id, ...d.data() } as FSSueldoMeta))); markLoaded(); });
-    const u14 = onSnapshot(collection(db, 'usuarios', uid, 'presupuestos'),  s => { setFsPresupuestos(s.docs.map(d => ({ id: d.id, ...d.data() } as FSPresupuesto))); markLoaded(); });
-    const u15 = onSnapshot(collection(db, 'usuarios', uid, 'metas_ahorro'), s => { setFsMetas(s.docs.map(d => ({ id: d.id, ...d.data() } as FSMetaAhorro))); markLoaded(); });
+      listo('diario_prefs');
+    }, fallo('diario_prefs'));
+    const u13 = onSnapshot(collection(db, 'usuarios', uid, 'sueldos_meta'),  s => { setFsSueldosMeta(s.docs.map(d => ({ id: d.id, ...d.data() } as FSSueldoMeta))); listo('sueldos_meta'); }, fallo('sueldos_meta'));
+    const u14 = onSnapshot(collection(db, 'usuarios', uid, 'presupuestos'),  s => { setFsPresupuestos(s.docs.map(d => ({ id: d.id, ...d.data() } as FSPresupuesto))); listo('presupuestos'); }, fallo('presupuestos'));
+    const u15 = onSnapshot(collection(db, 'usuarios', uid, 'metas_ahorro'), s => { setFsMetas(s.docs.map(d => ({ id: d.id, ...d.data() } as FSMetaAhorro))); listo('metas_ahorro'); }, fallo('metas_ahorro'));
     const uRel = onSnapshot(doc(db, 'usuarios', uid, 'cerebro_prefs', 'main'), snap => {
       const lista = snap.data()?.relaciones as FSRelacion[] | undefined;
       setFsRelaciones(lista?.length ? lista : RELACION_META);
-    });
-    const u16 = onSnapshot(collection(db, 'usuarios', uid, 'personas'),     s => { setFsPersonas(s.docs.map(d => ({ id: d.id, ...d.data() } as FSPersona))); markLoaded(); });
-    const u17 = onSnapshot(collection(db, 'usuarios', uid, 'grupos'),       s => { setFsGrupos(s.docs.map(d => ({ id: d.id, ...d.data() } as FSGrupo))); markLoaded(); });
-    const u18 = onSnapshot(collection(db, 'usuarios', uid, 'inbox'),        s => { setFsInbox(s.docs.map(d => ({ id: d.id, ...d.data() } as FSInboxItem))); markLoaded(); });
-    const u19 = onSnapshot(collection(db, 'usuarios', uid, 'rocas'),        s => { setFsRocas(s.docs.map(d => ({ id: d.id, ...d.data() } as FSRoca))); markLoaded(); });
+      listo('cerebro_prefs');
+    }, fallo('cerebro_prefs'));
+    const u16 = onSnapshot(collection(db, 'usuarios', uid, 'personas'),     s => { setFsPersonas(s.docs.map(d => ({ id: d.id, ...d.data() } as FSPersona))); listo('personas'); }, fallo('personas'));
+    const u17 = onSnapshot(collection(db, 'usuarios', uid, 'grupos'),       s => { setFsGrupos(s.docs.map(d => ({ id: d.id, ...d.data() } as FSGrupo))); listo('grupos'); }, fallo('grupos'));
+    const u18 = onSnapshot(collection(db, 'usuarios', uid, 'inbox'),        s => { setFsInbox(s.docs.map(d => ({ id: d.id, ...d.data() } as FSInboxItem))); listo('inbox'); }, fallo('inbox'));
+    const u19 = onSnapshot(collection(db, 'usuarios', uid, 'rocas'),        s => { setFsRocas(s.docs.map(d => ({ id: d.id, ...d.data() } as FSRoca))); listo('rocas'); }, fallo('rocas'));
     return () => { unsubStats(); uRel(); u2(); u3(); u4(); u5(); u6(); u7(); u8(); u9(); u10(); u11(); u12(); u13(); u14(); u15(); u16(); u17(); u18(); u19(); };
-  }, [user?.uid]);
-
-  // Cierre del día — mostrar modal si es después de las 21:00 y no se mostró hoy
-  useEffect(() => {
-    const now = new Date();
-    const hour = now.getHours();
-    if (hour >= 21 && !cierreDiaShownToday && user?.uid) {
-      setShowCierreDia(true);
-      setCierreDiaShownToday(true);
-      localStorage.setItem(`cierre_dia_${HOY}`, 'true');
-    }
-  }, [user?.uid, cierreDiaShownToday]);
+  }, [user?.uid, reintentoCarga]);
 
   // ── Gym Rest Timer ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -553,7 +582,7 @@ export default function App() {
   }, [fsHabitos, fsStats, fsLibros, fsMaterias]);
 
   const filterTasks = (d: Date): Task[] => {
-    const dStr = d.toISOString().slice(0, 10);
+    const dStr = isoDe(d);
     return fsTareas
       .filter(t => {
         if (t.recurrence === 'daily') return true;
@@ -586,26 +615,17 @@ export default function App() {
     if (!user?.uid) return;
     const h = fsHabitos.find(x => x.id === id);
     if (!h || !isHabitActiveToday(h)) return;
-    const yaHecho = isHabitDoneToday(h);
-    const prev = h.completedDates ?? (h.fechaCompletado ? [h.fechaCompletado] : []);
-    const today = getToday();
-    const toggled = yaHecho
-      ? (h.recurrence === 'once_week' ? prev.filter(d => !isDateInCurrentWeek(d)) : prev.filter(d => d !== today))
-      : [...prev, today];
-    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 90);
-    const next = toggled.filter(d => d >= cutoff.toISOString().slice(0, 10));
-    const baseXp = h.xpValue ?? 20;
-    const streak = calcStreak(prev, h.recurrence ?? 'daily');
-    const mult   = yaHecho ? 1 : streakMultiplier(streak);
-    const xpFinal = Math.round(baseXp * mult);
+    // Desmarcar resta exactamente lo que sumó ese día (xpPorFecha), con o sin racha.
+    const { yaHecho, completedDates, xpPorFecha, delta, mult } = calcToggleHabito(h);
+    const xpFinal = Math.abs(delta);
     try {
       const xpBefore = fsStats?.[h.stat]?.xp ?? 0;
       const oldLevel = xpLevel(xpBefore).level;
-      const newLevel = xpLevel(xpBefore + (yaHecho ? -xpFinal : xpFinal)).level;
+      const newLevel = xpLevel(xpBefore + delta).level;
 
       const batch = writeBatch(db);
-      batch.update(doc(db, 'usuarios', user.uid, 'habitos', id), { completedDates: next, fechaCompletado: null });
-      batch.set(doc(db, 'usuarios', user.uid, 'stats', 'main'), { [h.stat]: { xp: increment(yaHecho ? -xpFinal : xpFinal) } }, { merge: true });
+      batch.update(doc(db, 'usuarios', user.uid, 'habitos', id), { completedDates, xpPorFecha, fechaCompletado: null });
+      batch.set(doc(db, 'usuarios', user.uid, 'stats', 'main'), { [h.stat]: { xp: increment(delta) } }, { merge: true });
       await batch.commit();
 
       if (!yaHecho) {
@@ -624,13 +644,13 @@ export default function App() {
 
   async function toggleTask(id: string, d: Date) {
     if (!user?.uid) return;
-    const dStr = d.toISOString().slice(0, 10);
+    const dStr = isoDe(d);
     const t = fsTareas.find(x => x.id === id);
     if (!t) return;
     const prev = t.completedDates ?? [];
     const toggled = prev.includes(dStr) ? prev.filter(x => x !== dStr) : [...prev, dStr];
-    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 90);
-    const next = toggled.filter(x => x >= cutoff.toISOString().slice(0, 10));
+    const cutoff = sumarDias(getToday(), -90);
+    const next = toggled.filter(x => x >= cutoff);
     try {
       await updateDoc(doc(db, 'usuarios', user.uid, 'tareas', id), { completedDates: next });
     } catch (e) { console.error(e);
@@ -749,18 +769,32 @@ export default function App() {
 
   async function deleteMision(id: string) {
     if (!user?.uid) return;
-    const hijos = fsMisiones.filter(m => m.parentId === id);
+    const uid = user.uid;
+    // Se borran también las sub-misiones (si no, quedan huérfanas e invisibles) y se
+    // limpian los prerequisitos y rocas que las apuntaban (si no, quedan bloqueadas).
+    const plan = planBorrarMision(fsMisiones, id, fsRocas);
+    const subMisiones = plan.borrar.length - 1;
     const doDelete = async () => {
       try {
-        await deleteDoc(doc(db, 'usuarios', user.uid!, 'misiones', id));
-        showToast('Misión eliminada');
+        const ops = [
+          ...plan.borrar.map(mid => (b: WriteBatch) => b.delete(doc(db, 'usuarios', uid, 'misiones', mid))),
+          ...plan.prerequisitos.map(p => (b: WriteBatch) => b.update(doc(db, 'usuarios', uid, 'misiones', p.id), { prerequisitos: p.prerequisitos })),
+          ...plan.rocas.map(r => (b: WriteBatch) => b.update(doc(db, 'usuarios', uid, 'rocas', r.id), { linkedMisionIds: r.linkedMisionIds })),
+        ];
+        // Un writeBatch admite hasta 500 operaciones: se parte de a 450, como en renombrarTag.
+        for (let i = 0; i < ops.length; i += 450) {
+          const batch = writeBatch(db);
+          ops.slice(i, i + 450).forEach(op => op(batch));
+          await batch.commit();
+        }
+        showToast(subMisiones > 0 ? `Misión y ${subMisiones} sub-misiones eliminadas` : 'Misión eliminada');
       } catch (e) {
         console.error(e);
         showToast('Error al eliminar');
       }
     };
-    if (hijos.length > 0) {
-      showConfirm(`Esta misión tiene ${hijos.length} sub-misión(es). ¿Eliminar de todas formas?`, doDelete);
+    if (subMisiones > 0) {
+      showConfirm(`Se van a borrar también sus ${subMisiones} sub-misiones. ¿Eliminar?`, doDelete);
     } else {
       await doDelete();
     }
@@ -845,6 +879,22 @@ export default function App() {
     }
   }
 
+  // Propuesta de un mensaje de WhatsApp en "Mis círculos": abre el formulario de
+  // evento con fecha, hora y grupo ya cargados. Se guarda recién al confirmar.
+  function agendarDesdeInbox(item: FSInboxItem, grupo: FSGrupo, propuesta: { fecha: string; hora?: string }) {
+    const titulo = item.texto.split(/[.\n]/)[0].trim().slice(0, 80) || 'Evento de WhatsApp';
+    setEventoForm({
+      titulo,
+      fecha: propuesta.fecha,
+      hora: propuesta.hora ?? '',
+      detalle: item.texto,
+      origen: 'whatsapp',
+      grupoId: grupo.id,
+      inboxId: item.id,
+    });
+    setModal('evento');
+  }
+
   async function addEvento() {
     if (!user?.uid || !eventoForm.titulo.trim()) return;
     const data: Omit<FSEvento, 'id'> = {
@@ -853,10 +903,22 @@ export default function App() {
       ...(eventoForm.hora ? { hora: eventoForm.hora } : {}),
       ...(eventoForm.detalle.trim() ? { detalle: eventoForm.detalle.trim() } : {}),
       ...(eventoForm.origen.trim() ? { origen: eventoForm.origen.trim() } : {}),
+      ...(eventoForm.grupoId ? { grupoId: eventoForm.grupoId } : {}),
     };
     try {
-      await addDoc(collection(db, 'usuarios', user.uid, 'eventos'), data);
-      setEventoForm({ titulo: '', hora: '', fecha: HOY, detalle: '', origen: '' });
+      const col = collection(db, 'usuarios', user.uid, 'eventos');
+      if (eventoForm.inboxId) {
+        // El evento y el mensaje procesado van juntos: no queda uno sin el otro.
+        const batch = writeBatch(db);
+        batch.set(doc(col), data);
+        batch.update(doc(db, 'usuarios', user.uid, 'inbox', eventoForm.inboxId), {
+          procesado: true, procesadoComo: 'grupo', procesadoEn: new Date().toISOString(),
+        });
+        await batch.commit();
+      } else {
+        await addDoc(col, data);
+      }
+      setEventoForm(eventoVacio);
       setModal(null);
     } catch (e: unknown) {
       setModalError((e as Error).message ?? 'Error al guardar');
@@ -886,6 +948,7 @@ export default function App() {
     }
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- sin UI desde el rediseño de Gym (#31); se reconecta en el roadmap (Gym: crear, editar y borrar)
   async function deleteRutina(id: string) {
     if (!user?.uid) return;
     await deleteDoc(doc(db, 'usuarios', user.uid, 'rutinas', id));
@@ -939,6 +1002,7 @@ export default function App() {
     }
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- sin UI desde el rediseño de Gym (#31); se reconecta en el roadmap (Gym: crear, editar y borrar)
   async function deleteEjercicio(rutinaId: string, ejId: string) {
     if (!user?.uid) return;
     const opKey = `del-ej-${rutinaId}-${ejId}`;
@@ -1005,6 +1069,7 @@ export default function App() {
     finally { pendingOps.current.delete(opKey); }
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- sin UI desde el rediseño de Gym (#31); se reconecta en el roadmap (Gym: crear, editar y borrar)
   async function seedRutinaHipertrofia() {
     if (!user?.uid) return;
     const SEED = [
@@ -1057,6 +1122,7 @@ export default function App() {
     }
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- sin UI desde el rediseño de Gym (#31); se reconecta en el roadmap (Gym: crear, editar y borrar)
   async function seedRutinas2daEtapa() {
     if (!user?.uid) return;
     if (!confirm('¿Reemplazar todas las rutinas actuales con la 2da Etapa (5 días de gym)?')) return;
@@ -1130,6 +1196,7 @@ export default function App() {
     }
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- sin UI desde el rediseño de Gym (#31); se reconecta en el roadmap (Gym: crear, editar y borrar)
   async function addRutinasFinde() {
     if (!user?.uid) return;
     const FINDE = [
@@ -1798,10 +1865,37 @@ export default function App() {
     }
   }
 
-  // Exportar datos como JSON
+  // Exportar todos los datos como JSON (las 17 colecciones y los 3 docs únicos)
   function exportarDatos() {
-    const blob = new Blob([JSON.stringify({ habitos: fsHabitos, misiones: fsMisiones, eventos: fsEventos, stats: fsStats, transacciones: fsTransacciones }, null, 2)], { type: 'application/json' });
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'miAppEstudio-backup.json'; a.click();
+    const backup = {
+      schemaVersion: 1,
+      exportadoEn: new Date().toISOString(),
+      stats: fsStats, diario_prefs: fsDiarioPrefs, cerebro_prefs: { relaciones: fsRelaciones },
+      habitos: fsHabitos, tareas: fsTareas, eventos: fsEventos, misiones: fsMisiones, rocas: fsRocas,
+      rutinas: fsRutinas, libros: fsLibros, materias: fsMaterias,
+      diario: fsDiario, personas: fsPersonas, grupos: fsGrupos, inbox: fsInbox, objetivos_cha: fsObjetivosCHA,
+      transacciones: fsTransacciones, sueldos_meta: fsSueldosMeta, presupuestos: fsPresupuestos, metas_ahorro: fsMetas,
+    };
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `miAppEstudio-backup-${getToday()}.json`; a.click();
+  }
+
+  // Cerrar sesión borra también lo que quedó en el dispositivo: la caché de Firestore
+  // (copia de todos los datos), el historial del chat y las notas del día.
+  async function cerrarSesion() {
+    try {
+      for (const k of Object.keys(localStorage)) {
+        if (k === 'cerebro_chat_history' || k.startsWith('cierre_dia_') || k.startsWith('focus_')) localStorage.removeItem(k);
+      }
+      sessionStorage.removeItem('gcal_token');
+      sessionStorage.removeItem('gcal_token_exp');
+    } catch (e) { console.error('No se pudo limpiar el almacenamiento local', e); }
+    await signOut(auth);
+    try {
+      await terminate(db);
+      await clearIndexedDbPersistence(db);
+    } catch (e) { console.error('No se pudo borrar la caché de Firestore', e); }
+    window.location.reload();
   }
 
   // Discord webhook
@@ -1814,7 +1908,7 @@ export default function App() {
   }
 
   function gcalForDate(d: Date): GCalEvent[] {
-    const dStr = d.toISOString().slice(0, 10);
+    const dStr = isoDe(d);
     return gcalEvents.filter(ev => {
       const start = ev.start.dateTime ? ev.start.dateTime.slice(0, 10) : ev.start.date;
       return start === dStr;
@@ -1968,12 +2062,16 @@ export default function App() {
 
   if (!user) return <LoginScreen onLogin={() => signInWithPopup(auth, new GoogleAuthProvider())} />;
 
+  if (errorCarga && !dataReady) return (
+    <ErrorCarga codigo={errorCarga.codigo} onReintentar={() => setReintentoCarga(n => n + 1)} onCerrarSesion={cerrarSesion} />
+  );
+
   if (!dataReady) return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center gap-3">
       <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}>
         <CheckCircle2 className="w-8 h-8 text-blue-600" />
       </motion.div>
-      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Loading hero data…</p>
+      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Cargando tu personaje…</p>
     </div>
   );
 
@@ -1986,6 +2084,11 @@ export default function App() {
         <div className="absolute top-1/3 -right-32 w-72 h-72 rounded-full bg-primary-container/8 blur-3xl" />
         <div className="absolute bottom-0 left-1/3 w-96 h-64 rounded-full bg-secondary/5 blur-3xl" />
       </div>
+
+      {/* ── Error de un listener con la app ya cargada ── */}
+      {errorCarga && (
+        <ErrorCarga banner codigo={errorCarga.codigo} onReintentar={() => setReintentoCarga(n => n + 1)} onCerrarSesion={cerrarSesion} />
+      )}
 
       {/* ── Toast ── */}
       <AnimatePresence>
@@ -2200,14 +2303,14 @@ export default function App() {
       {/* ── Backdrop mobile ── */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/40 z-20 md:hidden"
+          className="fixed inset-0 bg-black/40 z-[45] md:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
       {/* ── Sidebar ── */}
       <aside className={cn(
-        'bg-surface-container-low/95 backdrop-blur-xl shadow-[4px_0_24px_rgba(0,0,0,0.35)] flex flex-col fixed h-full z-30 transition-all duration-300 overflow-hidden',
+        'bg-surface-container-low/95 backdrop-blur-xl shadow-[4px_0_24px_rgba(0,0,0,0.35)] flex flex-col fixed h-full z-50 md:z-30 transition-all duration-300 overflow-hidden',
         sidebarOpen
           ? 'translate-x-0 w-64'
           : '-translate-x-full md:translate-x-0 w-64 md:w-16'
@@ -2312,7 +2415,8 @@ export default function App() {
       </nav>
 
       {/* ── Main ── */}
-      <main className={cn('flex-1 p-4 md:p-8 pb-24 md:pb-8 transition-all duration-300', sidebarOpen ? 'ml-0 md:ml-64' : 'ml-0 md:ml-16')}>
+      {/* min-w-0: sin esto el main crece al ancho de su contenido y el celular corta el costado derecho */}
+      <main className={cn('flex-1 min-w-0 p-4 md:p-8 pb-24 md:pb-8 transition-all duration-300', sidebarOpen ? 'ml-0 md:ml-64' : 'ml-0 md:ml-16')}>
         <header className="flex justify-between items-center mb-6 md:mb-8 gap-4">
           <div className="flex items-center gap-3 min-w-0">
             {/* Hamburger — solo mobile */}
@@ -2479,8 +2583,8 @@ export default function App() {
                     { icon: '⚔️', value: `${done}/${habitsToday.length}`, sub: 'Quests de hoy', color: 'text-primary' },
                     { icon: '✦',  value: `+${xpHoy} XP`, sub: 'Ganado hoy',      color: 'text-tertiary' },
                   ].map(t => (
-                    <div key={t.sub} className="flex items-center gap-2 px-2.5 py-2 rounded-lg bg-surface-container-high/80 min-w-0">
-                      <span className="text-lg shrink-0">{t.icon}</span>
+                    <div key={t.sub} className="flex flex-col sm:flex-row items-start sm:items-center gap-1 sm:gap-2 px-2.5 py-2 rounded-lg bg-surface-container-high/80 min-w-0">
+                      <span className="text-base sm:text-lg shrink-0 leading-none">{t.icon}</span>
                       <div className="flex flex-col min-w-0">
                         <span className={cn('font-label text-xs font-bold truncate tabular-nums', t.color)}>{t.value}</span>
                         <span className="font-label text-[10px] text-on-surface-variant truncate">{t.sub}</span>
@@ -2610,7 +2714,7 @@ export default function App() {
                   <section className={card}>
                     <div className="flex items-center justify-between">
                       <h3 className={cardTitle}><CalendarIcon className="w-5 h-5 text-primary" /> Agenda de Hoy</h3>
-                      <button onClick={() => { setEventoForm(p => ({ ...p, fecha: HOY })); setModal('evento'); }}
+                      <button onClick={() => { setEventoForm({ ...eventoVacio, fecha: HOY }); setModal('evento'); }}
                         className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-surface-container-high hover:bg-surface-bright font-label text-[11px] font-semibold text-primary transition-colors">
                         <Plus className="w-3.5 h-3.5" /> Evento
                       </button>
@@ -2723,11 +2827,11 @@ export default function App() {
           {tab === 'calendar' && (
             <motion.div key="calendar" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
               <section className="bg-white dark:bg-slate-900 rounded-3xl p-4 md:p-8 border border-slate-200 dark:border-slate-800">
-                <div className="flex items-center justify-between mb-4 md:mb-8">
-                  <h3 className="text-xl font-black flex items-center gap-3"><CalendarIcon className="w-6 h-6 text-blue-600" /> BATTLE LOG</h3>
-                  <div className="flex gap-2 items-center">
+                <div className="flex items-center justify-between gap-2 mb-4 md:mb-8">
+                  <h3 className="text-lg md:text-xl font-black flex items-center gap-2 md:gap-3 whitespace-nowrap"><CalendarIcon className="w-5 h-5 md:w-6 md:h-6 text-blue-600" /> BATTLE LOG</h3>
+                  <div className="flex gap-1 md:gap-2 items-center">
                     <button className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg" onClick={() => setSelDate(addDays(selDate, -7))}><ChevronRight className="w-4 h-4 rotate-180" /></button>
-                    <span className="text-sm font-bold px-4">{format(selDate, 'MMMM yyyy')}</span>
+                    <span className="text-sm font-bold px-1 md:px-4 whitespace-nowrap">{format(selDate, 'MMMM yyyy')}</span>
                     <button className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg" onClick={() => setSelDate(addDays(selDate, 7))}><ChevronRight className="w-4 h-4" /></button>
                   </div>
                 </div>
@@ -2747,10 +2851,10 @@ export default function App() {
                   ))}
                 </div>
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-3">
                     <h4 className="text-xs font-black uppercase tracking-widest text-slate-400">Quests para {format(selDate, 'EEEE, MMMM do')}</h4>
-                    <button onClick={() => { setTaskForm(p => ({ ...p, date: selDate.toISOString().slice(0, 10) })); setModal('task'); }}
-                      className="flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-700 transition-colors">
+                    <button onClick={() => { setTaskForm(p => ({ ...p, date: isoDe(selDate) })); setModal('task'); }}
+                      className="shrink-0 whitespace-nowrap flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-700 transition-colors">
                       <Plus className="w-4 h-4" /> Nueva tarea
                     </button>
                   </div>
@@ -2761,7 +2865,7 @@ export default function App() {
                       <div className="py-12 text-center border-2 border-dashed border-slate-100 dark:border-slate-800 rounded-3xl">
                         <CalendarDays className="w-12 h-12 text-slate-200 dark:text-slate-800 mx-auto mb-4" />
                         <p className="text-sm font-bold text-slate-400">Sin quests para este día.</p>
-                        <button onClick={() => { setTaskForm(p => ({ ...p, date: selDate.toISOString().slice(0, 10) })); setModal('task'); }}
+                        <button onClick={() => { setTaskForm(p => ({ ...p, date: isoDe(selDate) })); setModal('task'); }}
                           className="mt-2 text-xs text-blue-500 font-bold hover:underline">+ Agregar tarea</button>
                       </div>
                     ) : (
@@ -3003,6 +3107,7 @@ export default function App() {
           )}
 
           {/* ══ ATTRIBUTES ══ */}
+          {/* eslint-disable-next-line react-hooks/refs -- falso positivo: el bloque solo pasa handlers que leen refs en eventos, no en el render; desaparece al partir App.tsx (ADR-0005) */}
           {tab === 'attributes' && (() => {
             const meta   = STAT_META[attrStat];
             const stat   = stats.find(s => s.shortName === meta.shortName)!;
@@ -3683,7 +3788,7 @@ export default function App() {
                     return (
                       <div key={code} className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm">
                         <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">{m.flag} Saldo {code}</p>
-                        <p className={cn('text-xl font-black', vals.saldo >= 0 ? 'text-emerald-600' : 'text-red-500')}>
+                        <p className={cn('text-base sm:text-xl font-black tabular-nums', vals.saldo >= 0 ? 'text-emerald-600' : 'text-red-500')}>
                           {m.symbol} {vals.saldo.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
                         </p>
                       </div>
@@ -3965,6 +4070,8 @@ export default function App() {
                   : <div className="divide-y divide-slate-50 dark:divide-slate-800/50">
                       {txStats.ordenadas.map(t => {
                         const mon = MONEDA_META[t.moneda ?? 'ARS'] ?? MONEDA_META['ARS'];
+                        const montoTxt = `${t.tipo === 'ingreso' ? '+' : '-'}${mon.symbol} ${t.monto.toLocaleString('es-AR', { minimumFractionDigits: 2 })}`;
+                        const montoColor = t.tipo === 'ingreso' ? 'text-emerald-600' : 'text-red-500';
                         return (
                           <div key={t.id} className="flex items-center gap-3 px-4 md:px-6 py-3 md:py-4 hover:bg-slate-50 dark:hover:bg-slate-800/30 group transition-colors">
                             <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0', t.tipo === 'ingreso' ? 'bg-emerald-500' : 'bg-red-500')}>
@@ -3973,10 +4080,10 @@ export default function App() {
                             <div className="flex-1 min-w-0">
                               <p className="font-bold text-sm truncate">{t.descripcion}</p>
                               <p className="text-[10px] text-slate-400 font-medium mt-0.5">{t.categoria} · {t.fecha} · <span className="font-black">{mon.flag} {t.moneda ?? 'ARS'}</span></p>
+                              {/* En celular el monto va abajo para que la descripción no quede cortada */}
+                              <p className={cn('md:hidden font-black text-sm mt-1 tabular-nums', montoColor)}>{montoTxt}</p>
                             </div>
-                            <p className={cn('font-black text-sm shrink-0', t.tipo === 'ingreso' ? 'text-emerald-600' : 'text-red-500')}>
-                              {t.tipo === 'ingreso' ? '+' : '-'}{mon.symbol} {t.monto.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-                            </p>
+                            <p className={cn('hidden md:block font-black text-sm shrink-0 tabular-nums', montoColor)}>{montoTxt}</p>
                             <div className="flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all">
                               <button onClick={() => openEditTx(t)}
                                 className="p-1.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 text-slate-300 hover:text-blue-500 transition-all">
@@ -4003,11 +4110,11 @@ export default function App() {
               <div className="-mx-4 -mt-4 -mb-24 md:-mx-8 md:-mt-8 md:-mb-8">
                 <DiarioEdicion
                   edicion={edicionMostrada}
-                  fsHabitos={fsHabitos}
                   fsEventos={fsEventos}
-                  fsTareas={fsTareas}
-                  fsMisiones={fsMisiones}
                   fsEntradas={fsDiario}
+                  fsGrupos={fsGrupos}
+                  fsPersonas={fsPersonas}
+                  fsInbox={fsInbox}
                   diarioPrefs={fsDiarioPrefs}
                   visitadas={edicionMostrada && diarioVisitadas.fecha === edicionMostrada.fecha ? diarioVisitadas.paginas : []}
                   onVisitar={visitarPaginaDiario}
@@ -4015,6 +4122,7 @@ export default function App() {
                   onGuardar={toggleGuardado}
                   onPrefsDeportes={guardarPrefsDeportes}
                   onTerminar={terminarEdicion}
+                  onAgendar={agendarDesdeInbox}
                 />
               </div>
             </motion.div>
@@ -4141,7 +4249,7 @@ export default function App() {
                 </div>
 
                 <div className="pt-4 border-t border-slate-100 dark:border-slate-800">
-                  <button onClick={() => signOut(auth)}
+                  <button onClick={cerrarSesion}
                     className="flex items-center gap-2 px-6 py-3 border border-red-200 dark:border-red-900/40 text-red-600 rounded-xl text-xs font-black hover:bg-red-50 dark:hover:bg-red-900/10 transition-all">
                     <LogOut className="w-4 h-4" /> Cerrar sesión
                   </button>

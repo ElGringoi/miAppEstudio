@@ -1,8 +1,14 @@
 /**
  * Función serverless de Vercel: intermedia el chat del Segundo Cerebro con Groq.
  * - Verifica que quien llama tenga sesión iniciada (token de Firebase Auth)
+ * - Si ALLOWED_UIDS está definida, solo atiende a esos uids
+ * - Limita pedidos por minuto y el tamaño del body
  * - Llama a Groq con la key guardada en el servidor (GROQ_API_KEY), nunca expuesta al cliente
  */
+
+import {
+  MAX_BODY_CARACTERES, crearLimitador, largoBody, limitarContexto, uidPermitido, uidsPermitidos,
+} from '../server/cerebro/limites.js';
 
 // Tipos mínimos del request/response de Vercel (evita agregar dependencias)
 interface RequestLike {
@@ -31,8 +37,14 @@ interface ChatRequest {
 const MAX_MENSAJES_HISTORIAL = 10;
 const MAX_CARACTERES_MENSAJE = 4000;
 
-/** Verifica el ID token de Firebase usando el endpoint REST de Identity Toolkit */
-async function tokenValido(idToken: string): Promise<boolean> {
+const puedePedir = crearLimitador();
+
+/**
+ * Verifica el ID token de Firebase con el endpoint REST de Identity Toolkit y
+ * devuelve el uid de su dueño (null si el token no es válido). La API key es la
+ * del proyecto, así que un token de otro proyecto no pasa.
+ */
+async function uidDelToken(idToken: string): Promise<string | null> {
   const apiKey = process.env.VITE_FIREBASE_API_KEY;
   if (!apiKey) throw new Error('Falta VITE_FIREBASE_API_KEY en el servidor');
 
@@ -44,7 +56,9 @@ async function tokenValido(idToken: string): Promise<boolean> {
       body: JSON.stringify({ idToken }),
     }
   );
-  return res.ok;
+  if (!res.ok) return null;
+  const data = (await res.json().catch(() => null)) as { users?: Array<{ localId?: string }> } | null;
+  return data?.users?.[0]?.localId ?? null;
 }
 
 /** Prompt del sistema con el contexto relevante (notas, personas y grupos) */
@@ -107,8 +121,23 @@ export default async function handler(req: RequestLike, res: ResponseLike) {
   }
 
   try {
-    if (!(await tokenValido(token))) {
+    const uid = await uidDelToken(token);
+    if (!uid) {
       return res.status(401).json({ success: false, error: 'Invalid token' });
+    }
+
+    const permitidos = uidsPermitidos(process.env.ALLOWED_UIDS);
+    if (!permitidos) console.warn('[cerebro-chat] ALLOWED_UIDS sin definir: atiende a cualquier usuario con sesión');
+    if (!uidPermitido(uid, permitidos)) {
+      return res.status(403).json({ success: false, error: 'Este chat es privado' });
+    }
+
+    if (!puedePedir(uid)) {
+      return res.status(429).json({ success: false, error: 'Demasiados pedidos seguidos. Esperá un minuto.' });
+    }
+
+    if (largoBody(req.body) > MAX_BODY_CARACTERES) {
+      return res.status(413).json({ success: false, error: 'El pedido es demasiado grande' });
     }
 
     const body = (req.body ?? {}) as Partial<ChatRequest>;
@@ -139,7 +168,7 @@ export default async function handler(req: RequestLike, res: ResponseLike) {
         max_completion_tokens: 1024,
         temperature: 0.4,
         messages: [
-          { role: 'system', content: buildSystemPrompt(body.contexto ?? {}) },
+          { role: 'system', content: buildSystemPrompt(limitarContexto(body.contexto)) },
           ...mensajes,
         ],
       }),

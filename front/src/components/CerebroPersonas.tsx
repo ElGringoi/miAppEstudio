@@ -8,19 +8,17 @@ import { renderMarkdown } from '../utils/markdown';
 import { proximaOcurrencia } from '../utils/helpers';
 import { CerebroLayout, CerebroSearch, PanelActions, CerebroVacio, NuevoButton, FilaAcciones } from './CerebroLayout';
 import { PendientesEditor, PendientesList, FechasClaveEditor, FechasClaveList } from './CerebroPendientes';
+import { hoyLocal } from '../utils/fecha';
 
-function getCumpleanoProximo(fechasClave?: any[]) {
+// Usa proximaOcurrencia (fecha de Argentina): el cumpleaños de hoy da 0 días, no 365.
+function getCumpleanoProximo(fechasClave?: FSFechaClave[]) {
   if (!fechasClave) return null;
   const cumples = fechasClave.filter(f => f.tipo === 'cumple');
   if (cumples.length === 0) return null;
 
-  const hoy = new Date();
   const proximosConDias = cumples.map(f => {
-    const [year, mes, dia] = f.fecha.split('-').map(Number);
-    const fecha = new Date(hoy.getFullYear(), mes - 1, dia);
-    if (fecha < hoy) fecha.setFullYear(hoy.getFullYear() + 1);
-    const dias = Math.ceil((fecha.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
-    return { f, dias, fecha };
+    const prox = proximaOcurrencia(f.fecha, true)!;
+    return { f, dias: prox.dias, fecha: new Date(prox.iso + 'T00:00:00') };
   });
 
   const prox = proximosConDias.sort((a, b) => a.dias - b.dias)[0];
@@ -32,7 +30,7 @@ type FormState = {
   comoLaConoci: string; dondeLaConoci: string; telefono: string; email: string;
   notas: string; tags: string;
   pendientes: FSPendiente[]; fechasClave: FSFechaClave[];
-  sparks: any[]; conexiones: any[];
+  sparks: FSSpark[]; conexiones: FSConexion[];
   links: string[]; grupos: string[];
 };
 
@@ -700,7 +698,7 @@ function Input({ value, onChange, placeholder }: {
 }
 
 function SparkEditor({ sparks, onChange }: {
-  sparks: any[]; onChange: (s: any[]) => void;
+  sparks: FSSpark[]; onChange: (s: FSSpark[]) => void;
 }) {
   const [newTipo, setNewTipo] = useState<'pasion' | 'pregunta'>('pasion');
   const [newContenido, setNewContenido] = useState('');
@@ -771,9 +769,9 @@ function SparkEditor({ sparks, onChange }: {
 }
 
 function ConexionEditor({ conexiones, onChange }: {
-  conexiones: any[]; onChange: (c: any[]) => void;
+  conexiones: FSConexion[]; onChange: (c: FSConexion[]) => void;
 }) {
-  const [newFecha, setNewFecha] = useState(new Date().toISOString().split('T')[0]);
+  const [newFecha, setNewFecha] = useState(hoyLocal());
   const [newTipo, setNewTipo] = useState<'visita' | 'llamada' | 'mensaje' | 'encuentro'>('encuentro');
   const [newNotas, setNewNotas] = useState('');
 
@@ -803,7 +801,7 @@ function ConexionEditor({ conexiones, onChange }: {
         <select
           className="px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-sm outline-none focus:ring-2 focus:ring-blue-500"
           value={newTipo}
-          onChange={e => setNewTipo(e.target.value as any)}
+          onChange={e => setNewTipo(e.target.value as FSConexion['tipo'])}
         >
           <option value="encuentro">Encuentro</option>
           <option value="llamada">Llamada</option>

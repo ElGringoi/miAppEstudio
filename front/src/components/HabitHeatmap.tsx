@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { cn } from '../lib/utils';
+import { isoDe } from '../utils/fecha';
 
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 const CELL  = 13;
@@ -25,7 +26,7 @@ export function HabitHeatmap({ data }: { data: { date: string; count: number }[]
     for (let i = 111; i >= 0; i--) {
       const d = new Date(today);
       d.setDate(d.getDate() - i);
-      const str = d.toISOString().slice(0, 10);
+      const str = isoDe(d);
       days.push({ date: str, count: countMap.get(str) ?? 0, dow: d.getDay() });
     }
 

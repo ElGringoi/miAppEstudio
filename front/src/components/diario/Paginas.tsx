@@ -4,13 +4,10 @@ import { useMemo, useState } from 'react';
 import { ChevronRight, X } from 'lucide-react';
 import type {
   ArticuloEdicion, DeporteId, EdicionDiaria, EncuentroDeportivo,
-  FSEntradaDiario, FSEvento, FSHabito, FSMision, FSTarea,
 } from '../../types';
-import { isHabitActiveToday, isHabitDoneToday } from '../../utils/helpers';
-import { HOY } from '../../utils/constants';
 import {
-  ayer, DEPORTES, deportesElegidos, diaSemanaArgentina, horaArgentina, kicker, minutosLectura,
-  sumarDias, type Seleccion,
+  DEPORTES, deportesElegidos, diaSemanaArgentina, horaArgentina, kicker, minutosLectura,
+  type Seleccion,
 } from '../../utils/edicion';
 import { useDiario } from './contexto';
 import {
@@ -54,113 +51,6 @@ export function PaginaPortada({ sel, paginas, onIr, idTitulo }: {
           </li>
         ))}
       </ol>
-    </>
-  );
-}
-
-// ── Tu día y trabajo ─────────────────────────────────────────────────────────
-
-const DIAS = ['DOM', 'LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB'];
-const diaCorto = (iso: string) => DIAS[new Date(iso + 'T12:00:00').getDay()];
-const numeroDia = (iso: string) => Number(iso.slice(8, 10));
-
-function tareaEsDelDia(t: FSTarea, fecha: string): boolean {
-  if (t.recurrence === 'daily') return true;
-  if (t.recurrence === 'weekly') return t.weekday === new Date(fecha + 'T12:00:00').getDay();
-  return t.date === fecha;
-}
-
-export function PaginaDia({ fsHabitos, fsEventos, fsTareas, fsMisiones, fsEntradas, hoy, idTitulo }: {
-  fsHabitos: FSHabito[]; fsEventos: FSEvento[]; fsTareas: FSTarea[]; fsMisiones: FSMision[];
-  fsEntradas: FSEntradaDiario[]; hoy: string; idTitulo: string;
-}) {
-  const habitosPendientes = fsHabitos.filter(h => isHabitActiveToday(h) && !isHabitDoneToday(h));
-  const misiones = fsMisiones
-    .filter(m => !m.completada && (m.prioridad === 'urgente' || m.prioridad === 'alta'))
-    .sort((a, b) => (a.prioridad === 'urgente' ? 0 : 1) - (b.prioridad === 'urgente' ? 0 : 1));
-
-  // Agenda de hoy: eventos y tareas del día, ordenados por hora.
-  const agenda = [
-    ...fsEventos.filter(e => e.fecha === hoy).map(e => ({ id: e.id, titulo: e.titulo, hora: e.hora, hecha: false })),
-    ...fsTareas.filter(t => tareaEsDelDia(t, hoy))
-      .map(t => ({ id: t.id, titulo: t.titulo, hora: t.hora, hecha: t.completedDates.includes(HOY) })),
-  ].sort((a, b) => (a.hora ?? '99').localeCompare(b.hora ?? '99'));
-
-  const limite = sumarDias(hoy, 7);
-  const vencimientos = [
-    ...fsEventos.filter(e => e.fecha > hoy && e.fecha <= limite).map(e => ({ id: e.id, titulo: e.titulo, fecha: e.fecha, hora: e.hora })),
-    ...fsTareas.filter(t => t.recurrence === 'once' && t.date && t.date > hoy && t.date <= limite && !t.completedDates.includes(t.date))
-      .map(t => ({ id: t.id, titulo: t.titulo, fecha: t.date ?? '', hora: t.hora })),
-  ].sort((a, b) => (a.fecha + (a.hora ?? '')).localeCompare(b.fecha + (b.hora ?? '')));
-
-  const cronica = fsEntradas.find(e => e.fecha === ayer(hoy));
-
-  // Lo primero: misión urgente, si no el próximo evento del día, si no un hábito pendiente.
-  const ahoraHora = horaArgentina(new Date().toISOString());
-  const proximoEvento = agenda.find(a => !a.hecha && (!a.hora || a.hora >= ahoraHora));
-  const primero = misiones[0]
-    ? { kicker: `Misión ${misiones[0].prioridad}`, titulo: misiones[0].titulo }
-    : proximoEvento
-      ? { kicker: proximoEvento.hora ? `Hoy a las ${proximoEvento.hora}` : 'Hoy', titulo: proximoEvento.titulo }
-      : habitosPendientes[0]
-        ? { kicker: 'Hábito pendiente', titulo: habitosPendientes[0].nombre }
-        : null;
-  const resumen = [
-    misiones.length ? `${misiones.length} ${misiones.length === 1 ? 'misión prioritaria' : 'misiones prioritarias'}` : '',
-    habitosPendientes.length ? `${habitosPendientes.length} ${habitosPendientes.length === 1 ? 'hábito pendiente' : 'hábitos pendientes'}` : '',
-    agenda.length ? `${agenda.length} en la agenda` : '',
-  ].filter(Boolean).join(' · ');
-
-  return (
-    <>
-      <TituloSeccion titulo="Tu día y trabajo" subtitulo="Lo que requiere atención hoy" idTitulo={idTitulo} />
-      <article className="g-pieza">
-        <Kicker>{primero ? `Lo primero de hoy · ${primero.kicker}` : 'Lo primero de hoy'}</Kicker>
-        <h3 className="g-titular g-titular-principal">{primero ? primero.titulo : 'Día despejado'}</h3>
-        <p className="g-bajada">{resumen || 'No hay pendientes urgentes ni eventos cargados para hoy.'}</p>
-      </article>
-
-      <p className="g-subrotulo">Agenda de hoy</p>
-      {agenda.length === 0 && <Vacio>Sin eventos ni tareas para hoy.</Vacio>}
-      <ul className="g-filas">
-        {agenda.map(a => (
-          <li key={a.id} className={`g-fila${a.hecha ? ' g-fila-hecha' : ''}`}>
-            <span className="g-fila-hora">{a.hora ?? '—'}</span>
-            <span className="g-fila-texto">{a.titulo}</span>
-            {a.hecha && <span className="g-fila-chev">Hecha</span>}
-          </li>
-        ))}
-      </ul>
-
-      {(misiones.length > 1 || habitosPendientes.length > 0) && <p className="g-subrotulo">Pendientes</p>}
-      <ul className="g-filas">
-        {misiones.slice(1, 4).map(m => (
-          <li key={m.id} className="g-fila"><span className="g-fila-dia" style={{ color: 'var(--bordo)' }}>!</span><span className="g-fila-texto">{m.titulo}</span></li>
-        ))}
-        {habitosPendientes.slice(0, 6).map(h => (
-          <li key={h.id} className="g-fila"><span className="g-fila-dia">○</span><span className="g-fila-texto">{h.nombre}</span></li>
-        ))}
-      </ul>
-
-      <p className="g-subrotulo">Próximos vencimientos</p>
-      {vencimientos.length === 0 && <Vacio>Nada vence en la próxima semana.</Vacio>}
-      <ul className="g-filas">
-        {vencimientos.map(v => (
-          <li key={v.id} className="g-fila">
-            <span className="g-fila-dia">{diaCorto(v.fecha)} {numeroDia(v.fecha)}</span>
-            <span className="g-fila-texto">{v.titulo}</span>
-            {v.hora && <span className="g-fila-chev">{v.hora}</span>}
-          </li>
-        ))}
-      </ul>
-
-      <p className="g-subrotulo">Crónica de ayer</p>
-      {cronica ? (
-        <div className="g-columna">
-          {cronica.titulo && <h3 className="g-titular g-titular-secundario">{cronica.titulo}</h3>}
-          {cronica.contenido.slice(0, 900).split(/\n\n+/).map((p, i) => <p key={i}>{p}</p>)}
-        </div>
-      ) : <Vacio>Ayer no escribiste en tu diario.</Vacio>}
     </>
   );
 }

@@ -4,6 +4,7 @@ import type { FSInboxItem, InboxDestino, InboxOrigen, FSPersona, FSGrupo } from 
 import { cn } from '../lib/utils';
 import { Send, Trash2, ExternalLink, Inbox, CheckCircle2 } from 'lucide-react';
 import { CerebroLayout, PanelActions, CerebroVacio } from './CerebroLayout';
+import { hoyLocal } from '../utils/fecha';
 
 const ORIGEN: Record<InboxOrigen, { icon: string; label: string }> = {
   manual: { icon: '✍️', label: 'Captura' },
@@ -58,7 +59,7 @@ export function CerebroInbox({ header, inbox, personas, grupos, onCapturar, onPr
   const [destino,  setDestino]  = useState<InboxDestino | null>(null);
   const [titulo,   setTitulo]   = useState('');
   const [texto,    setTexto]    = useState('');
-  const [fecha,    setFecha]    = useState(new Date().toISOString().slice(0, 10));
+  const [fecha,    setFecha]    = useState(hoyLocal());
   const [targetId, setTargetId] = useState('');
 
   const ordenados = useMemo(
