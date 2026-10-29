@@ -10,7 +10,7 @@ export type HabitRecurrence = 'daily' | 'weekdays' | 'once_week' | 'weekly';
 // xpPorFecha: XP que dio cada fecha marcada, para que desmarcar reste lo mismo (ver calcToggleHabito).
 export type FSHabito  = { id: string; nombre: string; stat: FSStatKey; fechaCompletado: string | null; xpValue?: number; recurrence?: HabitRecurrence; diasSemana?: number[]; completedDates?: string[]; xpPorFecha?: Record<string, number> };
 // detalle: qué es; origen: de dónde vino (ej. "WhatsApp con Agustín"). Los suele cargar el Segundo Cerebro.
-export type FSEvento  = { id: string; titulo: string; hora?: string; fecha: string; detalle?: string; origen?: string };
+export type FSEvento  = { id: string; titulo: string; hora?: string; fecha: string; detalle?: string; origen?: string; grupoId?: string };
 export type MisionPrioridad = 'baja' | 'media' | 'alta' | 'urgente';
 export type FSMision  = {
   id: string; titulo: string; completada: boolean; parentId: string | null; orden: number;
@@ -144,6 +144,9 @@ export type FSInboxItem = {
   procesado?:     boolean;
   procesadoComo?: InboxDestino;
   procesadoEn?:   string;
+  // Opcionales: el agente los pone si el mensaje menciona un día (YYYY-MM-DD, HH:MM).
+  fechaSugerida?: string;
+  horaSugerida?:  string;
 };
 
 export type FSObjetivoCHA   = { id: string; titulo: string; completado: boolean; orden: number };
