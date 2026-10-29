@@ -132,7 +132,8 @@ export default function App() {
 
   // UI state
   const [tab,         setTab]         = useState<TabId>('dashboard');
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  // En celular arranca cerrado: abierto tapa toda la pantalla
+  const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth >= 768);
   const [selDate,     setSelDate]     = useState(new Date());
 
   const [attrStat, setAttrStat] = useState<FSStatKey>('fuerza');
@@ -2302,14 +2303,14 @@ export default function App() {
       {/* ── Backdrop mobile ── */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/40 z-20 md:hidden"
+          className="fixed inset-0 bg-black/40 z-[45] md:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
       {/* ── Sidebar ── */}
       <aside className={cn(
-        'bg-surface-container-low/95 backdrop-blur-xl shadow-[4px_0_24px_rgba(0,0,0,0.35)] flex flex-col fixed h-full z-30 transition-all duration-300 overflow-hidden',
+        'bg-surface-container-low/95 backdrop-blur-xl shadow-[4px_0_24px_rgba(0,0,0,0.35)] flex flex-col fixed h-full z-50 md:z-30 transition-all duration-300 overflow-hidden',
         sidebarOpen
           ? 'translate-x-0 w-64'
           : '-translate-x-full md:translate-x-0 w-64 md:w-16'
@@ -2414,7 +2415,8 @@ export default function App() {
       </nav>
 
       {/* ── Main ── */}
-      <main className={cn('flex-1 p-4 md:p-8 pb-24 md:pb-8 transition-all duration-300', sidebarOpen ? 'ml-0 md:ml-64' : 'ml-0 md:ml-16')}>
+      {/* min-w-0: sin esto el main crece al ancho de su contenido y el celular corta el costado derecho */}
+      <main className={cn('flex-1 min-w-0 p-4 md:p-8 pb-24 md:pb-8 transition-all duration-300', sidebarOpen ? 'ml-0 md:ml-64' : 'ml-0 md:ml-16')}>
         <header className="flex justify-between items-center mb-6 md:mb-8 gap-4">
           <div className="flex items-center gap-3 min-w-0">
             {/* Hamburger — solo mobile */}
@@ -2581,8 +2583,8 @@ export default function App() {
                     { icon: '⚔️', value: `${done}/${habitsToday.length}`, sub: 'Quests de hoy', color: 'text-primary' },
                     { icon: '✦',  value: `+${xpHoy} XP`, sub: 'Ganado hoy',      color: 'text-tertiary' },
                   ].map(t => (
-                    <div key={t.sub} className="flex items-center gap-2 px-2.5 py-2 rounded-lg bg-surface-container-high/80 min-w-0">
-                      <span className="text-lg shrink-0">{t.icon}</span>
+                    <div key={t.sub} className="flex flex-col sm:flex-row items-start sm:items-center gap-1 sm:gap-2 px-2.5 py-2 rounded-lg bg-surface-container-high/80 min-w-0">
+                      <span className="text-base sm:text-lg shrink-0 leading-none">{t.icon}</span>
                       <div className="flex flex-col min-w-0">
                         <span className={cn('font-label text-xs font-bold truncate tabular-nums', t.color)}>{t.value}</span>
                         <span className="font-label text-[10px] text-on-surface-variant truncate">{t.sub}</span>
@@ -2825,11 +2827,11 @@ export default function App() {
           {tab === 'calendar' && (
             <motion.div key="calendar" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
               <section className="bg-white dark:bg-slate-900 rounded-3xl p-4 md:p-8 border border-slate-200 dark:border-slate-800">
-                <div className="flex items-center justify-between mb-4 md:mb-8">
-                  <h3 className="text-xl font-black flex items-center gap-3"><CalendarIcon className="w-6 h-6 text-blue-600" /> BATTLE LOG</h3>
-                  <div className="flex gap-2 items-center">
+                <div className="flex items-center justify-between gap-2 mb-4 md:mb-8">
+                  <h3 className="text-lg md:text-xl font-black flex items-center gap-2 md:gap-3 whitespace-nowrap"><CalendarIcon className="w-5 h-5 md:w-6 md:h-6 text-blue-600" /> BATTLE LOG</h3>
+                  <div className="flex gap-1 md:gap-2 items-center">
                     <button className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg" onClick={() => setSelDate(addDays(selDate, -7))}><ChevronRight className="w-4 h-4 rotate-180" /></button>
-                    <span className="text-sm font-bold px-4">{format(selDate, 'MMMM yyyy')}</span>
+                    <span className="text-sm font-bold px-1 md:px-4 whitespace-nowrap">{format(selDate, 'MMMM yyyy')}</span>
                     <button className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg" onClick={() => setSelDate(addDays(selDate, 7))}><ChevronRight className="w-4 h-4" /></button>
                   </div>
                 </div>
@@ -2849,10 +2851,10 @@ export default function App() {
                   ))}
                 </div>
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-3">
                     <h4 className="text-xs font-black uppercase tracking-widest text-slate-400">Quests para {format(selDate, 'EEEE, MMMM do')}</h4>
                     <button onClick={() => { setTaskForm(p => ({ ...p, date: isoDe(selDate) })); setModal('task'); }}
-                      className="flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-700 transition-colors">
+                      className="shrink-0 whitespace-nowrap flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-700 transition-colors">
                       <Plus className="w-4 h-4" /> Nueva tarea
                     </button>
                   </div>
@@ -3786,7 +3788,7 @@ export default function App() {
                     return (
                       <div key={code} className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm">
                         <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">{m.flag} Saldo {code}</p>
-                        <p className={cn('text-xl font-black', vals.saldo >= 0 ? 'text-emerald-600' : 'text-red-500')}>
+                        <p className={cn('text-base sm:text-xl font-black tabular-nums', vals.saldo >= 0 ? 'text-emerald-600' : 'text-red-500')}>
                           {m.symbol} {vals.saldo.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
                         </p>
                       </div>
@@ -4068,6 +4070,8 @@ export default function App() {
                   : <div className="divide-y divide-slate-50 dark:divide-slate-800/50">
                       {txStats.ordenadas.map(t => {
                         const mon = MONEDA_META[t.moneda ?? 'ARS'] ?? MONEDA_META['ARS'];
+                        const montoTxt = `${t.tipo === 'ingreso' ? '+' : '-'}${mon.symbol} ${t.monto.toLocaleString('es-AR', { minimumFractionDigits: 2 })}`;
+                        const montoColor = t.tipo === 'ingreso' ? 'text-emerald-600' : 'text-red-500';
                         return (
                           <div key={t.id} className="flex items-center gap-3 px-4 md:px-6 py-3 md:py-4 hover:bg-slate-50 dark:hover:bg-slate-800/30 group transition-colors">
                             <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0', t.tipo === 'ingreso' ? 'bg-emerald-500' : 'bg-red-500')}>
@@ -4076,10 +4080,10 @@ export default function App() {
                             <div className="flex-1 min-w-0">
                               <p className="font-bold text-sm truncate">{t.descripcion}</p>
                               <p className="text-[10px] text-slate-400 font-medium mt-0.5">{t.categoria} · {t.fecha} · <span className="font-black">{mon.flag} {t.moneda ?? 'ARS'}</span></p>
+                              {/* En celular el monto va abajo para que la descripción no quede cortada */}
+                              <p className={cn('md:hidden font-black text-sm mt-1 tabular-nums', montoColor)}>{montoTxt}</p>
                             </div>
-                            <p className={cn('font-black text-sm shrink-0', t.tipo === 'ingreso' ? 'text-emerald-600' : 'text-red-500')}>
-                              {t.tipo === 'ingreso' ? '+' : '-'}{mon.symbol} {t.monto.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-                            </p>
+                            <p className={cn('hidden md:block font-black text-sm shrink-0 tabular-nums', montoColor)}>{montoTxt}</p>
                             <div className="flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all">
                               <button onClick={() => openEditTx(t)}
                                 className="p-1.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 text-slate-300 hover:text-blue-500 transition-all">
