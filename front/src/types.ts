@@ -7,7 +7,8 @@ export type FSStatKey = 'fuerza' | 'salud' | 'inteligencia' | 'agilidad' | 'cari
 export interface LevelUpEvent { stat: FSStatKey; oldLevel: number; newLevel: number; xp: number; }
 export type FSStatsDoc = Record<FSStatKey, { xp: number }>;
 export type HabitRecurrence = 'daily' | 'weekdays' | 'once_week' | 'weekly';
-export type FSHabito  = { id: string; nombre: string; stat: FSStatKey; fechaCompletado: string | null; xpValue?: number; recurrence?: HabitRecurrence; diasSemana?: number[]; completedDates?: string[] };
+// xpPorFecha: XP que dio cada fecha marcada, para que desmarcar reste lo mismo (ver calcToggleHabito).
+export type FSHabito  = { id: string; nombre: string; stat: FSStatKey; fechaCompletado: string | null; xpValue?: number; recurrence?: HabitRecurrence; diasSemana?: number[]; completedDates?: string[]; xpPorFecha?: Record<string, number> };
 // detalle: qué es; origen: de dónde vino (ej. "WhatsApp con Agustín"). Los suele cargar el Segundo Cerebro.
 export type FSEvento  = { id: string; titulo: string; hora?: string; fecha: string; detalle?: string; origen?: string };
 export type MisionPrioridad = 'baja' | 'media' | 'alta' | 'urgente';
