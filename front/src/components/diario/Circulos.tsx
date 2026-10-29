@@ -1,24 +1,26 @@
-// "Mis círculos": qué está pasando en cada grupo (amigos, familia, cole…).
-// Junta lo que llegó de WhatsApp sin asignar, las notas ya vinculadas al grupo,
-// los eventos y fechas próximas, y los pendientes. No repite hábitos ni
-// misiones: eso ya está en el resto de la app.
+// "Mis círculos": una columna de opinión por día sobre tu vida social. Las
+// frases salen de utils/columnaCirculos.ts; acá se junta lo que pasó en cada
+// grupo (WhatsApp sin asignar, notas vinculadas, eventos, fechas, propuestas).
 
+import { useState } from 'react';
 import type { FSEntradaDiario, FSEvento, FSGrupo, FSInboxItem, FSPersona } from '../../types';
 import { sumarDias } from '../../utils/edicion';
 import { proponerFecha, type PropuestaFecha } from '../../utils/inboxFecha';
-import { Kicker, TituloSeccion, Vacio } from './Piezas';
+import { armarColumnas, corto, type Columna, type Hecho } from '../../utils/columnaCirculos';
+import { TituloSeccion, Vacio } from './Piezas';
 
-const VENTANA_EVENTOS = 14;  // días
-const VENTANA_FECHAS = 30;   // días
+const DIAS_ATRAS = 7;     // ventana de lo que ya pasó
+const DIAS_ADELANTE = 14; // ventana de lo que viene
+const VENTANA_FECHAS = 30;
 
 const normalizar = (s: string) => s.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '');
 const escapar = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const recortar = (s: string, max: number) => (s.length > max ? s.slice(0, max).replace(/\s+\S*$/, '') + '…' : s);
-
-const fechaCorta = (iso: string) =>
-  new Date(iso + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' }).replace('.', '');
-
 const quitarSufijo = (s: string) => s.replace(/\s*\(WhatsApp\)\s*$/i, '').trim();
+
+const fechaColumna = (iso: string) => {
+  const t = new Date(iso + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
+  return t.charAt(0).toUpperCase() + t.slice(1);
+};
 
 /** Próxima ocurrencia de una fecha clave (si es anual, se mueve al año siguiente cuando ya pasó). */
 function proximaOcurrencia(fecha: string, anual: boolean, hoy: string): string | undefined {
@@ -31,10 +33,7 @@ function proximaOcurrencia(fecha: string, anual: boolean, hoy: string): string |
   return undefined;
 }
 
-/**
- * Términos con los que reconocer un grupo en un mensaje: su nombre y el de sus
- * integrantes. Son palabras completas, así "Nico" no coincide con "Nicolás".
- */
+/** Palabras con las que reconocer un grupo: su nombre y el de sus integrantes, como palabra completa. */
 function patronDe(terminos: string[]): RegExp | null {
   const validos = terminos.map(normalizar).filter(t => t.length >= 3);
   if (!validos.length) return null;
@@ -52,169 +51,178 @@ interface Props {
   onAgendar:  (item: FSInboxItem, grupo: FSGrupo, propuesta: PropuestaFecha) => void;
 }
 
-interface Linea { id: string; orden: string; fecha: string; de?: string; texto: string; item?: FSInboxItem }
-
-interface Proximo { id: string; fecha: string; hora?: string; titulo: string; propuesta?: { item: FSInboxItem; datos: PropuestaFecha } }
-
 export function PaginaCirculos({ fsGrupos, fsPersonas, fsInbox, fsEventos, fsEntradas, hoy, idTitulo, onAgendar }: Props) {
+  const [filtro, setFiltro] = useState<string | null>(null);
+
+  const desde = sumarDias(hoy, -DIAS_ATRAS);
+  const hasta = sumarDias(hoy, DIAS_ADELANTE);
   const pendientesInbox = fsInbox.filter(i => !i.procesado);
-  const limiteEventos = sumarDias(hoy, VENTANA_EVENTOS);
-  const limiteFechas = sumarDias(hoy, VENTANA_FECHAS);
   const notasPorId = new Map(fsEntradas.map(e => [e.id, e]));
 
-  // Para cada grupo: integrantes, qué de WhatsApp le corresponde y lo ya vinculado.
-  const tarjetas = fsGrupos.map(g => {
+  const grupos = fsGrupos.map(g => {
     const miembros = fsPersonas.filter(p => p.grupos?.includes(g.id));
-    const terminos = [g.nombre, ...miembros.flatMap(m => [m.nombre, m.apodo ?? ''])];
-    const patron = patronDe(terminos);
+    const patron = patronDe([g.nombre, ...miembros.flatMap(m => [m.nombre, m.apodo ?? ''])]);
     const coincide = (texto: string) => (patron ? patron.test(normalizar(texto)) : false);
 
-    const whatsapp: Linea[] = pendientesInbox
-      .filter(i => coincide(`${i.texto} ${i.titulo ?? ''} ${i.remitente ?? ''}`))
-      .map(i => ({
-        id: `in-${i.id}`, orden: i.recibidoEn, fecha: i.recibidoEn.slice(0, 10),
-        de: i.remitente ? quitarSufijo(i.remitente) : undefined, texto: i.texto, item: i,
-      }));
+    const hechos: Hecho[] = [];
 
-    const vinculadas: Linea[] = (g.links ?? [])
-      .map(id => notasPorId.get(id))
-      .filter((e): e is FSEntradaDiario => Boolean(e))
-      .map(e => ({
-        id: `nota-${e.id}`, orden: `${e.fecha}T12:00`, fecha: e.fecha,
-        texto: e.titulo ?? e.contenido.split('\n')[0],
-      }));
+    // Mensajes de WhatsApp sin asignar que son de este círculo.
+    for (const i of pendientesInbox) {
+      if (!coincide(`${i.texto} ${i.titulo ?? ''} ${i.remitente ?? ''}`)) continue;
+      const fecha = i.recibidoEn.slice(0, 10);
+      if (fecha >= desde && fecha <= hoy) {
+        hechos.push({ tipo: 'mensaje', grupoId: g.id, circulo: g.nombre, fecha, de: i.remitente ? quitarSufijo(i.remitente) : undefined, texto: i.texto });
+      }
+      // Propuesta con día: la del agente, o la que sale del texto. "Mañana" y
+      // "el jueves" se cuentan desde el día en que llegó el mensaje, no desde hoy.
+      const datos = i.fechaSugerida
+        ? { fecha: i.fechaSugerida, hora: i.horaSugerida }
+        : proponerFecha(i.texto, fecha);
+      if (datos && datos.fecha >= hoy && datos.fecha <= hasta) {
+        hechos.push({
+          tipo: 'propuesta', grupoId: g.id, circulo: g.nombre, fecha: datos.fecha, hora: datos.hora,
+          texto: i.texto, accion: { itemId: i.id, grupoId: g.id, propuesta: datos },
+        });
+      }
+    }
 
-    const lineas = [...whatsapp, ...vinculadas].sort((a, b) => b.orden.localeCompare(a.orden));
+    // Notas del diario vinculadas al grupo.
+    for (const id of g.links ?? []) {
+      const e = notasPorId.get(id);
+      if (e && e.fecha >= desde && e.fecha <= hoy) {
+        hechos.push({ tipo: 'nota', grupoId: g.id, circulo: g.nombre, fecha: e.fecha, titulo: e.titulo ?? e.contenido.split('\n')[0] });
+      }
+    }
 
-    // Eventos del grupo (los agendados desde el inbox) y, para los viejos sin
-    // grupo, los que mencionan el nombre de algún integrante.
-    const eventos: Proximo[] = fsEventos
-      .filter(e => e.fecha >= hoy && e.fecha <= limiteEventos && (e.grupoId ? e.grupoId === g.id : coincide(e.titulo)))
-      .map(e => ({ id: e.id, fecha: e.fecha, hora: e.hora, titulo: e.titulo }));
+    // Eventos del grupo (los agendados desde el inbox) y, para los viejos sin grupo, los que mencionan a alguien.
+    for (const e of fsEventos) {
+      if (e.fecha < desde || e.fecha > hasta) continue;
+      if (e.grupoId ? e.grupoId !== g.id : !coincide(e.titulo)) continue;
+      hechos.push({ tipo: 'evento', grupoId: g.id, circulo: g.nombre, fecha: e.fecha, hora: e.hora, titulo: e.titulo });
+    }
 
-    // Propuestas: mensajes sin procesar con una fecha (la del agente o la del texto).
-    const propuestas: Proximo[] = whatsapp.flatMap(l => {
-      if (!l.item) return [];
-      const datos = l.item.fechaSugerida
-        ? { fecha: l.item.fechaSugerida, hora: l.item.horaSugerida }
-        : proponerFecha(l.item.texto, hoy);
-      if (!datos || datos.fecha < hoy || datos.fecha > limiteEventos) return [];
-      return [{ id: `p-${l.item.id}`, fecha: datos.fecha, hora: datos.hora, titulo: recortar(l.item.texto, 90), propuesta: { item: l.item, datos } }];
-    });
-
-    const proximos = [...eventos, ...propuestas]
-      .sort((a, b) => a.fecha.localeCompare(b.fecha) || (a.hora ?? '').localeCompare(b.hora ?? ''))
-      .slice(0, 4);
-
-    const fechas = (g.fechasClave ?? [])
-      .map(f => ({ f, cuando: proximaOcurrencia(f.fecha, f.anual, hoy) }))
-      .filter((x): x is { f: typeof x.f; cuando: string } => Boolean(x.cuando) && (x.cuando as string) <= limiteFechas)
-      .sort((a, b) => a.cuando.localeCompare(b.cuando));
+    // Fechas clave del grupo dentro de la ventana de 30 días.
+    for (const f of g.fechasClave ?? []) {
+      const cuando = proximaOcurrencia(f.fecha, f.anual, hoy);
+      if (cuando && cuando <= sumarDias(hoy, VENTANA_FECHAS)) {
+        hechos.push({ tipo: 'fecha', grupoId: g.id, circulo: g.nombre, fecha: cuando, titulo: f.titulo });
+      }
+    }
 
     const pendientes = (g.pendientes ?? []).filter(p => !p.saldado);
-    const ultima = lineas[0]?.orden ?? '';
-    return { g, miembros, lineas, proximos, fechas, pendientes, ultima };
+    return { g, miembros, hechos, pendientes };
   });
 
-  tarjetas.sort((a, b) => b.ultima.localeCompare(a.ultima) || a.g.nombre.localeCompare(b.g.nombre, 'es'));
+  const visibles = filtro ? grupos.filter(x => x.g.id === filtro) : grupos;
+  const columnas = armarColumnas(visibles.flatMap(x => x.hechos), hoy);
+  // Lo que ya pasó (y hoy) va arriba, del más reciente al más viejo. Lo que viene, aparte y en orden.
+  const pasado = columnas.filter(c => c.fecha <= hoy);
+  const futuro = columnas.filter(c => c.fecha > hoy).sort((a, b) => a.fecha.localeCompare(b.fecha));
 
-  // Mensajes de WhatsApp que no son de ningún grupo: para asignarlos en el Inbox.
-  const todosLosPatrones = tarjetas.map(t => patronDe([t.g.nombre, ...t.miembros.flatMap(m => [m.nombre, m.apodo ?? ''])])).filter((p): p is RegExp => Boolean(p));
+  // Mensajes de WhatsApp que no son de ningún círculo, para asignarlos en el Inbox.
+  const patrones = grupos
+    .map(x => patronDe([x.g.nombre, ...x.miembros.flatMap(m => [m.nombre, m.apodo ?? ''])]))
+    .filter((p): p is RegExp => Boolean(p));
   const sinCirculo = pendientesInbox
-    .filter(i => !todosLosPatrones.some(p => p.test(normalizar(`${i.texto} ${i.titulo ?? ''} ${i.remitente ?? ''}`))))
+    .filter(i => !patrones.some(p => p.test(normalizar(`${i.texto} ${i.titulo ?? ''} ${i.remitente ?? ''}`))))
     .sort((a, b) => b.recibidoEn.localeCompare(a.recibidoEn))
     .slice(0, 4);
 
+  // La columna guarda el id del mensaje y del grupo: acá se buscan los objetos reales.
+  const agendar = (itemId: string, grupoId: string, propuesta: PropuestaFecha) => {
+    const item = pendientesInbox.find(i => i.id === itemId);
+    const grupo = fsGrupos.find(g => g.id === grupoId);
+    if (item && grupo) onAgendar(item, grupo, propuesta);
+  };
+
+  const renderColumna = (c: Columna) => (
+    <article key={c.fecha} className="g-opinion">
+      <p className="g-firma">Opinión · Mis círculos</p>
+      <p className="g-dia-columna">{fechaColumna(c.fecha)}</p>
+      <h3 className="g-titular g-titular-principal">{c.titular}</h3>
+      <p className="g-bajada">{c.bajada}</p>
+      <div className="g-cuerpo">
+        {c.parrafos.map((p, i) => (
+          <p key={i}>
+            {p.texto}
+            {p.accion && (
+              <>
+                {' '}
+                <button type="button" className="g-link"
+                  style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer', fontFamily: 'inherit' }}
+                  onClick={() => agendar(p.accion!.itemId, p.accion!.grupoId, p.accion!.propuesta)}>
+                  Agendar
+                </button>
+              </>
+            )}
+          </p>
+        ))}
+      </div>
+    </article>
+  );
+
   return (
     <>
-      <TituloSeccion titulo="Mis círculos" subtitulo="Lo que está pasando en cada grupo" idTitulo={idTitulo} />
+      <TituloSeccion titulo="Mis círculos" subtitulo="Opinión sobre tu vida social, día por día" idTitulo={idTitulo} />
 
-      {tarjetas.length === 0 && (
-        <Vacio>Todavía no tenés grupos. Creá uno en el Cerebro (amigos, familia, cole) y lo vas a ver acá.</Vacio>
+      {grupos.length > 0 && (
+        <nav className="g-chips" aria-label="Círculos" style={{ margin: '4px 0 18px' }}>
+          <button type="button" className="g-chip" aria-pressed={filtro === null} onClick={() => setFiltro(null)}>Todos</button>
+          {grupos.map(({ g }) => (
+            <button key={g.id} type="button" className="g-chip" aria-pressed={filtro === g.id}
+              onClick={() => setFiltro(filtro === g.id ? null : g.id)}>
+              {g.icono ? `${g.icono} ` : ''}{g.nombre}
+            </button>
+          ))}
+        </nav>
       )}
 
-      {tarjetas.map(({ g, miembros, lineas, proximos, fechas, pendientes }) => (
-        <article key={g.id} className="g-pieza">
-          <Kicker>{miembros.length ? miembros.map(m => m.nombre).join(' · ') : 'Sin integrantes asignados'}</Kicker>
-          <h3 className="g-titular g-titular-secundario">{g.icono ? `${g.icono} ` : ''}{g.nombre}</h3>
-          {g.descripcion && <p className="g-bajada">{g.descripcion}</p>}
+      {grupos.length === 0 && (
+        <Vacio>Todavía no tenés círculos. Creá uno en el Cerebro (amigos, familia, cole) y va a aparecer acá.</Vacio>
+      )}
+      {grupos.length > 0 && columnas.length === 0 && (
+        <Vacio>Esta semana no hay nada para comentar. Cuando pase algo en tus círculos, aparece acá.</Vacio>
+      )}
 
-          {proximos.length > 0 && (
-            <>
-              <p className="g-subrotulo">Próximo</p>
-              <ul className="g-filas">
-                {proximos.map(p => (
-                  <li key={p.id} className="g-fila" style={p.propuesta ? { flexWrap: 'wrap' } : undefined}>
-                    <span className="g-fila-dia">{fechaCorta(p.fecha)}</span>
-                    <span className="g-fila-hora">{p.hora ?? ''}</span>
-                    <span className="g-fila-texto">{p.titulo}</span>
-                    {p.propuesta && (
-                      <button type="button" className="g-link" style={{ marginLeft: 'auto', background: 'none', border: 0, cursor: 'pointer' }}
-                        onClick={() => onAgendar(p.propuesta!.item, g, p.propuesta!.datos)}>
-                        Agendar
-                      </button>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
+      {pasado.map(renderColumna)}
 
-          {fechas.length > 0 && (
-            <>
-              <p className="g-subrotulo">Fechas</p>
-              <ul className="g-filas">
-                {fechas.map(({ f, cuando }) => (
-                  <li key={f.id} className="g-fila">
-                    <span className="g-fila-dia">{fechaCorta(cuando)}</span>
-                    <span className="g-fila-texto">{f.titulo}</span>
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
+      {futuro.length > 0 && (
+        <>
+          <p className="g-subrotulo">Lo que viene</p>
+          {futuro.map(renderColumna)}
+        </>
+      )}
 
-          <p className="g-subrotulo">Lo último</p>
-          {lineas.length === 0
-            ? <Vacio>Nada nuevo de este grupo.</Vacio>
-            : (
-              <ul className="g-filas">
-                {lineas.slice(0, 4).map(l => (
-                  <li key={l.id} className="g-fila" style={{ alignItems: 'flex-start' }}>
-                    <span className="g-fila-dia" style={{ fontSize: 14, minWidth: 64 }}>{fechaCorta(l.fecha)}</span>
-                    <span className="g-fila-texto" style={{ whiteSpace: 'normal' }}>
-                      {l.de && <strong>{l.de}: </strong>}{recortar(l.texto, 180)}
+      {grupos.length > 0 && (
+        <>
+          <p className="g-subrotulo">Notas al pie</p>
+          <ul className="g-filas">
+            {grupos.map(({ g, miembros, pendientes }) => (
+              <li key={g.id} className="g-fila" style={{ alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                <span className="g-fila-texto" style={{ whiteSpace: 'normal' }}>
+                  <strong>{g.icono ? `${g.icono} ` : ''}{g.nombre}</strong>
+                  {miembros.length > 0 && <> · {miembros.map(m => m.nombre).join(', ')}</>}
+                  {pendientes.length > 0 && (
+                    <span className="g-meta" style={{ display: 'block', margin: '2px 0 0' }}>
+                      {pendientes.map(p => `${p.direccion === 'le_debo' ? 'le debés' : 'te debe'}: ${p.descripcion}`).join(' · ')}
                     </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-
-          {pendientes.length > 0 && (
-            <>
-              <p className="g-subrotulo">Pendientes</p>
-              <ul className="g-filas">
-                {pendientes.map(p => (
-                  <li key={p.id} className="g-fila">
-                    <span className="g-fila-texto">{p.descripcion}</span>
-                    <span className="g-fila-chev">{p.direccion === 'le_debo' ? 'le debo' : 'me debe'}</span>
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
-        </article>
-      ))}
+                  )}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
 
       {sinCirculo.length > 0 && (
         <>
           <p className="g-subrotulo">Por asignar</p>
-          <p className="g-meta">Llegaron de WhatsApp y no son de ningún grupo. Asignalos desde el Inbox del Cerebro.</p>
+          <p className="g-meta">Llegaron de WhatsApp y no son de ningún círculo. Asignalos desde el Inbox del Cerebro.</p>
           <ul className="g-filas">
             {sinCirculo.map(i => (
               <li key={i.id} className="g-fila" style={{ alignItems: 'flex-start' }}>
                 <span className="g-fila-texto" style={{ whiteSpace: 'normal' }}>
-                  {i.remitente && <strong>{quitarSufijo(i.remitente)}: </strong>}{recortar(i.texto, 160)}
+                  {i.remitente && <strong>{quitarSufijo(i.remitente)}: </strong>}{corto(i.texto, 160)}
                 </span>
               </li>
             ))}

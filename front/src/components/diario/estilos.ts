@@ -133,4 +133,10 @@ export const CSS_GACETA = `
 .g-esqueleto { background:linear-gradient(90deg, var(--papel-2), var(--blanco), var(--papel-2)); background-size:200% 100%; animation:g-brillo 1.4s infinite linear; border-radius:4px; }
 @keyframes g-brillo { from { background-position:200% 0; } to { background-position:-200% 0; } }
 @media (prefers-reduced-motion: reduce) { .g-esqueleto { animation:none; } }
+
+/* Columna de opinión (Mis círculos) */
+.g-opinion { border-top:2px solid var(--bordo); padding:14px 0 26px; margin-top:6px; }
+.g-firma { font-size:11px; font-weight:600; letter-spacing:.14em; text-transform:uppercase; color:var(--bordo); margin:0 0 4px; }
+.g-dia-columna { font-family:var(--serif); font-style:italic; font-size:clamp(15px, 3.8vw, 17px); color:var(--gris); margin:0 0 6px; }
+.g-cuerpo p { font-family:var(--serif); font-size:clamp(17px, 4.2vw, 19px); line-height:1.62; color:var(--tinta); margin:0 0 12px; }
 `;
