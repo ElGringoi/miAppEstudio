@@ -43,8 +43,18 @@ Va en los secrets del agente, nunca en un repo. Este repo es público.
   titulo?:    string;   // ej. el asunto del mail
   remitente?: string;   // ej. "Martín (WhatsApp)" o "facturas@banco.com"
   url?:       string;   // link al original (el mail en Gmail, el mensaje, etc.)
+
+  // fecha y hora del evento que menciona el mensaje, si lo hay. Ej: "el jueves
+  // asado con el cole" → la fecha del jueves que viene (calculala vos, con la
+  // fecha de hoy en zona Argentina). Si no hay fecha clara, omitirlos.
+  fechaSugerida?: string;   // "YYYY-MM-DD"
+  horaSugerida?:  string;   // "HH:MM", 24 horas
 }
 ```
+
+Si el mensaje no menciona un día, no mandes `fechaSugerida`: la app intenta
+interpretar el texto por su cuenta ("mañana", "el sábado", "20hs"), pero si
+vos tenés la fecha exacta, es mejor mandarla.
 
 La app ordena por `recibidoEn`, de más nuevo a más viejo. Los campos
 `procesado`, `procesadoComo` y `procesadoEn` los maneja la app: el agente solo
