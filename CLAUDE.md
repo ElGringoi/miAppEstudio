@@ -160,8 +160,7 @@ Basado en el diseño de Stitch "RPG Productivity & Study System". **Solo modo os
 
 - Tests
 - CI/CD
-- Variables de entorno (`.env`)
-- Backend propio (la única función serverless es `api/edicion.ts` en Vercel, ver abajo)
+- Backend propio (solo funciones serverless de Vercel en `api/`, ver abajo)
 - i18n
 - Custom hooks (toda la lógica está en `App.tsx`)
 
@@ -173,4 +172,14 @@ Basado en el diseño de Stitch "RPG Productivity & Study System". **Solo modo os
 - `server/diario/` — lógica compartida: `fuentes.ts` (feeds por sección), `xml.ts` (parser RSS/Atom con `fast-xml-parser`), `red.ts` (timeouts, pool), `deportes.ts` (ESPN + Jolpica F1), `edicion.ts` (armado), `tipos.ts` y `fecha.ts` (también los usa el cliente).
 - En `npm run dev` la misma ruta la sirve un middleware de `vite.config.ts`. Imports relativos dentro de `api/` y `server/` con extensión `.js` (proyecto ESM).
 - Cliente: `front/src/utils/edicion.ts` (caché local, respaldo con `diarioSeed.ts`, ranking y selección por página) y `front/src/components/diario/` (piezas y páginas).
+
+---
+
+## Chat del Segundo Cerebro
+
+- `api/cerebro-chat.ts` — función serverless de Vercel (`POST /api/cerebro-chat`). Verifica el ID token de Firebase y llama a Groq.
+- Variables en Vercel: `GROQ_API_KEY` (obligatoria), `GROQ_MODEL` (opcional) y `VITE_FIREBASE_API_KEY` (para verificar el token). Plantilla en `.env.local.example`.
+- Keys de servicios pagos o privados **nunca** con prefijo `VITE_`: Vite las mete en el bundle del navegador.
+- Cliente: `front/src/lib/cerebro-api.ts` + `front/src/hooks/useCerebroChat.ts`. Si la IA falla, responde con la búsqueda local de `front/src/utils/cerebro-busqueda.ts`.
+- En `npm run dev` esta ruta no existe (el chat cae a la búsqueda local); para probarla, `vercel dev`. Setup completo en `SEGUNDO_CEREBRO_SETUP.md`.
 
