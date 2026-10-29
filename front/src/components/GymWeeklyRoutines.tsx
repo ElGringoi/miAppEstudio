@@ -41,7 +41,7 @@ export function GymWeeklyRoutines({ rutinas, stage = '2da Etapa' }: {
             return (
               <div
                 key={rutina.id}
-                className="flex-shrink-0 w-32 rounded-lg bg-surface-container-high p-3 space-y-2"
+                className="flex-1 min-w-0 max-w-32 rounded-lg bg-surface-container-high p-3 space-y-2"
               >
                 <p className="font-label text-xs font-bold text-secondary">
                   {diaActualEsHoy ? 'HOY' : ['DOM', 'LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB'][rutina.diasSemana[0]]}
