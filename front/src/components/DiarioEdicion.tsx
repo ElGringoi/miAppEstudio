@@ -5,25 +5,26 @@ import { useEffect, useMemo, useRef, useState, type TouchEvent } from 'react';
 import { Bookmark, ChevronLeft, ChevronRight, House, Menu, X } from 'lucide-react';
 import type {
   ArticuloEdicion, ArticuloGuardado, DeporteId, DiarioReaction, EdicionDiaria,
-  FSDiarioPrefs, FSEntradaDiario, FSEvento, FSHabito, FSMision, FSTarea,
+  FSDiarioPrefs, FSEntradaDiario, FSEvento, FSGrupo, FSInboxItem, FSPersona,
 } from '../types';
 import { armarSeleccion, numeroEdicion, terminosFavoritos } from '../utils/edicion';
-// "Tu día" usa el mismo HOY con el que la app guarda eventos, tareas y notas.
+// "Mis círculos" usa el mismo HOY con el que la app guarda eventos y notas.
 import { HOY } from '../utils/constants';
+import { PaginaCirculos } from './diario/Circulos';
 import { CSS_GACETA, NOMBRE_DIARIO } from './diario/estilos';
 import { DiarioContexto, type DiarioAcciones } from './diario/contexto';
 import {
-  PaginaArgentina, PaginaCiencia, PaginaContratapa, PaginaCultura, PaginaDeportes, PaginaDia,
+  PaginaArgentina, PaginaCiencia, PaginaContratapa, PaginaCultura, PaginaDeportes,
   PaginaMundo, PaginaPortada, VistaGuardados, type PaginaInfo,
 } from './diario/Paginas';
 
 interface Props {
   edicion:         EdicionDiaria | null;
-  fsHabitos:       FSHabito[];
   fsEventos:       FSEvento[];
-  fsTareas:        FSTarea[];
-  fsMisiones:      FSMision[];
   fsEntradas:      FSEntradaDiario[];
+  fsGrupos:        FSGrupo[];
+  fsPersonas:      FSPersona[];
+  fsInbox:         FSInboxItem[];
   diarioPrefs:     FSDiarioPrefs;
   visitadas:       string[];
   onVisitar:       (pagina: string) => void;
@@ -63,7 +64,7 @@ export function DiarioEdicion(props: Props) {
     const hayDeportes = s.deportes.piezas.length > 0 || edicion.deportes.resultados.length > 0 || edicion.deportes.proximos.length > 0;
     return [
       { key: 'portada',    nombre: 'Portada' },
-      { key: 'dia',        nombre: 'Tu día y trabajo' },
+      { key: 'dia',        nombre: 'Mis círculos' },
       ...(s.argentina.piezas.length ? [{ key: 'argentina', nombre: 'Argentina' }] : []),
       ...(s.mundo.piezas.length ? [{ key: 'mundo', nombre: 'Mundo y tecnología' }] : []),
       ...(hayDeportes ? [{ key: 'deportes', nombre: 'Deportes' }] : []),
@@ -153,7 +154,7 @@ export function DiarioEdicion(props: Props) {
     if (!seleccion || !edicion || !pagina) return null;
     switch (pagina.key) {
       case 'portada':    return <PaginaPortada sel={seleccion} paginas={paginas} onIr={irA} idTitulo={ID_TITULO} />;
-      case 'dia':        return <PaginaDia fsHabitos={props.fsHabitos} fsEventos={props.fsEventos} fsTareas={props.fsTareas} fsMisiones={props.fsMisiones} fsEntradas={props.fsEntradas} hoy={HOY} idTitulo={ID_TITULO} />;
+      case 'dia':        return <PaginaCirculos fsGrupos={props.fsGrupos} fsPersonas={props.fsPersonas} fsInbox={props.fsInbox} fsEventos={props.fsEventos} fsEntradas={props.fsEntradas} hoy={HOY} idTitulo={ID_TITULO} />;
       case 'argentina':  return <PaginaArgentina sel={seleccion} idTitulo={ID_TITULO} />;
       case 'mundo':      return <PaginaMundo sel={seleccion} idTitulo={ID_TITULO} />;
       case 'deportes':   return <PaginaDeportes sel={seleccion} edicion={edicion} onPrefsDeportes={props.onPrefsDeportes} idTitulo={ID_TITULO} />;

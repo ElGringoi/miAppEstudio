@@ -4003,11 +4003,11 @@ export default function App() {
               <div className="-mx-4 -mt-4 -mb-24 md:-mx-8 md:-mt-8 md:-mb-8">
                 <DiarioEdicion
                   edicion={edicionMostrada}
-                  fsHabitos={fsHabitos}
                   fsEventos={fsEventos}
-                  fsTareas={fsTareas}
-                  fsMisiones={fsMisiones}
                   fsEntradas={fsDiario}
+                  fsGrupos={fsGrupos}
+                  fsPersonas={fsPersonas}
+                  fsInbox={fsInbox}
                   diarioPrefs={fsDiarioPrefs}
                   visitadas={edicionMostrada && diarioVisitadas.fecha === edicionMostrada.fecha ? diarioVisitadas.paginas : []}
                   onVisitar={visitarPaginaDiario}
