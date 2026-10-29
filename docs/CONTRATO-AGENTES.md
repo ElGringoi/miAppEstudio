@@ -25,7 +25,7 @@ flowchart LR
   D -->|spec de pantalla| I["Implementador<br/>código"]
   I -->|PR| R["Revisor<br/>correctitud y reglas"]
   R -->|aprobado| Q["QA<br/>criterios y estados"]
-  Q -->|ok| G(["Gastón<br/>merge"])
+  Q -->|ok| G(["Merge a main<br/>el mismo agente"])
   R -.->|cambios| I
   Q -.->|falla| I
   AX["Agente externo Inbox"] -->|"docs en inbox, esquema fijo"| FS[("Firestore")]
@@ -75,6 +75,7 @@ flowchart LR
 3. Antes de abrir el PR: `npm run lint`, `npx tsc -b`, `npm run build` (y `npm test` cuando exista). Pegar el resultado en la descripción.
 4. Un PR que empeora un número de [criterios-objetivos.md](06-calidad/criterios-objetivos.md) explica por qué en la descripción.
 5. Las decisiones que cambian arquitectura, esquema, estilo o dependencias grandes **llevan ADR** (sección 5).
+6. **Todo termina en `main`:** con los checks del punto 3 en verde y el preview de Vercel *Ready*, el mismo agente mergea su PR (squash). Producción solo publica `main`. Detalle y excepciones en [`CLAUDE.md`](../CLAUDE.md#flujo-de-trabajo-todo-termina-en-main).
 
 ## 4. Plantillas de handoff
 
@@ -146,4 +147,4 @@ Una tarea está terminada cuando:
 - [ ] Lint, tsc y build pasan; tests nuevos para la lógica nueva.
 - [ ] No empeora ningún criterio objetivo sin explicarlo.
 - [ ] Los docs afectados están actualizados (incluido "Hoy (as-is)" si cambió la realidad).
-- [ ] Gastón la vio funcionando o la aprobó en el PR.
+- [ ] Está mergeada en `main` (o Gastón pidió no mergearla, o el PR quedó abierto con el bloqueo explicado).

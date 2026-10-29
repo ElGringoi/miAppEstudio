@@ -78,7 +78,7 @@ flowchart LR
   E --> G["firebase deploy --only firestore:rules<br/>si cambió firestore.rules"]
 ```
 
-Hoy existen los pasos A, B, E y F. Los checks (D) llegan con la CI de [estrategia-pruebas.md](../06-calidad/estrategia-pruebas.md). El deploy de reglas (G) llega con [ADR-0006](../08-decisiones/ADR-0006-firestore-rules.md).
+Hoy existen los pasos A, B, E y F. El merge (E) lo hace el mismo agente que abrió el PR, cuando los checks pasan en local y el preview está *Ready* (ver [`CLAUDE.md`](../../CLAUDE.md#flujo-de-trabajo-todo-termina-en-main)). Los checks (D) llegan con la CI de [estrategia-pruebas.md](../06-calidad/estrategia-pruebas.md). El deploy de reglas (G) llega con [ADR-0006](../08-decisiones/ADR-0006-firestore-rules.md).
 
 ### Limpieza
 

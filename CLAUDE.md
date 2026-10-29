@@ -32,6 +32,18 @@ Módulos principales:
 
 ---
 
+## Flujo de trabajo: todo termina en `main`
+
+Vercel publica en producción **solo lo que está en `main`**. Cada chat trabaja en su propia rama (`claude/...`), y esa rama solo genera un Preview: si no se mergea, el cambio nunca llega a la app. Por pedido de Gastón, cada sesión cierra su trabajo en `main`:
+
+1. **Al empezar:** partir de `main` actualizado. `git fetch origin main` y crear la rama desde `origin/main`; si la rama ya tiene commits sin mergear, mergear `origin/main` en ella antes de tocar nada.
+2. **Al terminar cada pedido** que cambie código o docs: commit, push, PR a `main` y **mergearlo con squash** cuando pasen `npm run lint`, `npx tsc -b`, `npm run build` y `npm test`, y el preview de Vercel esté *Ready*. No hace falta que Gastón lo pida.
+3. **Si el PR choca con `main`:** mergear `origin/main` en la rama, resolver, volver a correr los checks y recién ahí mergear.
+4. **Si no se puede mergear** (checks rojos, o un conflicto que obliga a elegir entre dos comportamientos): dejar el PR abierto y decirle a Gastón exactamente qué lo bloquea.
+5. **Excepción:** si Gastón dice "no lo mergees" o "solo abrí el PR", se respeta.
+
+---
+
 ## Stack
 
 | Capa | Tecnología |

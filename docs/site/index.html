@@ -153,7 +153,7 @@ a:hover { text-decoration-thickness: 2px; }
   <aside class="lateral" aria-label="Índice de la documentación">
     <div class="marca">
       <span class="marca-sello" aria-hidden="true">Q</span>
-      <span><strong>Planos de miAppEstudio</strong><small>Relevado 2026-10-22 · 5c6e854</small></span>
+      <span><strong>Planos de miAppEstudio</strong><small>Relevado 2026-10-29 · 5b3231e</small></span>
     </div>
     <details class="indice" open>
       <summary>Índice · 43 documentos · 41 diagramas</summary>
@@ -206,7 +206,7 @@ a:hover { text-decoration-thickness: 2px; }
   D --&gt;|spec de pantalla| I[&quot;Implementador&lt;br/&gt;código&quot;]
   I --&gt;|PR| R[&quot;Revisor&lt;br/&gt;correctitud y reglas&quot;]
   R --&gt;|aprobado| Q[&quot;QA&lt;br/&gt;criterios y estados&quot;]
-  Q --&gt;|ok| G([&quot;Gastón&lt;br/&gt;merge&quot;])
+  Q --&gt;|ok| G([&quot;Merge a main&lt;br/&gt;el mismo agente&quot;])
   R -.-&gt;|cambios| I
   Q -.-&gt;|falla| I
   AX[&quot;Agente externo Inbox&quot;] --&gt;|&quot;docs en inbox, esquema fijo&quot;| FS[(&quot;Firestore&quot;)]</pre></div>
@@ -219,7 +219,7 @@ a:hover { text-decoration-thickness: 2px; }
 <h4 id="contrato-agentes--seguridad">Seguridad</h4>
 <ol><li><strong>Ningún secreto con prefijo <code>VITE_</code>.</strong> Las keys de terceros viven solo en Vercel.</li><li>Nada de <code>.env</code> en commits.</li><li>Cambiar <code>firestore.rules</code> exige correr los tests del emulador.</li><li>HTML generado desde contenido del usuario o de terceros: escapado antes de <code>dangerouslySetInnerHTML</code>.</li></ol>
 <h4 id="contrato-agentes--proceso">Proceso</h4>
-<ol><li><strong>PRs chicos:</strong> un objetivo por PR. Mover código y cambiar comportamiento van en PRs separados.</li><li>Mensajes de commit en español informal (&quot;Agrego X&quot;, &quot;Corrijo Y&quot;), sin prefijos (<code>CLAUDE.md</code>).</li><li>Antes de abrir el PR: <code>npm run lint</code>, <code>npx tsc -b</code>, <code>npm run build</code> (y <code>npm test</code> cuando exista). Pegar el resultado en la descripción.</li><li>Un PR que empeora un número de <a href="#06-calidad-criterios-objetivos">criterios-objetivos.md</a> explica por qué en la descripción.</li><li>Las decisiones que cambian arquitectura, esquema, estilo o dependencias grandes <strong>llevan ADR</strong> (sección 5).</li></ol>
+<ol><li><strong>PRs chicos:</strong> un objetivo por PR. Mover código y cambiar comportamiento van en PRs separados.</li><li>Mensajes de commit en español informal (&quot;Agrego X&quot;, &quot;Corrijo Y&quot;), sin prefijos (<code>CLAUDE.md</code>).</li><li>Antes de abrir el PR: <code>npm run lint</code>, <code>npx tsc -b</code>, <code>npm run build</code> (y <code>npm test</code> cuando exista). Pegar el resultado en la descripción.</li><li>Un PR que empeora un número de <a href="#06-calidad-criterios-objetivos">criterios-objetivos.md</a> explica por qué en la descripción.</li><li>Las decisiones que cambian arquitectura, esquema, estilo o dependencias grandes <strong>llevan ADR</strong> (sección 5).</li><li><strong>Todo termina en <code>main</code>:</strong> con los checks del punto 3 en verde y el preview de Vercel <em>Ready</em>, el mismo agente mergea su PR (squash). Producción solo publica <code>main</code>. Detalle y excepciones en <a href="https://github.com/ElGringoi/miAppEstudio/blob/main/CLAUDE.md" target="_blank" rel="noopener"><code>CLAUDE.md</code></a>.</li></ol>
 <h3 id="contrato-agentes--4-plantillas-de-handoff">4. Plantillas de handoff</h3>
 <h4 id="contrato-agentes--41-brief-planificador-disenador">4.1 Brief (Planificador → Diseñador)</h4>
 <div class="codigo"><pre><code data-lang="markdown">## Brief: &lt;nombre&gt;
@@ -259,7 +259,7 @@ a:hover { text-decoration-thickness: 2px; }
 <p>Formato: <a href="#08-decisiones-plantilla">08-decisiones/plantilla.md</a>.</p>
 <h3 id="contrato-agentes--6-definition-of-done">6. Definition of Done</h3>
 <p>Una tarea está terminada cuando:</p>
-<ul><li class="tarea"><span class="check" aria-hidden="true"></span>Cumple sus criterios de aceptación (con evidencia).</li><li class="tarea"><span class="check" aria-hidden="true"></span>Tiene los 7 estados de pantalla, o justifica los que no aplican.</li><li class="tarea"><span class="check" aria-hidden="true"></span>Usa solo tokens y componentes del catálogo.</li><li class="tarea"><span class="check" aria-hidden="true"></span>Lint, tsc y build pasan; tests nuevos para la lógica nueva.</li><li class="tarea"><span class="check" aria-hidden="true"></span>No empeora ningún criterio objetivo sin explicarlo.</li><li class="tarea"><span class="check" aria-hidden="true"></span>Los docs afectados están actualizados (incluido &quot;Hoy (as-is)&quot; si cambió la realidad).</li><li class="tarea"><span class="check" aria-hidden="true"></span>Gastón la vio funcionando o la aprobó en el PR.</li></ul>
+<ul><li class="tarea"><span class="check" aria-hidden="true"></span>Cumple sus criterios de aceptación (con evidencia).</li><li class="tarea"><span class="check" aria-hidden="true"></span>Tiene los 7 estados de pantalla, o justifica los que no aplican.</li><li class="tarea"><span class="check" aria-hidden="true"></span>Usa solo tokens y componentes del catálogo.</li><li class="tarea"><span class="check" aria-hidden="true"></span>Lint, tsc y build pasan; tests nuevos para la lógica nueva.</li><li class="tarea"><span class="check" aria-hidden="true"></span>No empeora ningún criterio objetivo sin explicarlo.</li><li class="tarea"><span class="check" aria-hidden="true"></span>Los docs afectados están actualizados (incluido &quot;Hoy (as-is)&quot; si cambió la realidad).</li><li class="tarea"><span class="check" aria-hidden="true"></span>Está mergeada en <code>main</code> (o Gastón pidió no mergearla, o el PR quedó abierto con el bloqueo explicado).</li></ul>
 
   <footer class="doc-pie"><a href="https://github.com/ElGringoi/miAppEstudio/blob/main/docs/CONTRATO-AGENTES.md" target="_blank" rel="noopener">Ver o editar en GitHub</a> · <a href="#arriba">Volver arriba</a></footer>
 </article>
@@ -287,7 +287,14 @@ a:hover { text-decoration-thickness: 2px; }
   titulo?:    string;   // ej. el asunto del mail
   remitente?: string;   // ej. &quot;Martín (WhatsApp)&quot; o &quot;facturas@banco.com&quot;
   url?:       string;   // link al original (el mail en Gmail, el mensaje, etc.)
+
+  // fecha y hora del evento que menciona el mensaje, si lo hay. Ej: &quot;el jueves
+  // asado con el cole&quot; → la fecha del jueves que viene (calculala vos, con la
+  // fecha de hoy en zona Argentina). Si no hay fecha clara, omitirlos.
+  fechaSugerida?: string;   // &quot;YYYY-MM-DD&quot;
+  horaSugerida?:  string;   // &quot;HH:MM&quot;, 24 horas
 }</code></pre></div>
+<p>Si el mensaje no menciona un día, no mandes <code>fechaSugerida</code>: la app intenta interpretar el texto por su cuenta (&quot;mañana&quot;, &quot;el sábado&quot;, &quot;20hs&quot;), pero si vos tenés la fecha exacta, es mejor mandarla.</p>
 <p>La app ordena por <code>recibidoEn</code>, de más nuevo a más viejo. Los campos <code>procesado</code>, <code>procesadoComo</code> y <code>procesadoEn</code> los maneja la app: el agente solo crea documentos con <code>procesado: false</code> y no los modifica después.</p>
 <p>Para no duplicar un mensaje que ya entregaste, usá un id de documento estable derivado del original (por ejemplo <code>gmail-&lt;messageId&gt;</code>) y escribí con <code>set</code>: si ya existe, se pisa con el mismo contenido en vez de crear otro.</p>
 <h3 id="inboxagente--ejemplo-node-admin-sdk">Ejemplo (Node, Admin SDK)</h3>
@@ -2350,7 +2357,7 @@ VITE_FIREBASE_APP_ID=
   D -- rojo --&gt; A
   E --&gt; F[&quot;Vercel Production&quot;]
   E --&gt; G[&quot;firebase deploy --only firestore:rules&lt;br/&gt;si cambió firestore.rules&quot;]</pre></div>
-<p>Hoy existen los pasos A, B, E y F. Los checks (D) llegan con la CI de <a href="#06-calidad-estrategia-pruebas">estrategia-pruebas.md</a>. El deploy de reglas (G) llega con <a href="#08-decisiones-adr-0006-firestore-rules">ADR-0006</a>.</p>
+<p>Hoy existen los pasos A, B, E y F. El merge (E) lo hace el mismo agente que abrió el PR, cuando los checks pasan en local y el preview está <em>Ready</em> (ver <a href="https://github.com/ElGringoi/miAppEstudio/blob/main/CLAUDE.md" target="_blank" rel="noopener"><code>CLAUDE.md</code></a>). Los checks (D) llegan con la CI de <a href="#06-calidad-estrategia-pruebas">estrategia-pruebas.md</a>. El deploy de reglas (G) llega con <a href="#08-decisiones-adr-0006-firestore-rules">ADR-0006</a>.</p>
 <h4 id="07-operaciones-entornos-y-deploy--limpieza">Limpieza</h4>
 <ul><li>Sacar el bloque <code>hosting</code> de <code>firebase.json</code> o documentar que es un respaldo.</li><li>Borrar las ramas viejas ya mergeadas (<code>git branch -a</code> muestra 9 locales y 14 remotas).</li></ul>
 
